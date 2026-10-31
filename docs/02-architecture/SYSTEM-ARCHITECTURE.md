@@ -2,7 +2,7 @@
 
 ## Current repository state
 
-The M1 implementation is one Java/Spring Boot API with PostgreSQL. It persists research jobs but does not search the web, call an LLM, ingest documents, or run cyber checks.
+M1 is a Java/Spring Boot API with PostgreSQL. It persists research jobs but does not search the web, call an LLM, ingest documents, or run cyber checks. M2 adds a separate Python FastAPI process with a configuration-backed health endpoint; it has no data, model, or provider access.
 
 ## Target architecture
 
@@ -28,21 +28,22 @@ flowchart LR
 
 The UI submits requests and displays evidence; Java owns durable state and policy; adapters contact configured sources; PostgreSQL stores jobs, provenance, documents, evidence, and findings; Python is a narrow model service; reports link back to stored evidence.
 
-Arrows represent trust flow: requests pass Java authorization before external reads. Responses are normalized and stored with provenance. Only selected evidence reaches a model. Model output is validated and stored as interpretation. Reports do not replace evidence.
+Arrows represent target trust flow: requests pass Java authorization before external reads. Responses are normalized and stored with provenance. Only selected evidence reaches a model. Model output is validated and stored as interpretation. Reports do not replace evidence.
 
 Why: Java matches the owner's backend strengths; Python concentrates AI libraries behind a small service boundary; PostgreSQL provides transactions and FTS without a separate data platform.
 
 **Interview:** “Spring Boot owns the product API and durable workflow. Python is an optional AI boundary, not the authority for access control. PostgreSQL remains the system of record.”
 
-## M1 container diagram
+## Current M1/M2 container diagram
 
-Only the current Spring API and PostgreSQL are implemented in M1. Python, UI, providers, and reports are future containers.
+Spring and Python services plus PostgreSQL are implemented. The AI service currently exposes only health and does not connect to Java, PostgreSQL, models, or external providers.
 
 ~~~mermaid
 flowchart TB
   Owner[Single local owner] -->|HTTP Basic over loopback| Spring[Spring Boot API]
   Spring -->|JDBC| PostgreSQL[(PostgreSQL)]
   Spring -->|Flyway migration at startup| PostgreSQL
+  Owner -->|loopback health only| Python[FastAPI AI service]
 ~~~
 
 ## Research request lifecycle
@@ -86,4 +87,5 @@ Future flow only. Parsing, chunking, indexing, retrieval, and synthesis remain s
 
 ## Deployment target
 
-Docker Compose runs PostgreSQL and the API, exposed only on loopback. Local model runtime is opt-in. Remote access requires separate auth, TLS, retention, and abuse review.
+Docker Compose runs PostgreSQL and the Spring API and AI service, with host ports bound to loopback. The AI service has no outbound integrations in M2. Local model runtime is opt-in. Remote access requires separate auth, TLS, retention, and abuse review.
+

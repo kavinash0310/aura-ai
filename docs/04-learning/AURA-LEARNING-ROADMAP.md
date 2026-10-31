@@ -14,12 +14,13 @@ Extend only after basics: pagination, idempotency, audit, OIDC.
 
 ## Phase 2 — Python AI service
 Learn Python OOP/typing, virtual environments, Pydantic, FastAPI, ASGI, asyncio/blocking I/O, packaging/lock files, HTTP timeout/retry.
-Implement health, settings, schemas, logging, error mapping, contract version.
+Implemented: Python 3.12 service, settings via Pydantic Settings, FastAPI lifespan and typed health response, uv lock, isolated container, and CI tests. No AI call or network access is present yet.
 Review: Why can POST retry duplicate work? What blocks the event loop? Explain what authority Python does not own.
+Next: define a typed, bounded Java-to-Python contract only when a real model transformation is added.
 
 ## Phase 3 — Documents and retrieval
 Learn encodings, parser risk, metadata, chunking/offsets, tokenization, inverted indexes, embeddings, vector similarity, access filters.
-Implement upload validation → parser → normalized text → chunks → PostgreSQL FTS → retrieval → citations. Benchmark before pgvector.
+Implement explicit upload validation → parser → normalized text → chunks → PostgreSQL FTS → retrieval → citations. Benchmark before pgvector.
 Review: How does chunk size alter context/recall? What if retrieval is irrelevant? How is citation tied to page/offset?
 Explain keyword vs semantic search and the lifecycle.
 
@@ -42,3 +43,4 @@ Review replay, retries, terminal failures, and policy boundary.
 Learn CVE/CPE/SBOM, CVSS vs EPSS, KEV semantics, confidence, Docker networking, CI, logs, backups.
 Implement adapters, transparent ranking, evaluation, packaging and runbooks.
 Review evidence for priority and how restore is verified.
+

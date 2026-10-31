@@ -1,4 +1,4 @@
-name: Backend verification
+name: Backend and AI service verification
 
 on:
   push:
@@ -23,3 +23,41 @@ jobs:
           cache: maven
       - name: Verify backend
         run: mvn -B -ntp -f backend/pom.xml verify
+
+  verify-ai-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.6"
+          python-version: "3.12"
+      - name: Install locked dependencies
+        run: uv sync --locked --all-groups
+      - name: Verify AI service
+        run: uv run pytest
+      - name: Check Python style
+        run: uv run ruff check src tests
+
+  verify-compose:
+    runs-on: ubuntu-latest
+    env:
+      AURA_DB_NAME: aura_ci
+      AURA_DB_USER: aura_ci
+      AURA_DB_PASSWORD: test-only-not-a-real-password-000000000000
+      AURA_AUTH_USERNAME: owner
+      AURA_AUTH_PASSWORD: test-only-not-a-real-password-000000000000
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Build the AI service image
+        run: docker compose build ai
+
+

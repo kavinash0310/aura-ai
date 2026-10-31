@@ -22,6 +22,11 @@ Requires authentication. Returns the response fields above; returns 404 Problem 
 
 A REQUESTED job is a persisted request only. M1 does not search sources.
 
+## Implemented M2 route
+
+### GET /api/v1/health (Python AI service)
+Public loopback health response: { "status": "UP", "service": "aura-ai-service", "version": "0.1.0" }. OpenAPI and interactive docs are disabled. This service has no model or provider routes yet.
+
 ## Planned contract rules
 
 - Every request has a server-generated request ID; propagate it to downstream AI calls.
@@ -40,3 +45,4 @@ A REQUESTED job is a persisted request only. M1 does not search sources.
 - POST /api/v1/knowledge/search — owner-filtered full-text retrieval.
 - GET /api/v1/reports/{id}/export?format=md|pdf|json|csv.
 - GET /api/v1/findings — defensive vulnerability findings.
+

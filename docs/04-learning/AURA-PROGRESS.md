@@ -5,8 +5,8 @@ Do not mark a skill complete because code was generated. The owner should explai
 ## Snapshot — 2026-10-31
 
 - Repository was empty; no previous implementation or conventions existed.
-- Project brief, architecture foundation, and first Spring API milestone are being established on codex/phase-0-foundation.
-- Concepts completed: none recorded.
+- M1 Spring API is implemented and CI verified; M2 Python service and local checks are implemented.
+- Concepts completed: none assessed yet.
 - Skills demonstrated independently: none recorded.
 - Background assumption: Java/Spring experience; Python/AI/ML learning; Windows with 16 GB RAM.
 
@@ -14,9 +14,10 @@ Do not mark a skill complete because code was generated. The owner should explai
 
 | Milestone | Status | Evidence | Owner explanation assessed? | Next action |
 |---|---|---|---|---|
-| M0 context and architecture | In progress | Requirements, ADRs, boundaries, threat model, learning map | No | Review choices; draw request flow |
-| M1 Spring API | In progress | Backend source and CI branch | No | Run tests and explain lifecycle |
-| M2 Python service | Not started | No Python code | No | Study Python, ASGI, Pydantic |
+| M0 context and architecture | Implemented; review pending | Requirements, ADRs, boundaries, threat model, learning map | No | Review choices; draw request and trust flows |
+| M1 Spring API | Implemented; explanation pending | Backend source and passing CI | No | Run tests and explain lifecycle |
+| M2 Python service | Implemented; explanation pending | FastAPI health, settings, uv lock, 3 tests, Ruff check | No | Explain ASGI, settings, Pydantic, and test client |
+| M3 document lifecycle | Not started | No document code | No | Design upload limits and text extraction boundary |
 
 ## Check-in template
 
@@ -27,3 +28,4 @@ Do not mark a skill complete because code was generated. The owner should explai
 - Test/evaluation interpreted:
 - Questions remaining:
 - Next exercise:
+

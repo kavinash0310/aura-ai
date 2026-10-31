@@ -31,6 +31,10 @@ Research queries and reports; selected documents and source excerpts; account to
 | Resource exhaustion | Huge results consume unbounded tokens | Input/result/token/time quotas, step limits, cancellation |
 | Source rights issue | Export republishes restricted post text | Source-specific display, storage, retention, deletion rules |
 
+## Current Python service scope
+
+The M2 service accepts no research or document content, has no credential, database, or model integration, and exposes only a loopback health endpoint. Interactive API documentation is disabled. Future model calls must be initiated by the authorized Java workflow with minimized, typed inputs.
+
 ## Permission levels
 
 L0 explain from existing evidence. L1 search approved public providers and fetch permitted pages. L2 read explicitly selected sources/documents. L3 analyze selected local data without network probes. L4 fixed safe checks against authorized resources with approval. L5 state-changing, exploitative, unrestricted access is out of scope.
@@ -42,3 +46,4 @@ Fail closed on missing scope/configuration. No model-generated shell, browser au
 ## Residual risks
 
 Public information may be false, incomplete, stale, or wrongly attributed. Search coverage is partial. Local Basic Auth is for a development milestone, not internet-facing identity. Update this model as connectors and parsers are added.
+

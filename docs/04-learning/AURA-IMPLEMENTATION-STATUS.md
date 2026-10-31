@@ -9,9 +9,8 @@ Updated 2026-10-31.
 | Architecture, data/API boundaries, ADRs, threat model | Documented proposal | docs/02-architecture and docs/03-adr |
 | Spring Boot API | M1 implemented; GitHub Actions passed (compile + 4 API tests) | backend source and Actions run for 01ae1be |
 | PostgreSQL migration and Compose | M1 implemented; migration and API integration tests passed | backend migration, compose.yaml, Actions run for 01ae1be |
-| Python AI service | Not implemented | M2 |
-| Frontend | Not implemented | After API stabilizes |
-| Public web/news/social search | Not implemented | M5; provider selection pending |
+| Python AI service | M2 implemented; 3 local tests and Ruff checks passed | ai-service source, locked uv environment, and workflow |
+| Public web/news/social search | Not implemented | M5; provider selection and credentials remain future work |
 | Document ingestion/RAG | Not implemented | M3 |
 | LLM/model gateway | Not implemented | M4 |
 | Cybersecurity ingestion/SBOM | Not implemented | M7 |
@@ -19,4 +18,5 @@ Updated 2026-10-31.
 
 ## Verification rule
 
-Do not claim build/tests passed until GitHub Actions is green or a local command ran. Basic Auth is loopback development only. Branch and CI are source of truth.
+Do not claim build/tests passed until GitHub Actions is green or a local command ran. Basic Auth is loopback development only. The Python service currently exposes only a loopback health endpoint and cannot access a model or data provider.
+

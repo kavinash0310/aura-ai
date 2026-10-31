@@ -33,5 +33,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  ai:
+    build:
+      context: ./ai-service
+    environment:
+      AURA_AI_LOG_LEVEL: ${AURA_AI_LOG_LEVEL:-INFO}
+    ports:
+      - "127.0.0.1:8001:8000"
+    restart: unless-stopped
+
 volumes:
   aura-postgres-data:
+
+

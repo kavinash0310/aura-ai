@@ -10,12 +10,12 @@ This is also a practical AI software engineering learning path: a Java/Spring ap
 - Reports preserve source links, retrieval times, coverage limits, and the difference between source claims and model interpretation.
 - Person-focused research is for public-interest information; no doxxing, invasive profiling, sensitive-trait inference, or private-account access.
 - Cybersecurity features are defensive and informational. Any future active checks require explicit scope and approval.
-- Retrieved pages and documents are untrusted input. The model cannot grant itself permissions or execute arbitrary commands.
+- Retrieved pages and documents are untrusted input. Models cannot grant themselves permissions or execute arbitrary commands.
 
 ## Initial stack
 
 - Java 21 + Spring Boot for APIs, persistence, validation, and security.
-- Python + FastAPI for AI workflows when a separate service is justified.
+- Python 3.12 + FastAPI for bounded AI workloads when useful.
 - PostgreSQL for the system of record and initial full-text search; vector search follows measured need.
 - React + TypeScript for the workspace UI after API contracts stabilize.
 - Docker Compose for local Windows development.
@@ -23,21 +23,23 @@ This is also a practical AI software engineering learning path: a Java/Spring ap
 
 ## Current milestone
 
-The first code milestone persists a research request through Spring Boot and PostgreSQL. It exposes a health endpoint and authenticated create/read routes. A request in REQUESTED state records intent only; web research, document processing, models, and cybersecurity feeds are future milestones.
+M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI service with validated configuration and a health endpoint. The AI service has no model, database, connector, or external-network capability yet. Research search, documents, synthesis, and exports remain future work.
 
 See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and [MVP backlog](docs/00-overview/MVP-AND-BACKLOG.md).
 
 ## Local development
 
-Requirements: JDK 21, Docker Desktop with Compose, Git, and Maven 3.9+ if running Maven outside Docker.
+Requirements: JDK 21, Docker Desktop with Compose, Git, Maven 3.9+ for local Java builds, and Python 3.12+ with uv 0.13.6 for local AI-service work.
 
 1. Copy .env.example to .env and replace all placeholder values with unique random passwords of at least 24 characters.
 2. Keep .env private and untracked.
 3. Start the stack with docker compose up --build.
-4. Health endpoint: http://127.0.0.1:8080/api/v1/health
-5. Verify Java tests with mvn -f backend/pom.xml verify.
+4. Spring health: http://127.0.0.1:8080/api/v1/health
+5. AI-service health: http://127.0.0.1:8001/api/v1/health
+6. Verify Java tests with mvn -f backend/pom.xml verify.
+7. In a terminal, change to ai-service, then run uv sync --locked --all-groups, uv run pytest, and uv run ruff check src tests.
 
-Basic Auth is local-development-only. Do not expose or port-forward the API. See [local development guide](docs/19-operations/LOCAL-DEV.md).
+Both host ports bind to loopback. The Python health endpoint is public and returns no user data. The Spring API uses development-only Basic Auth. Do not expose or port-forward either service. See [local development guide](docs/19-operations/LOCAL-DEV.md).
 
 ## Start here
 
@@ -55,3 +57,4 @@ Basic Auth is local-development-only. Do not expose or port-forward the API. See
 ## Learning agreement
 
 Generated code is not evidence of mastery. Each milestone includes prerequisites, review questions, and an explanation exercise. Progress is marked complete only after the owner can explain or modify the feature independently.
+

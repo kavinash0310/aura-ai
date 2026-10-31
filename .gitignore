@@ -8,8 +8,12 @@
 .vscode/
 **/.venv/
 **/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
 *.py[cod]
 **/node_modules/
 **/dist/
 .DS_Store
 Thumbs.db
+
+
