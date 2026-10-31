@@ -7,8 +7,8 @@ Updated 2026-10-31.
 | Project brief and README | Implemented | Root README |
 | Requirements and MVP | Documented | docs/00-overview |
 | Architecture, data/API boundaries, ADRs, threat model | Documented proposal | docs/02-architecture and docs/03-adr |
-| Spring Boot API | M1 branch implementation; awaiting CI verification | backend source |
-| PostgreSQL migration and Compose | M1 branch implementation; awaiting CI verification | backend migration and compose.yaml |
+| Spring Boot API | M1 implemented; GitHub Actions passed (compile + 4 API tests) | backend source and Actions run for 01ae1be |
+| PostgreSQL migration and Compose | M1 implemented; migration and API integration tests passed | backend migration, compose.yaml, Actions run for 01ae1be |
 | Python AI service | Not implemented | M2 |
 | Frontend | Not implemented | After API stabilizes |
 | Public web/news/social search | Not implemented | M5; provider selection pending |
