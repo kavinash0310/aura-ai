@@ -12,6 +12,10 @@ Public liveness response: `{ "status": "UP", "service": "aura-api" }`.
 
 Public response: `{ "status": "UP", "service": "aura-ai-service", "version": "0.1.0" }`. OpenAPI and interactive docs are disabled. The service has no model, database, or research-provider route.
 
+### GET `/api/v1/session`
+
+Authenticated check used by the local UI to validate the owner's Basic Auth credentials before searching. Response: `{ "authenticated": true }`. It creates no session and returns no credential or profile data.
+
 ## Research jobs
 
 ### POST `/api/v1/research-jobs`
@@ -71,4 +75,3 @@ Downloads the same filtered result set as JSON, CSV, or Markdown. `format` defau
 - Person research is limited to public-interest material. Do not use this for doxxing, sensitive-trait inference, invasive tracking, or private-account access.
 - Research history, queries, and source metadata currently have no delete or retention endpoint; add those before multi-user or hosted use.
 - Future work: cursor-paginated history; source-specific adapters with their own quotas and terms; document upload and owner-filtered retrieval; cited synthesis; report retention/deletion; defensive findings.
-

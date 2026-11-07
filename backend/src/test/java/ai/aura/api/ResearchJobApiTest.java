@@ -49,6 +49,16 @@ class ResearchJobApiTest {
     }
 
     @Test
+    void sessionCheckRequiresAuthenticationAndConfirmsValidCredentials() throws Exception {
+        mockMvc.perform(get("/api/v1/session"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/session").with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authenticated").value(true));
+    }
+
+    @Test
     void createsAndReadsAResearchJob() throws Exception {
         String location = mockMvc.perform(post("/api/v1/research-jobs")
                         .with(httpBasic(USERNAME, PASSWORD))
@@ -109,4 +119,3 @@ class ResearchJobApiTest {
                 .andExpect(jsonPath("$.failureCode").doesNotExist());
     }
 }
-

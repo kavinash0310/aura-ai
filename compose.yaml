@@ -43,6 +43,14 @@ services:
       - "127.0.0.1:8001:8000"
     restart: unless-stopped
 
+  web:
+    build:
+      context: ./web
+    ports:
+      - "127.0.0.1:3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
 volumes:
   aura-postgres-data:
-

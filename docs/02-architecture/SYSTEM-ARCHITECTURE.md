@@ -2,7 +2,7 @@
 
 ## Current repository state
 
-The repository now has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, and a first bounded public-search adapter. A completed request can query the configured Brave Search API for web, news, and discussion results, save source metadata, filter results, and download JSON/CSV/Markdown. Search is manual and single-provider. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, ingest documents, or run cyber checks.
+The repository now has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, a local React workspace served through Nginx, and a first bounded public-search adapter. A completed request can query the configured Brave Search API for web, news, and discussion results, save source metadata, filter results, and download JSON/CSV/Markdown. Search is manual and single-provider. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, ingest documents, or run cyber checks.
 
 ## Target architecture
 
@@ -40,7 +40,8 @@ Spring, Python, and PostgreSQL services are implemented. Only the Spring API has
 
 ~~~mermaid
 flowchart TB
-  Owner[Single local owner] -->|HTTP Basic over loopback| Spring[Spring Boot API]
+  Owner[Single local owner] -->|loopback| Web[React workspace and Nginx]
+  Web -->|same-origin HTTP Basic API requests| Spring[Spring Boot API]
   Spring -->|JDBC| PostgreSQL[(PostgreSQL)]
   Spring -->|Flyway migration at startup| PostgreSQL
   Spring -->|query only when configured and requested| Brave[Brave Search API]
@@ -114,5 +115,4 @@ Future flow only. Parsing, chunking, indexing, retrieval, and synthesis remain s
 
 ## Deployment target
 
-Docker Compose runs PostgreSQL and the Spring API and AI service, with host ports bound to loopback. The search API key is optional and must be supplied by the owner; only an explicit search call sends a query to Brave. The Python service has no outbound integrations or model runtime. Remote access requires separate auth, TLS, retention, and abuse review.
-
+Docker Compose runs PostgreSQL, the Spring API, the AI service, and the Nginx-served React UI, with host ports bound to loopback. The search API key is optional and must be supplied by the owner; only an explicit search call sends a query to Brave. The Python service has no outbound integrations or model runtime. Remote access requires separate auth, TLS, retention, and abuse review.

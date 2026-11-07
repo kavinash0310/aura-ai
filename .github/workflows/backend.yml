@@ -44,6 +44,27 @@ jobs:
       - name: Check Python style
         run: uv run ruff check src tests
 
+  verify-web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Verify web workspace
+        run: npm test
+      - name: Type-check and build web workspace
+        run: npm run build
+
   verify-compose:
     runs-on: ubuntu-latest
     env:
@@ -57,6 +78,5 @@ jobs:
         uses: actions/checkout@v4
       - name: Validate Compose configuration
         run: docker compose config --quiet
-      - name: Build the AI service image
-        run: docker compose build ai
-
+      - name: Build the AI and web images
+        run: docker compose build ai web

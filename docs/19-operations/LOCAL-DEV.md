@@ -7,6 +7,7 @@
 - Docker Desktop with Compose.
 - Maven 3.9 or later for local Java builds.
 - Python 3.12 or later and uv 0.13.6 for local AI-service tests.
+- Node.js 22 if developing the web workspace outside its container.
 - Git.
 
 ## Configuration and startup
@@ -16,12 +17,14 @@
 3. Keep .env untracked; never paste actual secrets into issues or logs.
 4. To enable search, add your own `AURA_BRAVE_API_KEY` to `.env`. Leave it blank to keep the provider disabled. A search sends the query to Brave under your provider account and may be subject to its quotas or charges.
 5. Start with `docker compose up --build`.
-6. Spring API binds to 127.0.0.1:8080. GET `/api/v1/health` is public; other routes use local HTTP Basic credentials.
-7. AI service binds to 127.0.0.1:8001. GET `/api/v1/health` is public and reports service identity only; model inference and provider access are not implemented.
-8. Create a research job, explicitly call its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See the API contract for examples and limits.
-9. Stop with `docker compose down`. Use `docker compose down -v` only when you intend to delete the local database volume.
-10. Verify Java with `mvn -f backend/pom.xml verify`.
-11. For Python checks, change into `ai-service` and run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
+6. Open the workspace at 127.0.0.1:3000. Enter the local Basic Auth credentials from `.env`; they remain in page memory and clear on reload or disconnect.
+7. Spring API binds to 127.0.0.1:8080. GET `/api/v1/health` is public; other routes use local HTTP Basic credentials. The web container proxies `/api` requests to Spring on the internal Compose network.
+8. AI service binds to 127.0.0.1:8001. GET `/api/v1/health` is public and reports service identity only; model inference and provider access are not implemented.
+9. Direct API: create a research job, explicitly call its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See the API contract for examples and limits.
+10. Stop with `docker compose down`. Use `docker compose down -v` only when you intend to delete the local database volume.
+11. Verify Java with `mvn -f backend/pom.xml verify`.
+12. For frontend checks, change to `web` and run `npm ci`, `npm test`, then `npm run build`.
+13. For Python checks, change into `ai-service` and run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
 
 ## Useful commands
 
@@ -33,4 +36,3 @@
 ## Limits
 
 Basic Auth is development-only. Do not port-forward or publish the services. The Java API sends an explicit search query to the configured Brave provider; it does not fetch result URLs. The Python service remains isolated and has no model, data connector, database access, or outbound research behavior.
-
