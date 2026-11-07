@@ -90,6 +90,15 @@ The parser reads component metadata and references, then extracts only CVE ident
 
 The response includes format/spec version, component and CVE counts, declared CVEs, affected references and resolved component names/versions/PURLs, the enrichment response (or `null`), and a coverage note. Uploads are parsed in memory and are not saved to AURA's database. The web UI supports JSON and CSV downloads of the review. The SBOM file itself is not sent to CISA or FIRST; the public-service egress is limited to the CVE identifiers for EPSS and a KEV catalog refresh/match.
 
+### POST `/api/v1/cyber/vulnerabilities/nvd/lookup`
+
+Requires the local owner Basic Auth account. Request exactly one CVE ID: `{ "cve": "CVE-2024-12345" }`. AURA validates the identifier and makes one explicit exact-ID request to the fixed NVD API 2.0 endpoint. The optional `AURA_NVD_API_KEY` is sent only in the API key header; it is not required for lookup. No request is made until the user selects “Load NVD details” for a CVE. There are no automatic retries.
+
+The response status is `AVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`, or `UNAVAILABLE` and includes request/retrieval timestamps, NVD record link, description (up to 2,000 characters), CVSS severity/version/vector when available, CWE identifiers, up to 50 CPE applicability criteria, and up to 10 HTTPS references. Truncation flags indicate when CPE criteria or references were capped. Results are held in a six-hour, memory-only cache capped at 500 records; unavailable and rate-limited responses are not cached. A 429 is returned as `RATE_LIMITED` without retry. CPE criteria are evidence from NVD and are not automatically matched to SBOM packages. NVD CVSS is severity information, not an asset-specific risk assessment.
+
+NVD receives only the requested CVE identifier. SBOM files and component inventories are not sent to NVD. AURA does not persist NVD responses.
+
+
 ## Provider errors
 
 - `502 SEARCH_PROVIDER_FAILURE` / `SEARCH_PROVIDER_INVALID_RESPONSE`: provider request or response failed.

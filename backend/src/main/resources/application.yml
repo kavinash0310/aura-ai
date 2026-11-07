@@ -30,4 +30,9 @@ aura:
     brave:
       api-key: ${AURA_BRAVE_API_KEY:}
       timeout: 8s
+  cyber:
+    nvd:
+      api-key: ${AURA_NVD_API_KEY:}
+      timeout: 8s
+      cache-duration: 6h
 

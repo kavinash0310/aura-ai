@@ -16,16 +16,17 @@
 2. Replace placeholder DB and API passwords with unique random values of at least 24 characters.
 3. Keep .env untracked; never paste actual secrets into issues or logs.
 4. To enable search, add your own `AURA_BRAVE_API_KEY` to `.env`. Leave it blank to keep the provider disabled. A search sends the query to Brave under your provider account and may be subject to its quotas or charges.
-5. Start with `docker compose up --build`.
-6. Open the workspace at 127.0.0.1:3000. Enter the local Basic Auth credentials from `.env`; they remain in page memory and clear on reload or disconnect. Recent briefs can be reopened from the sidebar; deleting a brief removes its saved source rows.
-7. Spring API binds to 127.0.0.1:8080. GET `/api/v1/health` is public; other routes use local HTTP Basic credentials. The web container proxies `/api` requests to Spring on the internal Compose network.
-8. AI service binds to 127.0.0.1:8001. GET `/api/v1/health` is public and reports service identity only; model inference and provider access are not implemented.
-9. Direct API: create a research job, explicitly call its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See the API contract for examples and limits.
-10. The workspace's Cyber intelligence section accepts one to 25 exact CVE IDs or a CycloneDX JSON SBOM up to 2 MB. For an SBOM, AURA resolves declared component references and enriches only CVE IDs already listed in the file; it does not infer package vulnerabilities. AURA downloads the CISA KEV catalog and sends only those CVE IDs to FIRST EPSS. Results can be downloaded as JSON or CSV; the upload itself is not stored. No additional API key is required. The CISA catalog cache lasts six hours and is memory-only.
-11. Stop with `docker compose down`. Use `docker compose down -v` only when you intend to delete the local database volume.
-12. Verify Java with `mvn -f backend/pom.xml verify`.
-13. For frontend checks, change to `web` and run `npm ci`, `npm test`, then `npm run build`.
-14. For Python checks, change into `ai-service` and run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
+5. `AURA_NVD_API_KEY` is optional. The workspace requests one exact CVE from NVD only after you click “Load NVD details”; the optional key is sent in a header. No request runs automatically. The NVD response is cached in memory for six hours, up to 500 CVEs, and is not persisted.
+6. Start with `docker compose up --build`.
+7. Open the workspace at 127.0.0.1:3000. Enter the local Basic Auth credentials from `.env`; they remain in page memory and clear on reload or disconnect. Recent briefs can be reopened from the sidebar; deleting a brief removes its saved source rows.
+8. Spring API binds to 127.0.0.1:8080. GET `/api/v1/health` is public; other routes use local HTTP Basic credentials. The web container proxies `/api` requests to Spring on the internal Compose network.
+9. AI service binds to 127.0.0.1:8001. GET `/api/v1/health` is public and reports service identity only; model inference and provider access are not implemented.
+10. Direct API: create a research job, explicitly call its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See the API contract for examples and limits.
+11. The workspace's Cyber intelligence section accepts one to 25 exact CVE IDs or a CycloneDX JSON SBOM up to 2 MB. For an SBOM, AURA resolves declared component references and enriches only CVE IDs already listed in the file; it does not infer package vulnerabilities. AURA downloads the CISA KEV catalog and sends only those CVE IDs to FIRST EPSS. Click “Load NVD details” on a single CVE to request its bounded NVD record; the SBOM file itself is never sent to NVD. Results can be downloaded as JSON or CSV; uploads and lookup results are not stored. The CISA and NVD caches are memory-only and last six hours; NVD retains at most 500 records. Only the Brave search key and optional NVD key are needed for their respective provider actions.
+12. Stop with `docker compose down`. Use `docker compose down -v` only when you intend to delete the local database volume.
+13. Verify Java with `mvn -f backend/pom.xml verify`.
+14. For frontend checks, change to `web` and run `npm ci`, `npm test`, then `npm run build`.
+15. For Python checks, change into `ai-service` and run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
 
 ## Useful commands
 
@@ -36,4 +37,4 @@
 
 ## Limits
 
-Basic Auth is development-only. Do not port-forward or publish the services. The Java API sends an explicit search query to the configured Brave provider; it does not fetch result URLs. Explicit vulnerability lookups read the CISA KEV catalog and send only submitted CVE IDs to FIRST EPSS. SBOM uploads are bounded to 2 MB, parsed in memory, and not persisted. These are public prioritization signals and do not establish whether your installed assets are affected. The Python service remains isolated and has no model, data connector, database access, or outbound research behavior.
+Basic Auth is development-only. Do not port-forward or publish the services. The Java API sends an explicit search query to the configured Brave provider; it does not fetch result URLs. Explicit vulnerability lookups read the CISA KEV catalog and send only submitted CVE IDs to FIRST EPSS; NVD receives one exact CVE only after a separate per-item click. SBOM uploads are bounded to 2 MB, parsed in memory, and not persisted. These are public prioritization signals and do not establish whether your installed assets are affected. The Python service remains isolated and has no model, data connector, database access, or outbound research behavior.

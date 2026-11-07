@@ -113,3 +113,39 @@ export interface SbomLookupResponse {
   intelligence: VulnerabilityLookupResponse | null;
   coverageNote: string;
 }
+
+export interface NvdCpeCriterion {
+  criteria: string;
+  vulnerable: boolean;
+  versionStartIncluding: string | null;
+  versionStartExcluding: string | null;
+  versionEndIncluding: string | null;
+  versionEndExcluding: string | null;
+}
+
+export interface NvdReference {
+  url: string;
+  tags: string[];
+}
+
+export interface NvdLookupResponse {
+  requestedAt: string;
+  cve: string;
+  status: "AVAILABLE" | "NOT_FOUND" | "UNAVAILABLE" | "RATE_LIMITED";
+  retrievedAt: string;
+  sourceUrl: string;
+  note: string;
+  publishedAt: string | null;
+  lastModifiedAt: string | null;
+  vulnerabilityStatus: string | null;
+  description: string | null;
+  cvssVersion: string | null;
+  cvssScore: number | null;
+  cvssSeverity: string | null;
+  cvssVector: string | null;
+  cwes: string[];
+  applicability: NvdCpeCriterion[];
+  applicabilityTruncated: boolean;
+  references: NvdReference[];
+  referencesTruncated: boolean;
+}

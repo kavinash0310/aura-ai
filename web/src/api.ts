@@ -1,5 +1,6 @@
 import type {
   Credentials,
+  NvdLookupResponse,
   ResearchJob,
   ResearchMode,
   ResearchSource,
@@ -88,6 +89,13 @@ export function lookupSbom(credentials: Credentials, file: File): Promise<SbomLo
   return request<SbomLookupResponse>("/api/v1/cyber/sbom/lookup", credentials, {
     method: "POST",
     body: form,
+  });
+}
+
+export function lookupNvd(credentials: Credentials, cve: string): Promise<NvdLookupResponse> {
+  return request<NvdLookupResponse>("/api/v1/cyber/vulnerabilities/nvd/lookup", credentials, {
+    method: "POST",
+    body: JSON.stringify({ cve }),
   });
 }
 

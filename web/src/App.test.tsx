@@ -189,4 +189,51 @@ describe("AURA research workspace", () => {
     expect((options?.body as FormData).get("file")).toBeInstanceOf(File);
     expect(new Headers(options?.headers).has("Content-Type")).toBe(false);
   });
+
+  it("loads NVD details only after an explicit single-CVE request", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requestedAt: "2026-11-07T00:00:00Z",
+        coverageNote: "Read-only exact CVE lookup.",
+        kev: { status: "AVAILABLE", retrievedAt: "2026-11-07T00:00:00Z", dataAsOf: "2026-11-07", sourceUrl: "https://github.com/CISAGov/kev-data", note: "" },
+        epss: { status: "AVAILABLE", retrievedAt: "2026-11-07T00:00:00Z", dataAsOf: "2026-11-07", sourceUrl: "https://api.first.org/epss/", note: "" },
+        results: [{
+          cve: "CVE-2026-12345", priorityRank: 1, knownExploited: false, vendorProject: null, product: null,
+          vulnerabilityName: null, dateAdded: null, dueDate: null, requiredAction: null,
+          knownRansomwareCampaignUse: null, epssScore: 0.2, epssPercentile: 0.6, epssScoreDate: "2026-11-07",
+          priorityRationale: "Not listed in the returned KEV snapshot; sorted by EPSS estimate.",
+          cisaUrl: "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+          nvdUrl: "https://nvd.nist.gov/vuln/detail/CVE-2026-12345", epssUrl: "https://api.first.org/data/v1/epss?cve=CVE-2026-12345",
+        }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requestedAt: "2026-11-07T00:00:01Z", cve: "CVE-2026-12345", status: "AVAILABLE",
+        retrievedAt: "2026-11-07T00:00:01Z", sourceUrl: "https://nvd.nist.gov/vuln/detail/CVE-2026-12345",
+        note: "NVD describes severity and CPE applicability; these are not proof that a user's software is affected.",
+        publishedAt: "2026-11-06T00:00:00.000", lastModifiedAt: "2026-11-07T00:00:00.000",
+        vulnerabilityStatus: "Analyzed", description: "Example vulnerability description.", cvssVersion: "3.1",
+        cvssScore: 8.2, cvssSeverity: "HIGH", cvssVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        cwes: ["CWE-79"], applicability: [{ criteria: "cpe:2.3:a:example:server:*:*:*:*:*:*:*:*", vulnerable: true,
+          versionStartIncluding: null, versionStartExcluding: null, versionEndIncluding: null, versionEndExcluding: null }],
+        applicabilityTruncated: false, references: [], referencesTruncated: false,
+      }), { status: 200 }));
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
+    await screen.findByText("Connected securely");
+    fireEvent.change(screen.getByLabelText("CVE IDs"), { target: { value: "CVE-2026-12345" } });
+    fireEvent.click(screen.getByRole("button", { name: /Check vulnerabilities/ }));
+    await screen.findByRole("button", { name: "Load NVD details" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load NVD details" }));
+    expect(await screen.findByText("8.2 HIGH")).toBeInTheDocument();
+    expect(screen.getByText("Example vulnerability description.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View NVD record ↗" })).toHaveAttribute("href", "https://nvd.nist.gov/vuln/detail/CVE-2026-12345");
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ cve: "CVE-2026-12345" });
+  });
 });

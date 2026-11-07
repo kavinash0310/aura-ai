@@ -6,6 +6,7 @@ import {
   deleteResearchJob,
   downloadExport,
   lookupSbom,
+  lookupNvd,
   lookupVulnerabilities,
   listResearchJobs,
   listSources,
@@ -18,6 +19,7 @@ import type {
   ResearchMode,
   ResearchSource,
   ResultFilters,
+  NvdLookupResponse,
   SbomLookupResponse,
   SearchResponse,
   VulnerabilityFinding,
@@ -73,6 +75,28 @@ function formatProbability(value: number | null): string {
   return value == null ? "Not available" : `${(value * 100).toFixed(1)}%`;
 }
 
+function NvdDetails({ data }: { data: NvdLookupResponse }) {
+  if (data.status !== "AVAILABLE") {
+    return <div className="nvd-details" aria-live="polite"><p className="nvd-note">NVD {data.status}: {data.note}</p></div>;
+  }
+  return <div className="nvd-details" aria-live="polite">
+    <p className="nvd-note"><a href={data.sourceUrl} target="_blank" rel="noopener noreferrer">View NVD record ↗</a> · {data.vulnerabilityStatus || "status unavailable"} · Published {formatDate(data.publishedAt)} · Updated {formatDate(data.lastModifiedAt)}</p>
+    {data.cvssScore != null && <p className="nvd-note">CVSS {data.cvssVersion} <strong>{data.cvssScore.toFixed(1)} {data.cvssSeverity}</strong>{data.cvssVector ? ` · ${data.cvssVector}` : ""} · NVD severity is not an asset-specific risk score.</p>}
+    {data.description && <p className="nvd-description">{data.description}</p>}
+    {data.cwes.length > 0 && <p className="nvd-note">Weaknesses: {data.cwes.join(", ")}</p>}
+    {data.applicability.length > 0 && <details className="nvd-applicability">
+      <summary>NVD CPE criteria ({data.applicability.length}{data.applicabilityTruncated ? "+" : ""})</summary>
+      <p className="nvd-note">These are NVD applicability statements; AURA does not automatically match them to SBOM packages.</p>
+      {data.applicability.map((item, index) => <p className="sbom-component" key={`${item.criteria}-${index}`}>
+        <strong>{item.vulnerable ? "Vulnerable match" : "Context match"}</strong> · {item.criteria}
+        {[item.versionStartIncluding && `start including ${item.versionStartIncluding}`, item.versionStartExcluding && `start excluding ${item.versionStartExcluding}`, item.versionEndIncluding && `end including ${item.versionEndIncluding}`, item.versionEndExcluding && `end excluding ${item.versionEndExcluding}`].filter(Boolean).map((value) => <span key={value}> · {value}</span>)}
+      </p>)}
+    </details>}
+    {data.references.length > 0 && <div className="nvd-references"><span>References</span>{data.references.map((reference) => <a key={reference.url} href={reference.url} target="_blank" rel="noopener noreferrer">{reference.tags[0] || "NVD reference"} ↗</a>)}{data.referencesTruncated && <span>More references are available from NVD.</span>}</div>}
+    <p className="nvd-note">{data.note}</p>
+  </div>;
+}
+
 export default function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -100,6 +124,8 @@ export default function App() {
   const [cveInput, setCveInput] = useState("");
   const [vulnerabilityLookup, setVulnerabilityLookup] = useState<VulnerabilityLookupResponse | null>(null);
   const [vulnerabilityBusy, setVulnerabilityBusy] = useState(false);
+  const [nvdLookups, setNvdLookups] = useState<Record<string, NvdLookupResponse>>({});
+  const [nvdBusyCve, setNvdBusyCve] = useState<string | null>(null);
   const [sbomFile, setSbomFile] = useState<File | null>(null);
   const [sbomLookup, setSbomLookup] = useState<SbomLookupResponse | null>(null);
   const [sbomBusy, setSbomBusy] = useState(false);
@@ -261,12 +287,29 @@ export default function App() {
     }
   }
 
+  async function loadNvd(cve: string) {
+    if (!connected || nvdBusyCve) return;
+    setNvdBusyCve(cve);
+    setError("");
+    try {
+      const result = await lookupNvd(credentials, cve);
+      setNvdLookups((current) => ({ ...current, [result.cve]: result }));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setNvdBusyCve(null);
+    }
+  }
+
   function downloadVulnerabilityLookup(format: "json" | "csv") {
     if (!vulnerabilityLookup) return;
     let content: string;
     let mimeType: string;
     if (format === "json") {
-      content = JSON.stringify(vulnerabilityLookup, null, 2);
+      const relevantNvdDetails = Object.fromEntries(vulnerabilityLookup.results
+        .filter((finding) => nvdLookups[finding.cve])
+        .map((finding) => [finding.cve, nvdLookups[finding.cve]]));
+      content = JSON.stringify({ ...vulnerabilityLookup, nvdDetails: relevantNvdDetails }, null, 2);
       mimeType = "application/json;charset=utf-8";
     } else {
       const columns: Array<[string, (finding: VulnerabilityFinding) => string | number | boolean | null]> = [
@@ -286,9 +329,19 @@ export default function App() {
         ["nvdUrl", (finding) => finding.nvdUrl],
         ["epssUrl", (finding) => finding.epssUrl],
       ];
-      content = [columns.map(([name]) => csvCell(name)).join(","), ...vulnerabilityLookup.results.map((finding) =>
-        columns.map(([, value]) => csvCell(value(finding))).join(","),
-      )].join("\r\n");
+      const headers = [...columns.map(([name]) => name), "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes"];
+      content = [headers.map(csvCell).join(","), ...vulnerabilityLookup.results.map((finding) => {
+        const nvd = nvdLookups[finding.cve];
+        const values: Array<string | number | boolean | null> = [
+          ...columns.map(([, value]) => value(finding)),
+          nvd?.status ?? null,
+          nvd?.cvssVersion ?? null,
+          nvd?.cvssScore ?? null,
+          nvd?.cvssSeverity ?? null,
+          nvd?.cwes.join("; ") ?? null,
+        ];
+        return values.map(csvCell).join(",");
+      })].join("\r\n");
       mimeType = "text/csv;charset=utf-8";
     }
     const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
@@ -325,13 +378,17 @@ export default function App() {
     let content: string;
     let mimeType: string;
     if (format === "json") {
-      content = JSON.stringify(sbomLookup, null, 2);
+      const relevantNvdDetails = Object.fromEntries(sbomLookup.vulnerabilities
+        .filter((vulnerability) => nvdLookups[vulnerability.cve])
+        .map((vulnerability) => [vulnerability.cve, nvdLookups[vulnerability.cve]]));
+      content = JSON.stringify({ ...sbomLookup, nvdDetails: relevantNvdDetails }, null, 2);
       mimeType = "application/json;charset=utf-8";
     } else {
       const findings = new Map((sbomLookup.intelligence?.results ?? []).map((finding) => [finding.cve, finding]));
-      const columns = ["cve", "affectedBomRefs", "componentNames", "componentVersions", "purls", "knownExploited", "epssScore", "priorityRank"];
+      const columns = ["cve", "affectedBomRefs", "componentNames", "componentVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes"];
       const rows = sbomLookup.vulnerabilities.map((vulnerability) => {
         const finding = findings.get(vulnerability.cve);
+        const nvd = nvdLookups[vulnerability.cve];
         const values: Array<string | number | boolean | null> = [
           vulnerability.cve,
           vulnerability.affectedBomRefs.join("; "),
@@ -341,6 +398,11 @@ export default function App() {
           finding?.knownExploited ?? null,
           finding?.epssScore ?? null,
           finding?.priorityRank ?? null,
+          nvd?.status ?? null,
+          nvd?.cvssVersion ?? null,
+          nvd?.cvssScore ?? null,
+          nvd?.cvssSeverity ?? null,
+          nvd?.cwes.join("; ") ?? null,
         ];
         return values.map(csvCell).join(",");
       });
@@ -367,6 +429,8 @@ export default function App() {
     setSources([]);
     setSbomFile(null);
     setSbomLookup(null);
+    setNvdLookups({});
+    setNvdBusyCve(null);
     setCanRetry(false);
     setError("");
   }
@@ -621,6 +685,8 @@ export default function App() {
                     <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>KEV added <strong>{finding.dateAdded || "—"}</strong></span><span>Due date <strong>{finding.dueDate || "—"}</strong></span><span>Known ransomware use <strong>{finding.knownRansomwareCampaignUse || "—"}</strong></span></div>
                     {finding.requiredAction && <p className="cyber-action">CISA action: {finding.requiredAction}</p>}
                     <div className="cyber-source-links"><a href={finding.cisaUrl} target="_blank" rel="noopener noreferrer">CISA catalog</a><a href={finding.epssUrl} target="_blank" rel="noopener noreferrer">EPSS record</a></div>
+                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null} onClick={() => void loadNvd(finding.cve)}>{nvdBusyCve === finding.cve ? "Loading NVD…" : nvdLookups[finding.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
+                    {nvdLookups[finding.cve] && <NvdDetails data={nvdLookups[finding.cve]} />}
                   </div>
                 </article>)}
               </div> : <div className="empty-results"><strong>No data matched those CVE IDs</strong><p>Check the identifier or retry when the public data sources are available.</p></div>}
@@ -676,6 +742,8 @@ export default function App() {
                       {declared.affectedComponents.length > visibleComponents.length && <p className="sbom-component">Showing {visibleComponents.length} of {declared.affectedComponents.length} resolved components. Download the full JSON or CSV for the complete list.</p>}
                       {declared.affectedBomRefs.length > declared.affectedComponents.length && <p className="sbom-component">Some references did not resolve to a component in this file.</p>}
                       {finding && <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>Priority <strong>{finding.priorityRank}</strong></span></div>}
+                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null} onClick={() => void loadNvd(declared.cve)}>{nvdBusyCve === declared.cve ? "Loading NVD…" : nvdLookups[declared.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
+                      {nvdLookups[declared.cve] && <NvdDetails data={nvdLookups[declared.cve]} />}
                     </div>
                   </article>;
                 })}

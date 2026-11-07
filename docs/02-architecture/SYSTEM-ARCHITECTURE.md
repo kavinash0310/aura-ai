@@ -2,7 +2,7 @@
 
 ## Current repository state
 
-The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, a local React workspace served through Nginx, a bounded public-search adapter, and read-only vulnerability intelligence. Research queries use the configured Brave Search API and persist source metadata. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, ingest arbitrary documents, or probe systems.
+The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, a local React workspace served through Nginx, a bounded public-search adapter, and read-only vulnerability intelligence. Research queries use the configured Brave Search API and persist source metadata. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV; users can separately request one exact-CVE NVD detail record at a time. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, ingest arbitrary documents, or probe systems.
 
 ## Target architecture
 
@@ -55,6 +55,10 @@ The outbound adapter uses a fixed provider host, a short timeout, strict SafeSea
 ## Defensive CVE lookup flow
 
 The authenticated owner submits one to 25 exact CVE IDs. Java normalizes and validates them, loads the CISA KEV catalog from CISA's maintained GitHub mirror (six-hour in-memory cache), and sends the IDs as a small lookup to FIRST EPSS. The providers are fixed in code, requests have bounded timeouts, provider failures are reported independently, and an expired KEV cache may be returned with a stale label. Results link to their sources and sort KEV-listed CVEs before descending EPSS estimates. This is a prioritization signal only; it does not establish that an asset is present or vulnerable. No asset scanning, exploit, or state-changing operation is performed.
+
+## NVD detail flow
+
+The owner clicks “Load NVD details” for one CVE already displayed in a vulnerability result or SBOM review. The authenticated Java API validates the exact identifier, checks its bounded in-memory cache, and if needed requests that single ID from NVD API 2.0 over fixed HTTPS. The adapter applies an eight-second timeout, sends an optional API key in a header, extracts bounded record fields, and returns source status. It never retries automatically or sends the SBOM itself. CPE applicability is displayed as source evidence and is not matched automatically to inventory. Results are memory-only and are included in exports only for the current report.
 
 ## Research request lifecycle
 
