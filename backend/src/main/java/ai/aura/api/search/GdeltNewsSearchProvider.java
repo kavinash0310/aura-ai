@@ -3,9 +3,10 @@ package ai.aura.api.search;
 import ai.aura.api.domain.ResearchFilters;
 import ai.aura.api.domain.SourceType;
 import tools.jackson.databind.JsonNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -14,6 +15,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -36,6 +38,7 @@ public class GdeltNewsSearchProvider implements SearchProvider {
     private final RestClient client;
     private final boolean enabled;
 
+    @Autowired
     public GdeltNewsSearchProvider(
             @Value("${aura.search.gdelt.enabled:true}") boolean enabled,
             @Value("${aura.search.gdelt.timeout:8s}") Duration timeout
@@ -49,8 +52,11 @@ public class GdeltNewsSearchProvider implements SearchProvider {
     }
 
     private static RestClient createClient(Duration timeout) {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(timeout);
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(timeout)
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(timeout);
         return RestClient.builder().requestFactory(requestFactory).build();
     }

@@ -25,7 +25,7 @@ Add a fixed-host GDELT DOC article-list adapter. The UI offers Automatic, Brave,
 
 - Adds global public news coverage with a bounded HTTP API request.
 - The owner sees the provider choice and searches only after an explicit action.
-- The provider host is fixed, response fields and result counts are capped, and AURA never fetches returned article URLs.
+- The provider host is fixed, redirects are disabled, response fields and result counts are capped, and AURA never fetches returned article URLs.
 - Provider provenance is already a first-class field in saved sources and is included in exports.
 - No social-account credentials, scraping, or personal data store is added.
 

@@ -52,7 +52,7 @@ flowchart TB
   Owner -->|loopback health only| Python
 ~~~
 
-Each search adapter uses a fixed HTTPS provider host and a short timeout. Brave applies strict SafeSearch and returns web/news/discussion results; GDELT returns only bounded public news metadata, and it has no API key. Both adapters keep only HTTP(S) result URLs, cap fields, strip URL fragments, and deduplicate URLs. AURA does not fetch returned URLs, so search does not turn provider result links into arbitrary server-side requests. Automatic selection prefers Brave when the owner configured a key, then falls back to GDELT; the UI also permits an explicit choice.
+Each search adapter uses a fixed HTTPS provider host, a short timeout, and an HTTP client that does not follow redirects. Brave applies strict SafeSearch and returns web/news/discussion results; GDELT returns only bounded public news metadata, and it has no API key. Both adapters keep only HTTP(S) result URLs, cap fields, strip URL fragments, and deduplicate URLs. AURA does not fetch returned URLs, so search does not turn provider result links into arbitrary server-side requests. Automatic selection prefers Brave when the owner configured a key, then falls back to GDELT; the UI also permits an explicit choice.
 
 ## Local document import and retrieval
 

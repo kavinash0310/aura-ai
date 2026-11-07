@@ -26,7 +26,7 @@ class GdeltNewsSearchProviderTest {
 
         server.expect(requestTo(org.hamcrest.Matchers.startsWith("https://api.gdeltproject.org/api/v2/doc/doc?")))
                 .andExpect(method(HttpMethod.GET))
-                .andExpect(queryParam("query", "climate change sourcecountry:unitedstates sourcelang:eng"))
+                .andExpect(queryParam("query", "climate%20change%20sourcecountry:unitedstates%20sourcelang:eng"))
                 .andExpect(queryParam("mode", "artlist"))
                 .andExpect(queryParam("format", "json"))
                 .andExpect(queryParam("maxrecords", "5"))
