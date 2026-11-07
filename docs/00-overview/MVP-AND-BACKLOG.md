@@ -38,8 +38,8 @@ Deliver Python packaging, FastAPI health, settings, Pydantic schemas, logging/er
 
 ### M3 — Document lifecycle
 Deliver explicit uploads, type/size validation, parser adapters, metadata, content hashes, versioning, PostgreSQL FTS, retrieval, citations, tests.
-**Delivered first slice:** authenticated `.txt` and `.md` uploads with strict UTF-8 validation, a 1 MB limit, normalized line endings, SHA-256 metadata, local PostgreSQL storage, exact-phrase search, character-offset citations, preview/download, and explicit deletion.
-**Still needed:** document version history, PostgreSQL full-text indexing, PDF/HTML/CSV/JSON parsers, chunking, and access-scoped retrieval beyond the current single local owner.
+**Delivered first slice:** authenticated `.txt` and `.md` uploads with strict UTF-8 validation, a 1 MB limit, normalized line endings, SHA-256 metadata, local PostgreSQL storage, indexed token candidate search with an exact-phrase guard, relevance ordering, character-offset citations, preview/download, and explicit deletion. PostgreSQL uses a generated `simple` text-search vector and GIN index; H2 tests retain the portable phrase-match fallback.
+**Still needed:** document version history, PDF/HTML/CSV/JSON parsers, chunking, and access-scoped retrieval beyond the current single local owner. Search currently has no stemming or semantic retrieval.
 **Accept when:** imported content is searchable with stable source/page/chunk references.
 
 ### M4 — LLM integration

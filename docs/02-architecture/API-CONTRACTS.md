@@ -116,7 +116,7 @@ Returns metadata and full stored text for one document. The local UI previews at
 
 ### GET `/api/v1/documents/search?q=...`
 
-Searches up to 10 documents for a case-insensitive exact phrase. `q` must be 2–100 letters, numbers, spaces, periods, commas, underscores, or hyphens. Results include a bounded snippet, offsets into normalized document text, content hash, and a stable `aura-doc://{id}#chars={start}-{end}` citation. This first slice uses bounded phrase matching; PostgreSQL full-text indexing, stemming, chunking, and semantic retrieval remain future work.
+Searches up to 10 documents for a case-insensitive exact phrase. `q` must be 2–100 letters, numbers, spaces, periods, commas, underscores, or hyphens. PostgreSQL uses an indexed full-text query to find and rank candidates, then checks the literal phrase before returning a result. Its `simple` text-search configuration does not stem words; H2 uses the portable phrase-match fallback. Results include a bounded snippet, offsets into normalized document text, content hash, and a stable `aura-doc://{id}#chars={start}-{end}` citation. Chunking and semantic retrieval remain future work.
 
 ### DELETE `/api/v1/documents/{id}`
 

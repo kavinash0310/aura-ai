@@ -2,6 +2,7 @@ package ai.aura.api.application;
 
 import ai.aura.api.domain.ResearchDocument;
 import ai.aura.api.persistence.ResearchDocumentRepository;
+import ai.aura.api.persistence.ResearchDocumentSearch;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,9 +30,11 @@ public class ResearchDocumentService {
     private static final int MAX_SEARCH_RESULTS = 10;
 
     private final ResearchDocumentRepository repository;
+    private final ResearchDocumentSearch documentSearch;
 
-    public ResearchDocumentService(ResearchDocumentRepository repository) {
+    public ResearchDocumentService(ResearchDocumentRepository repository, ResearchDocumentSearch documentSearch) {
         this.repository = repository;
+        this.documentSearch = documentSearch;
     }
 
     @Transactional
@@ -86,8 +89,7 @@ public class ResearchDocumentService {
                 || !normalized.matches("[\\p{L}\\p{N} .,_-]+")) {
             throw new InvalidDocumentException("Search must be 2 to 100 letters, numbers, spaces, periods, commas, underscores, or hyphens.");
         }
-        return repository.findByContentContainingIgnoreCaseOrderByUploadedAtDesc(
-                normalized, PageRequest.of(0, MAX_SEARCH_RESULTS));
+        return documentSearch.searchExactPhrase(normalized, PageRequest.of(0, MAX_SEARCH_RESULTS));
     }
 
     @Transactional

@@ -54,7 +54,7 @@ The outbound adapter uses a fixed provider host, a short timeout, strict SafeSea
 
 ## Local document import and retrieval
 
-The owner uploads one UTF-8 `.txt` or `.md` file to the authenticated API. Java validates the extension, encoded text, control characters, and 1 MB limit; normalizes line endings; calculates SHA-256; and stores the text and metadata in PostgreSQL. Search is a local case-insensitive phrase match over stored content. Results include a short snippet and character offsets that point into the normalized text. The browser previews escaped text and can download or delete it. No parser executes document content, and the current document workflow makes no external provider or model calls.
+The owner uploads one UTF-8 `.txt` or `.md` file to the authenticated API. Java validates the extension, encoded text, control characters, and 1 MB limit; normalizes line endings; calculates SHA-256; and stores the text and metadata in PostgreSQL. A PostgreSQL generated `simple` search vector and GIN index find and rank candidates; a case-insensitive literal phrase check preserves the API's exact-match behavior and citation offsets. H2 uses a portable phrase-match fallback. The browser previews escaped text and can download or delete it. No parser executes document content, and the current document workflow makes no external provider or model calls.
 
 ## Defensive CVE lookup flow
 
