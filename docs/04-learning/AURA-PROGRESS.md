@@ -19,7 +19,7 @@ Do not mark a skill complete because code was generated. The owner should explai
 | M2 Python service | Implemented; explanation pending | FastAPI health, settings, uv lock, 3 tests, Ruff check | No | Explain ASGI, settings, Pydantic, and test client |
 | M3 document lifecycle | Not started | No document code | No | Design upload limits and text extraction boundary |
 | M5 public research slice | Implemented; explanation pending | Optional Brave adapter, persisted provenance, filters, downloads, 12 local backend tests | No | Explain provider boundaries, URL validation, state transitions, and partial coverage |
-| First local UI slice | Implemented; explanation pending | React/TypeScript workspace, in-memory API credentials, search, filters, downloads, loopback Compose service | No | Explain credential handling, same-origin proxy, and coverage display |
+| First local UI slice | Implemented; explanation pending | React/TypeScript workspace, in-memory API credentials, search, filters, downloads, recent history, delete with source cascade | No | Explain credential handling, same-origin proxy, and retention behavior |
 
 ## Check-in template
 

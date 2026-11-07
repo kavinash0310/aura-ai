@@ -18,6 +18,10 @@ Authenticated check used by the local UI to validate the owner's Basic Auth cred
 
 ## Research jobs
 
+### GET `/api/v1/research-jobs?limit=25`
+
+Lists the most recently created jobs, newest first. `limit` defaults to 25 and must be from 1 to 100. This is a single-owner local history endpoint, not a multi-user search API.
+
 ### POST `/api/v1/research-jobs`
 
 Creates a saved request; it does not search yet.
@@ -31,6 +35,10 @@ Response: `201 Created`, a `Location` header, and a body containing `id`, `subje
 ### GET `/api/v1/research-jobs/{id}`
 
 Returns job state and search metadata. Unknown IDs return `404 RESEARCH_JOB_NOT_FOUND`.
+
+### DELETE `/api/v1/research-jobs/{id}`
+
+Deletes a saved brief and its associated source metadata. Returns `204 No Content`; unknown IDs return `404 RESEARCH_JOB_NOT_FOUND`. The database foreign key cascades to the job's saved sources.
 
 ### POST `/api/v1/research-jobs/{id}/search`
 
@@ -73,5 +81,5 @@ Downloads the same filtered result set as JSON, CSV, or Markdown. `format` defau
 - Search sends the query to the configured external provider only when the owner invokes the search route. Provider access and possible charges are governed by that provider account.
 - No direct social-media connector, complete-internet crawl, page fetch, AI synthesis, cross-source fact checking, or claim comparison is implemented.
 - Person research is limited to public-interest material. Do not use this for doxxing, sensitive-trait inference, invasive tracking, or private-account access.
-- Research history, queries, and source metadata currently have no delete or retention endpoint; add those before multi-user or hosted use.
+- Research history is capped to the newest 100 results per request; there is no cursor pagination yet. Queries and source metadata are retained until the owner deletes a brief. Remote deployments still need documented retention, audit, backup, and account-isolation policies.
 - Future work: cursor-paginated history; source-specific adapters with their own quotas and terms; document upload and owner-filtered retrieval; cited synthesis; report retention/deletion; defensive findings.

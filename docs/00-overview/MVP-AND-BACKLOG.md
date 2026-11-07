@@ -2,7 +2,7 @@
 
 ## MVP definition
 
-The first useful release is a local research workspace that accepts a subject, searches a small set of permitted public sources, keeps source metadata, returns a cited summary, and exports a report. The repository has the Spring foundation, an isolated Python health service, a first authenticated search slice, and a local React workspace. The UI starts searches, filters stored source metadata, and downloads JSON/CSV/Markdown; page reading, cross-source analysis, and synthesized reports remain planned.
+The first useful release is a local research workspace that accepts a subject, searches a small set of permitted public sources, keeps source metadata, returns a cited summary, and exports a report. The repository has the Spring foundation, an isolated Python health service, a first authenticated search slice, and a local React workspace. The UI starts searches, reopens recent briefs, filters stored source metadata, downloads JSON/CSV/Markdown, and deletes a brief with its source rows; page reading, cross-source analysis, and synthesized reports remain planned.
 
 ## Feature priority
 
@@ -17,7 +17,7 @@ The first useful release is a local research workspace that accepts a subject, s
 | Deterministic workflow and recovery | CORE / CAREER | Reliable multi-step research |
 | NVD/KEV/EPSS and SBOM analysis | CORE | Defensive specialist capability |
 | pgvector, OCR, reranker | OPTIONAL | Add only after measured retrieval gaps |
-| React workspace | CORE / FIRST UI SLICE DELIVERED | Local UI is wired to the current API; history and reports follow later |
+| React workspace | CORE / FIRST UI SLICE DELIVERED | Local UI is wired to the current API; bounded history and deletion are delivered, reports follow later |
 | Kafka, Kubernetes, dedicated vector DB | DEFERRED | No initial scale need |
 | Multi-agent orchestration | DEFERRED | Bounded workflow is simpler and auditable |
 | Exploit execution, unrestricted scanning, dark-web collection | REMOVE | Outside initial defensive scope |

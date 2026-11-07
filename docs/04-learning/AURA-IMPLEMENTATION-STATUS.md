@@ -7,12 +7,12 @@ Updated 2026-11-07.
 | Project brief and README | Implemented | Root README |
 | Requirements and MVP | Documented | docs/00-overview |
 | Architecture, data/API boundaries, ADRs, threat model | Documented proposal | docs/02-architecture and docs/03-adr |
-| Spring Boot API | M1 foundation plus M5 search routes and authenticated session check; backend tests pass locally | backend source and API/provider tests |
+| Spring Boot API | M1 foundation plus M5 search, authenticated session check, bounded history, and delete routes; 14 backend tests pass locally | backend source and API/provider tests |
 | PostgreSQL migration and Compose | M1 plus V2 job/search-result schema; H2 migrations pass locally | backend migrations and compose.yaml |
 | Python AI service | M2 implemented; 3 tests and Ruff passed locally; health only | ai-service source, locked uv environment, and workflow |
 | Public web/news/discussion search | First provider slice implemented; Brave key optional; 12 backend tests pass locally | Brave adapter, persisted source metadata, authenticated API, filters, exports |
 | Direct social-media connectors | Not implemented | Separate official, permissioned APIs and account credentials would be needed |
-| Web interface | First local React workspace implemented; CI verification pending | web source, container, authenticated API integration |
+| Web interface | Local React workspace supports search, filters, downloads, history reopen, and explicit deletion; 4 UI tests and build pass locally | web source, container, authenticated API integration |
 | Page fetching, AI synthesis | Not implemented | Later milestones; search remains usable through the authenticated API |
 | Document ingestion/RAG | Not implemented | Future milestone |
 | LLM/model gateway | Not implemented | M4 |

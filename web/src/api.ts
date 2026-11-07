@@ -60,6 +60,7 @@ async function request<T>(
       body.code,
     );
   }
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -78,6 +79,14 @@ export function createResearchJob(
     method: "POST",
     body: JSON.stringify({ subject, mode }),
   });
+}
+
+export function listResearchJobs(credentials: Credentials, limit = 25): Promise<ResearchJob[]> {
+  return request<ResearchJob[]>(`/api/v1/research-jobs?limit=${limit}`, credentials);
+}
+
+export function deleteResearchJob(credentials: Credentials, id: string): Promise<void> {
+  return request<void>(jobPath(id), credentials, { method: "DELETE" });
 }
 
 export function runResearch(

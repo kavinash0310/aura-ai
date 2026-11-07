@@ -3,7 +3,9 @@ import type { FormEvent } from "react";
 import {
   ApiError,
   createResearchJob,
+  deleteResearchJob,
   downloadExport,
+  listResearchJobs,
   listSources,
   runResearch,
   validateConnection,
@@ -66,12 +68,14 @@ export default function App() {
   const [language, setLanguage] = useState("");
   const [freshness, setFreshness] = useState("");
   const [resultLimit, setResultLimit] = useState(10);
+  const [jobs, setJobs] = useState<ResearchJob[]>([]);
   const [job, setJob] = useState<ResearchJob | null>(null);
   const [search, setSearch] = useState<SearchResponse | null>(null);
   const [sources, setSources] = useState<ResearchSource[]>([]);
   const [draftFilters, setDraftFilters] = useState<ResultFilters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<ResultFilters>(emptyFilters);
   const [searching, setSearching] = useState(false);
+  const [openingJobId, setOpeningJobId] = useState<string | null>(null);
   const [filtering, setFiltering] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -85,6 +89,7 @@ export default function App() {
     setError("");
     try {
       await validateConnection(credentials);
+      setJobs(await listResearchJobs(credentials));
       setConnected(true);
     } catch (caught) {
       setConnected(false);
@@ -104,10 +109,12 @@ export default function App() {
     setDraftFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
     try {
-      const currentJob = canRetry && job?.subject === subject.trim()
-        ? job
-        : await createResearchJob(credentials, subject.trim(), mode);
+      const pendingJob = canRetry && job?.subject === subject.trim() && job.mode === mode ? job : null;
+      if (!pendingJob) setJob(null);
+      setCanRetry(false);
+      const currentJob = pendingJob ?? await createResearchJob(credentials, subject.trim(), mode);
       setJob(currentJob);
+      setJobs((current) => [currentJob, ...current.filter((item) => item.id !== currentJob.id)].slice(0, 25));
       const response = await runResearch(credentials, currentJob.id, {
         country,
         language,
@@ -116,6 +123,14 @@ export default function App() {
       });
       setSearch(response);
       setSources(response.results);
+      const completedJob = {
+        ...currentJob,
+        status: response.status,
+        searchProvider: response.provider,
+        searchResultCount: response.providerResultCount,
+      };
+      setJob(completedJob);
+      setJobs((current) => current.map((item) => item.id === completedJob.id ? completedJob : item));
       setCanRetry(false);
     } catch (caught) {
       const apiError = caught instanceof ApiError ? caught : null;
@@ -123,6 +138,47 @@ export default function App() {
       setError(errorMessage(caught));
     } finally {
       setSearching(false);
+    }
+  }
+
+  async function openHistoryItem(item: ResearchJob) {
+    setOpeningJobId(item.id);
+    setError("");
+    setJob(item);
+    setSubject(item.subject);
+    setMode(item.mode);
+    setSearch(null);
+    setSources([]);
+    setDraftFilters(emptyFilters);
+    setAppliedFilters(emptyFilters);
+    setCanRetry(item.status === "REQUESTED");
+    try {
+      if (item.status === "COMPLETED") {
+        const response = await listSources(credentials, item.id, emptyFilters);
+        setSearch(response);
+        setSources(response.results);
+      }
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setOpeningJobId(null);
+    }
+  }
+
+  async function removeHistoryItem(item: ResearchJob) {
+    if (!window.confirm(`Delete “${item.subject}” and its saved source metadata?`)) return;
+    setError("");
+    try {
+      await deleteResearchJob(credentials, item.id);
+      setJobs((current) => current.filter((entry) => entry.id !== item.id));
+      if (job?.id === item.id) {
+        setJob(null);
+        setSearch(null);
+        setSources([]);
+        setCanRetry(false);
+      }
+    } catch (caught) {
+      setError(errorMessage(caught));
     }
   }
 
@@ -167,6 +223,7 @@ export default function App() {
     setConnected(false);
     setUsername("");
     setPassword("");
+    setJobs([]);
     setJob(null);
     setSearch(null);
     setSources([]);
@@ -189,12 +246,20 @@ export default function App() {
           <span className="nav-indicator" />
         </button>
         <div className="sidebar-divider" />
-        <div className="workspace-label">YOUR WORK</div>
-        <div className="empty-history">
+        <div className="workspace-label">YOUR WORK <span className="history-count">{jobs.length}</span></div>
+        {jobs.length > 0 ? <div className="history-list" aria-label="Recent research briefs">
+          {jobs.map((item) => <div className={`history-row ${job?.id === item.id ? "history-row-active" : ""}`} key={item.id}>
+            <button type="button" className="history-open" onClick={() => void openHistoryItem(item)} disabled={openingJobId === item.id}>
+              <span className="history-title">{item.subject}</span>
+              <span className="history-subline"><i className={`history-status history-status-${item.status.toLowerCase()}`} />{openingJobId === item.id ? "Opening…" : item.status.toLowerCase()} · {formatDate(item.createdAt)}</span>
+            </button>
+            <button type="button" className="history-delete" aria-label={`Delete ${item.subject}`} title="Delete brief and its saved sources" onClick={() => void removeHistoryItem(item)}>×</button>
+          </div>)}
+        </div> : <div className="empty-history">
           <span className="history-glyph">◷</span>
           <p>Research history</p>
-          <span>Search history is not available in this UI yet.</span>
-        </div>
+          <span>{connected ? "No saved briefs yet." : "Connect the local API to view saved briefs."}</span>
+        </div>}
         <div className="sidebar-foot">
           <span className="small-orbit">✳</span>
           <div><strong>Built for careful research</strong><span>Evidence first. Scope always.</span></div>
@@ -230,6 +295,18 @@ export default function App() {
               <i className="orbit-dot dot-one" /><i className="orbit-dot dot-two" /><i className="orbit-dot dot-three" />
             </div>
           </section>
+
+          {jobs.length > 0 && <details className="mobile-history">
+            <summary>Recent briefs <span>{jobs.length}</span></summary>
+            <div className="mobile-history-list">
+              {jobs.map((item) => <div className="mobile-history-row" key={item.id}>
+                <button type="button" onClick={(event) => { void openHistoryItem(item); event.currentTarget.closest("details")?.removeAttribute("open"); }}>
+                  <span>{item.subject}</span><small>{item.status.toLowerCase()} · {formatDate(item.createdAt)}</small>
+                </button>
+                <button type="button" aria-label={`Delete ${item.subject}`} onClick={() => void removeHistoryItem(item)}>×</button>
+              </div>)}
+            </div>
+          </details>}
 
           <div className="content-grid">
             <div className="primary-column">
@@ -327,7 +404,8 @@ export default function App() {
                     <span className="source-rank">{String(source.rank).padStart(2, "0")}</span>
                   </article>)}</div> : <div className="empty-results"><span>⌕</span><strong>No sources match these filters</strong><p>Try clearing a filter or widening the date range.</p></div>}
                 </>}
-                {!search && <div className="empty-results welcome-results"><span>✳</span><strong>Your sources will appear here</strong><p>Start a research brief to gather public links, filter them, and download your findings.</p></div>}
+                {!search && job && <div className="empty-results welcome-results"><span>{job.status === "FAILED" ? "!" : "◷"}</span><strong>{job.status === "FAILED" ? "This search did not finish" : job.status === "SEARCHING" ? "This search is still running" : "This brief has not been searched yet"}</strong><p>{job.status === "FAILED" ? `The saved failure code is ${job.failureCode ?? "unavailable"}. Start a new brief to try again.` : job.status === "SEARCHING" ? "Reload this brief in a moment to see whether the provider returned." : "If the provider key was just configured, press Start research to retry this saved brief."}</p></div>}
+                {!search && !job && <div className="empty-results welcome-results"><span>✳</span><strong>Your sources will appear here</strong><p>Start a research brief to gather public links, filter them, and download your findings.</p></div>}
               </section>
             </div>
 
@@ -346,7 +424,7 @@ export default function App() {
 
               <section className="source-scope panel">
                 <div className="scope-head"><span className="scope-icon">◎</span><div><h2>Source scope</h2><p>What this search can reach</p></div></div>
-                <div className="scope-provider"><span className="provider-mark">B</span><div><strong>Brave Search</strong><span>Web · News · Discussions</span></div><span className="scope-live"><i /> {connected ? "READY" : "LOCAL"}</span></div>
+                <div className="scope-provider"><span className="provider-mark">B</span><div><strong>Brave Search</strong><span>Web · News · Discussions</span></div><span className="scope-live"><i /> {connected ? "API LINKED" : "LOCAL API"}</span></div>
                 <div className="scope-divider" />
                 <p className="scope-copy">AURA searches the configured provider and keeps each returned link. The brief category is saved as metadata; both categories use the same search scope today. Coverage is partial, not a crawl of the entire internet.</p>
                 <p className="scope-copy">Search needs your own Brave key in the local .env file.</p>

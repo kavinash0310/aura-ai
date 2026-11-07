@@ -4,6 +4,7 @@ import ai.aura.api.domain.ResearchFilters;
 import ai.aura.api.search.ProviderSource;
 import ai.aura.api.search.SearchProvider;
 import ai.aura.api.search.SearchProviderException;
+import ai.aura.api.persistence.ResearchSourceRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -49,6 +50,33 @@ class ResearchSearchApiTest {
 
     @Autowired
     private ai.aura.api.application.ResearchJobService jobs;
+
+    @Autowired
+    private ResearchSourceRepository sources;
+
+    @Test
+    void listsRecentHistoryAndDeletesItsSavedSources() throws Exception {
+        UUID id = createJob("persisted brief");
+        runSearch(id);
+        org.assertj.core.api.Assertions.assertThat(sources.countByResearchJobId(id)).isEqualTo(3);
+
+        mockMvc.perform(get("/api/v1/research-jobs").with(httpBasic(USERNAME, PASSWORD)).param("limit", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$..subject", org.hamcrest.Matchers.hasItem("persisted brief")));
+
+        mockMvc.perform(get("/api/v1/research-jobs").param("limit", "25"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/research-jobs").with(httpBasic(USERNAME, PASSWORD)).param("limit", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_RESEARCH_FILTER"));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/v1/research-jobs/" + id).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isNoContent());
+        org.assertj.core.api.Assertions.assertThat(sources.countByResearchJobId(id)).isZero();
+        mockMvc.perform(get("/api/v1/research-jobs/" + id).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isNotFound());
+    }
 
     @Test
     void searchPersistsSourcesAndFiltersByKindHostTextAndDate() throws Exception {
@@ -213,4 +241,3 @@ class ResearchSearchApiTest {
         }
     }
 }
-

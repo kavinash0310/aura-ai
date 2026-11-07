@@ -10,7 +10,7 @@ export interface ResearchJob {
   id: string;
   subject: string;
   mode: ResearchMode;
-  status: "REQUESTED" | "RUNNING" | "SUCCEEDED" | "FAILED";
+  status: "REQUESTED" | "SEARCHING" | "COMPLETED" | "FAILED";
   createdAt: string;
   searchProvider: string | null;
   searchResultCount: number;

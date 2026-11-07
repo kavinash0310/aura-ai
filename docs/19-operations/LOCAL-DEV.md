@@ -17,7 +17,7 @@
 3. Keep .env untracked; never paste actual secrets into issues or logs.
 4. To enable search, add your own `AURA_BRAVE_API_KEY` to `.env`. Leave it blank to keep the provider disabled. A search sends the query to Brave under your provider account and may be subject to its quotas or charges.
 5. Start with `docker compose up --build`.
-6. Open the workspace at 127.0.0.1:3000. Enter the local Basic Auth credentials from `.env`; they remain in page memory and clear on reload or disconnect.
+6. Open the workspace at 127.0.0.1:3000. Enter the local Basic Auth credentials from `.env`; they remain in page memory and clear on reload or disconnect. Recent briefs can be reopened from the sidebar; deleting a brief removes its saved source rows.
 7. Spring API binds to 127.0.0.1:8080. GET `/api/v1/health` is public; other routes use local HTTP Basic credentials. The web container proxies `/api` requests to Spring on the internal Compose network.
 8. AI service binds to 127.0.0.1:8001. GET `/api/v1/health` is public and reports service identity only; model inference and provider access are not implemented.
 9. Direct API: create a research job, explicitly call its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See the API contract for examples and limits.

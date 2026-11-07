@@ -8,6 +8,6 @@ import java.util.UUID;
 
 public interface ResearchSourceRepository extends JpaRepository<ResearchSource, UUID> {
     List<ResearchSource> findByResearchJobIdOrderByRankAsc(UUID researchJobId);
+    long countByResearchJobId(UUID researchJobId);
 }
-
 

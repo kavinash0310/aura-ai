@@ -23,7 +23,7 @@ This is also a practical AI software engineering learning path: a Java/Spring ap
 
 ## Current milestone
 
-M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI service with validated configuration and a health endpoint. The first M5 research slice adds one explicit, bounded search through an optional Brave Search API key, source metadata, result filters, and JSON/CSV/Markdown downloads. The local React workspace can start a search, filter saved sources, and download results. The Python service still has no model or data access. AURA does not search every page or social post, connect to social accounts, fetch result pages, or generate a synthesized report yet.
+M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI service with validated configuration and a health endpoint. The first M5 research slice adds one explicit, bounded search through an optional Brave Search API key, source metadata, result filters, and JSON/CSV/Markdown downloads. The local React workspace can start searches, reopen the latest saved briefs, filter sources, download results, and delete a brief with its stored sources. The Python service still has no model or data access. AURA does not search every page or social post, connect to social accounts, fetch result pages, or generate a synthesized report yet.
 
 See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and [MVP backlog](docs/00-overview/MVP-AND-BACKLOG.md).
 

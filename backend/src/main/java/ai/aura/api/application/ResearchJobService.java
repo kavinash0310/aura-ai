@@ -10,6 +10,8 @@ import ai.aura.api.search.ProviderSource;
 import ai.aura.api.domain.ResearchMode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -35,6 +37,19 @@ public class ResearchJobService {
     @Transactional(readOnly = true)
     public ResearchJob get(UUID id) {
         return repository.findById(id).orElseThrow(() -> new ResearchJobNotFoundException(id));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ResearchJob> listRecent(int limit) {
+        return repository.findAll(PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt")))
+                .getContent();
+    }
+
+    @Transactional
+    public void delete(UUID id) {
+        ResearchJob job = repository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResearchJobNotFoundException(id));
+        repository.delete(job);
     }
 
     @Transactional
@@ -76,4 +91,3 @@ public class ResearchJobService {
         }
     }
 }
-

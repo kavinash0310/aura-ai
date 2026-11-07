@@ -27,7 +27,7 @@ Research queries and reports; selected documents and source excerpts; account to
 | Private-person harm | Results aggregate home address or sensitive traits | Public-interest scope; exclude sensitive fields/profiling; identity disambiguation |
 | Secret leakage | Token appears in prompt/report/log | Secret store, redaction, structured logging |
 | Parser exploit | Malformed PDF exploits parser | Type/size caps, isolated process for risky parsers, archive path validation, no execution |
-| Cross-owner leak | Search returns another user's chunk | Owner scope before retrieval; future row-level security as defense in depth |
+| Cross-owner leak | Search returns another user's chunk | Current database is a single local-owner workspace; add owner scoping before multi-user or remote deployment |
 | Model misinformation | Unsupported claim sounds confident | Citations, uncertainty, entailment evaluation, human review |
 | Unsafe agent action | Model suggests broad scan | Fixed typed tools, explicit grant, target validation, approval, budgets, cancellation |
 | Replay or duplicate work | Retry repeats a check | Idempotency key, job hash, expiry, single-use approval |
@@ -49,4 +49,4 @@ Fail closed on missing provider configuration. No model-generated shell, browser
 
 ## Residual risks
 
-Public information may be false, incomplete, stale, or wrongly attributed. Search coverage is partial, and the provider receives each submitted query under its own terms and retention rules. AURA currently has no query/source deletion route. Local Basic Auth is for a development milestone, not internet-facing identity. Update this model as connectors and parsers are added.
+Public information may be false, incomplete, stale, or wrongly attributed. Search coverage is partial, and the provider receives each submitted query under its own terms and retention rules. AURA supports explicit deletion of a brief and its source rows, but has no automatic retention schedule. Local Basic Auth is for a development milestone, not internet-facing identity. Update this model as connectors and parsers are added.

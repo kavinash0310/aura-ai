@@ -2,7 +2,7 @@
 
 ## Current repository state
 
-The repository now has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, a local React workspace served through Nginx, and a first bounded public-search adapter. A completed request can query the configured Brave Search API for web, news, and discussion results, save source metadata, filter results, and download JSON/CSV/Markdown. Search is manual and single-provider. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, ingest documents, or run cyber checks.
+The repository now has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, a local React workspace served through Nginx, and a first bounded public-search adapter. A completed request can query the configured Brave Search API for web, news, and discussion results, save source metadata, reopen recent jobs, filter results, download JSON/CSV/Markdown, and delete a job with its source rows. Search is manual and single-provider. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, ingest documents, or run cyber checks.
 
 ## Target architecture
 
