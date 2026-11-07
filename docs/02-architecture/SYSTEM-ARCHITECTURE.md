@@ -2,7 +2,7 @@
 
 ## Current repository state
 
-The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, a Python FastAPI AI service, a local React workspace served through Nginx, bounded Brave and GDELT public-search adapters, read-only vulnerability intelligence, and a private document library. Research queries use one explicitly selected provider and persist source metadata with provider provenance. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV; users can separately request one or up to 25 exact-CVE NVD details. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. Selected UTF-8 text and Markdown files are stored in PostgreSQL and searched as exact phrases with character-offset citations. An explicit report action sends up to 20 selected search-result snippets to a configured local Ollama model and checks the returned source IDs. It does not fetch linked pages, connect directly to social accounts, include uploaded documents in inference, or probe systems.
+The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, a Python FastAPI AI service, a local React workspace served through Nginx, bounded Brave and GDELT public-search adapters, read-only vulnerability intelligence, and a private document library. Research queries can use one explicitly selected provider or every currently configured provider; each source retains its provider provenance. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV; users can separately request one or up to 25 exact-CVE NVD details. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. Selected UTF-8 text and Markdown files are stored in PostgreSQL and searched as exact phrases with character-offset citations. An explicit report action sends up to 20 selected search-result snippets to a configured local Ollama model and checks the returned source IDs. It does not fetch linked pages, connect directly to social accounts, include uploaded documents in inference, or probe systems.
 
 ## Target architecture
 
@@ -44,7 +44,7 @@ flowchart TB
   Web -->|same-origin HTTP Basic API requests| Spring[Spring Boot API]
   Spring -->|JDBC| PostgreSQL[(PostgreSQL)]
   Spring -->|Flyway migration at startup| PostgreSQL
-  Spring -->|explicit query, selected provider| Search[Brave Search API or GDELT DOC API]
+  Spring -->|explicit query, selected provider(s)| Search[Brave Search API or GDELT DOC API]
   Spring -->|exact CVE IDs only after lookup| CISA[CISA KEV data mirror]
   Spring -->|small exact-ID lookup| FIRST[FIRST EPSS API]
   Spring -->|selected source metadata only, on explicit report| Python[FastAPI AI service]
@@ -52,7 +52,7 @@ flowchart TB
   Owner -->|loopback health only| Python
 ~~~
 
-Each search adapter uses a fixed HTTPS provider host, a short timeout, and an HTTP client that does not follow redirects. Brave applies strict SafeSearch and returns web/news/discussion results; GDELT returns only bounded public news metadata, and it has no API key. Both adapters keep only HTTP(S) result URLs, cap fields, strip URL fragments, and deduplicate URLs. AURA does not fetch returned URLs, so search does not turn provider result links into arbitrary server-side requests. Automatic selection prefers Brave when the owner configured a key, then falls back to GDELT; the UI also permits an explicit choice.
+Each search adapter uses a fixed HTTPS provider host, a short timeout, and an HTTP client that does not follow redirects. Brave applies strict SafeSearch and returns web/news/discussion results; GDELT returns only bounded public news metadata, and it has no API key. Both adapters keep only HTTP(S) result URLs, cap fields, strip URL fragments, and deduplicate URLs within that provider. AURA does not fetch returned URLs, so search does not turn provider result links into arbitrary server-side requests. Automatic selection prefers Brave when the owner configured a key, then falls back to GDELT. The UI also offers one provider or all configured providers; all mode records each source's actual provider and may preserve a URL returned by both providers twice.
 
 ## Local document import and retrieval
 
@@ -109,7 +109,7 @@ sequenceDiagram
   API-->>Owner: JSON, CSV, or Markdown download
 ~~~
 
-The owner invokes each search explicitly. If the selected provider is disabled or lacks a required key, the request fails before the job leaves `REQUESTED`; provider failures are recorded as a stable failure code. Source content is not treated as verified fact, and search coverage is explicitly partial. GDELT indexes public global news and has a maximum three-month horizon; its discussion or article title metadata is not a direct social-feed search.
+The owner invokes each search explicitly. If the selected provider is disabled or lacks a required key, the request fails before the job leaves `REQUESTED`; provider failures are recorded as a stable failure code. All mode calls enabled providers in sequence; if one fails, the job fails and no source rows are saved, though earlier providers may already have received the query. Source content is not treated as verified fact, and search coverage is explicitly partial. GDELT indexes public global news and has a maximum three-month horizon; its article-title metadata is not a direct social-feed search.
 
 ## Local cited report flow
 
@@ -155,4 +155,4 @@ Future flow only. Parsing, chunking, indexing, retrieval, and synthesis remain s
 
 ## Deployment target
 
-Docker Compose runs PostgreSQL, the Spring API, the AI service, and the Nginx-served React UI, with host ports bound to loopback. Brave's API key is optional and must be supplied by the owner; GDELT public news search is enabled by default and may be disabled. Only an explicit search call sends a query to the selected provider. The Python report route requires the internal service token and has no configured model by default; if enabled, it calls only the local/private Ollama address validated by settings. Remote access requires separate auth, TLS, retention, and abuse review.
+Docker Compose runs PostgreSQL, the Spring API, the AI service, and the Nginx-served React UI, with host ports bound to loopback. Brave's API key is optional and must be supplied by the owner; GDELT public news search is enabled by default and may be disabled. Only an explicit search call sends a query to the selected provider(s). The Python report route requires the internal service token and has no configured model by default; if enabled, it calls only the local/private Ollama address validated by settings. Remote access requires separate auth, TLS, retention, and abuse review.

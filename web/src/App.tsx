@@ -40,6 +40,7 @@ import type {
 
 const emptyFilters: ResultFilters = {
   kind: "",
+  provider: "",
   q: "",
   host: "",
   publishedFrom: "",
@@ -50,7 +51,7 @@ function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) return "Those API credentials were not accepted. Check your local .env values.";
     if (error.code === "SEARCH_PROVIDER_NOT_CONFIGURED") {
-      return "That search provider is not enabled. Choose Automatic or GDELT, or configure your own Brave API key in .env.";
+      return "No selected search provider is enabled. Choose a configured provider, enable GDELT, or add your own Brave API key in .env.";
     }
     if (error.code === "SEARCH_PROVIDER_RATE_LIMITED") return "The search provider rate limited this request. Wait a little and try again.";
     if (error.code === "AI_SERVICE_UNAVAILABLE") return "The local report model is disabled or unavailable. Configure Ollama and an installed model in .env, then retry.";
@@ -75,7 +76,7 @@ function kindLabel(kind: ResearchSource["kind"]): string {
 }
 
 function providerLabel(provider: string): string {
-  return provider === "brave" ? "Brave" : provider === "gdelt" ? "GDELT" : provider;
+  return provider === "brave" ? "Brave" : provider === "gdelt" ? "GDELT" : provider === "all" ? "All configured sources" : provider;
 }
 
 function sourceInitial(domain: string): string {
@@ -779,6 +780,7 @@ export default function App() {
                       <label className="field-label" htmlFor="search-provider">Search source</label>
                       <div className="select-wrap"><select id="search-provider" value={searchProvider} onChange={(event) => setSearchProvider(event.target.value as SearchProviderChoice)}>
                         <option value="">Automatic</option>
+                        <option value="all">All configured sources · broader coverage</option>
                         <option value="brave">Brave · web and discussions</option>
                         <option value="gdelt">GDELT · global news</option>
                       </select><span>⌄</span></div>
@@ -794,7 +796,7 @@ export default function App() {
                       </select><span>⌄</span></div>
                     </div>
                     <div className="field-group field-limit">
-                      <label className="field-label" htmlFor="result-limit">Results per source</label>
+                      <label className="field-label" htmlFor="result-limit">Maximum per result type</label>
                       <div className="select-wrap"><select id="result-limit" value={resultLimit} onChange={(event) => setResultLimit(Number(event.target.value))}>
                         {[5, 10, 20].map((limit) => <option key={limit} value={limit}>{limit} max</option>)}
                       </select><span>⌄</span></div>
@@ -840,6 +842,7 @@ export default function App() {
                   <form className="filter-bar" onSubmit={applyFilters}>
                     <label className="filter-search"><span aria-hidden="true">⌕</span><input aria-label="Search within results" placeholder="Search results" value={draftFilters.q} onChange={(event) => setDraftFilters({ ...draftFilters, q: event.target.value })} /></label>
                     <label className="filter-select"><span className="sr-only">Source type</span><select value={draftFilters.kind} onChange={(event) => setDraftFilters({ ...draftFilters, kind: event.target.value as ResultFilters["kind"] })}><option value="">All sources</option><option value="WEB">Web</option><option value="NEWS">News</option><option value="DISCUSSION">Discussions</option></select><span>⌄</span></label>
+                    <label className="filter-select"><span className="sr-only">Provider</span><select aria-label="Filter by provider" value={draftFilters.provider} onChange={(event) => setDraftFilters({ ...draftFilters, provider: event.target.value })}><option value="">All providers</option>{[...new Set((search?.results ?? []).map((source) => source.provider))].sort().map((name) => <option key={name} value={name}>{providerLabel(name)}</option>)}</select><span>⌄</span></label>
                     <label className="filter-host"><span aria-hidden="true">◎</span><input aria-label="Filter by domain" placeholder="Filter domain" value={draftFilters.host} onChange={(event) => setDraftFilters({ ...draftFilters, host: event.target.value })} /></label>
                     <details className="date-filter"><summary>Dates <span>⌄</span></summary><div className="date-filter-popover"><label>From<input type="date" value={draftFilters.publishedFrom} onChange={(event) => setDraftFilters({ ...draftFilters, publishedFrom: event.target.value })} /></label><label>To<input type="date" value={draftFilters.publishedTo} onChange={(event) => setDraftFilters({ ...draftFilters, publishedTo: event.target.value })} /></label></div></details>
                     <button className="filter-button" type="submit" disabled={filtering}>{filtering ? "…" : "Apply"}</button>
@@ -896,9 +899,9 @@ export default function App() {
 
               <section className="source-scope panel">
                 <div className="scope-head"><span className="scope-icon">◎</span><div><h2>Source scope</h2><p>What this search can reach</p></div></div>
-                <div className="scope-provider"><span className="provider-mark">{searchProvider === "gdelt" ? "G" : searchProvider === "brave" ? "B" : "A"}</span><div><strong>{searchProvider === "gdelt" ? "GDELT News" : searchProvider === "brave" ? "Brave Search" : "Automatic provider"}</strong><span>{searchProvider === "gdelt" ? "Public global news" : searchProvider === "brave" ? "Web · News · Discussions" : "Brave when configured · otherwise GDELT"}</span></div><span className="scope-live"><i /> {connected ? "API LINKED" : "LOCAL API"}</span></div>
+                <div className="scope-provider"><span className="provider-mark">{searchProvider === "gdelt" ? "G" : searchProvider === "brave" ? "B" : searchProvider === "all" ? "+" : "A"}</span><div><strong>{searchProvider === "gdelt" ? "GDELT News" : searchProvider === "brave" ? "Brave Search" : searchProvider === "all" ? "All configured sources" : "Automatic provider"}</strong><span>{searchProvider === "gdelt" ? "Public global news" : searchProvider === "brave" ? "Web · News · Discussions" : searchProvider === "all" ? "Brave when configured + GDELT when enabled" : "Brave when configured · otherwise GDELT"}</span></div><span className="scope-live"><i /> {connected ? "API LINKED" : "LOCAL API"}</span></div>
                 <div className="scope-divider" />
-                <p className="scope-copy">AURA searches one selected public provider and saves each returned link. Brave covers web, news, and discussions; GDELT covers indexed global news from at most the past three months. Coverage is partial, not a crawl of the entire internet.</p>
+                <p className="scope-copy">AURA searches selected public providers and saves each returned link. Choose All configured sources to query Brave when its key is set and GDELT when enabled. Brave covers web, news, and discussions; GDELT covers indexed global news from at most the past three months. Coverage is partial, not a crawl of the entire internet.</p>
                 <p className="scope-copy">Automatic uses Brave when its key is configured, then falls back to GDELT. GDELT is public and needs no key. Queries leave your computer only when you start a search.</p>
                 <div className="scope-foot"><span>⌁</span> No direct social-account access</div>
               </section>

@@ -8,6 +8,8 @@ ADRs capture trade-offs, not feature completion.
 - 0004 Local-first operation and explicit model egress
 - 0005 Bounded local research reports
 - 0006 Selected public search providers
+- 0007 Explicit multi-provider public search
+- 0008 Social-source compliance gate
 
 ## Template
 

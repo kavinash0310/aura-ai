@@ -47,7 +47,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.username=sa",
         "spring.datasource.password=",
         "aura.auth.username=test-owner",
-        "aura.auth.password=this-is-a-test-password-with-enough-length"
+        "aura.auth.password=this-is-a-test-password-with-enough-length",
+        "aura.search.brave.api-key=",
+        "aura.search.gdelt.enabled=false"
 })
 class ResearchSearchApiTest {
 
@@ -123,6 +125,58 @@ class ResearchSearchApiTest {
                         .param("host", "notexample.org"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.results.length()").value(0));
+    }
+
+    @Test
+    void allModeSearchesEveryConfiguredProviderAndKeepsPerSourceProvenance() throws Exception {
+        UUID id = createJob("multi-source research");
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"resultLimit\":5,\"provider\":\"all\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("all"))
+                .andExpect(jsonPath("$.providerResultCount").value(4))
+                .andExpect(jsonPath("$.results.length()").value(4))
+                .andExpect(jsonPath("$.coverageNote").value(org.hamcrest.Matchers.containsString("every currently configured public search provider")));
+
+        org.assertj.core.api.Assertions.assertThat(sources.findByResearchJobIdOrderByRankAsc(id))
+                .extracting(source -> source.getProvider())
+                .containsExactlyInAnyOrder("test", "test", "test", "secondary");
+
+        mockMvc.perform(get("/api/v1/research-jobs/" + id + "/sources")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .param("provider", "SECONDARY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.results.length()").value(1))
+                .andExpect(jsonPath("$.results[0].provider").value("secondary"));
+
+        mockMvc.perform(get("/api/v1/research-jobs/" + id + "/export")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .param("format", "json")
+                        .param("provider", "secondary"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.results.length()").value(1))
+                .andExpect(jsonPath("$.results[0].provider").value("secondary"));
+    }
+
+    @Test
+    void allModeSavesNoPartialResultsWhenAProviderFails() throws Exception {
+        UUID id = createJob("multi-source-fails");
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"provider\":\"all\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SEARCH_PROVIDER_RATE_LIMITED"));
+
+        mockMvc.perform(get("/api/v1/research-jobs/" + id).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.failureCode").value("SEARCH_PROVIDER_RATE_LIMITED"));
+        org.assertj.core.api.Assertions.assertThat(sources.countByResearchJobId(id)).isZero();
     }
 
     @Test
@@ -316,6 +370,37 @@ class ResearchSearchApiTest {
                                     null
                             )
                     );
+                }
+            };
+        }
+
+        @Bean
+        SearchProvider secondaryTestSearchProvider() {
+            return new SearchProvider() {
+                @Override
+                public String name() {
+                    return "secondary";
+                }
+
+                @Override
+                public boolean isConfigured() {
+                    return true;
+                }
+
+                @Override
+                public List<ProviderSource> search(String query, ResearchFilters filters) {
+                    if (query.equals("multi-source-fails")) {
+                        throw new SearchProviderException("SEARCH_PROVIDER_RATE_LIMITED", true);
+                    }
+                    return List.of(new ProviderSource(
+                            ai.aura.api.domain.SourceType.NEWS,
+                            "Secondary provider result",
+                            "https://secondary.example.net/story",
+                            "secondary.example.net",
+                            "A second provider result",
+                            "Secondary",
+                            Instant.parse("2026-10-21T10:00:00Z")
+                    ));
                 }
             };
         }

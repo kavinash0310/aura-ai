@@ -185,6 +185,7 @@ export function generateResearchReport(
 function filterParams(filters: ResultFilters): URLSearchParams {
   const params = new URLSearchParams();
   if (filters.kind) params.set("kind", filters.kind);
+  if (filters.provider) params.set("provider", filters.provider);
   if (filters.q.trim()) params.set("q", filters.q.trim());
   if (filters.host.trim()) params.set("host", filters.host.trim());
   if (filters.publishedFrom) params.set("publishedFrom", filters.publishedFrom);

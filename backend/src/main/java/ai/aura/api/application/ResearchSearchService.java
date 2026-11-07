@@ -2,12 +2,14 @@ package ai.aura.api.application;
 
 import ai.aura.api.domain.ResearchFilters;
 import ai.aura.api.domain.ResearchJob;
+import ai.aura.api.search.ProviderSearchResult;
 import ai.aura.api.search.ProviderSource;
 import ai.aura.api.search.SearchProvider;
 import ai.aura.api.search.SearchProviderException;
 import ai.aura.api.search.SearchProviderNotConfiguredException;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -29,15 +31,21 @@ public class ResearchSearchService {
     }
 
     public ResearchJob run(UUID jobId, ResearchFilters filters, String requestedProvider) {
-        SearchProvider provider = resolveProvider(requestedProvider);
-        if (!provider.isConfigured()) {
+        List<SearchProvider> selectedProviders = resolveProviders(requestedProvider);
+        if (selectedProviders.isEmpty()) {
             throw new SearchProviderNotConfiguredException();
         }
 
-        ResearchJob job = jobs.beginSearch(jobId, filters, provider.name());
-        List<ProviderSource> results;
+        String selectedProvider = isAllProviders(requestedProvider)
+                ? "all"
+                : selectedProviders.getFirst().name();
+        ResearchJob job = jobs.beginSearch(jobId, filters, selectedProvider);
+        List<ProviderSearchResult> results = new ArrayList<>();
         try {
-            results = provider.search(job.getSubject(), filters);
+            for (SearchProvider provider : selectedProviders) {
+                List<ProviderSource> providerResults = provider.search(job.getSubject(), filters);
+                results.add(new ProviderSearchResult(provider.name(), providerResults));
+            }
         } catch (SearchProviderException exception) {
             jobs.failSearch(jobId, exception.getCode());
             throw exception;
@@ -45,21 +53,29 @@ public class ResearchSearchService {
             jobs.failSearch(jobId, "SEARCH_PROVIDER_FAILURE");
             throw new SearchProviderException("SEARCH_PROVIDER_FAILURE", false);
         }
-        return jobs.completeSearch(jobId, provider.name(), results);
+        return jobs.completeSearch(jobId, results);
     }
 
-    private SearchProvider resolveProvider(String requestedProvider) {
+    private List<SearchProvider> resolveProviders(String requestedProvider) {
+        if (isAllProviders(requestedProvider)) {
+            return providers.stream().filter(SearchProvider::isConfigured).toList();
+        }
         if (requestedProvider != null && !requestedProvider.isBlank()) {
             SearchProvider selected = providersByName.get(requestedProvider);
             if (selected == null) {
-                throw new InvalidResearchFilterException("Search provider must be brave or gdelt.");
+                throw new InvalidResearchFilterException("Search provider must be brave, gdelt, or all.");
             }
-            return selected;
+            return selected.isConfigured() ? List.of(selected) : List.of();
         }
         return providers.stream()
                 .filter(SearchProvider::isConfigured)
                 .findFirst()
-                .orElseThrow(SearchProviderNotConfiguredException::new);
+                .map(List::of)
+                .orElseGet(List::of);
+    }
+
+    private static boolean isAllProviders(String requestedProvider) {
+        return "all".equalsIgnoreCase(requestedProvider);
     }
 }
 

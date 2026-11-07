@@ -60,13 +60,14 @@ public class ResearchSearchController {
     public ResearchSearchResponse sources(
             @PathVariable UUID id,
             @RequestParam(required = false) SourceType kind,
+            @RequestParam(required = false) String provider,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String host,
             @RequestParam(required = false) LocalDate publishedFrom,
             @RequestParam(required = false) LocalDate publishedTo
     ) {
         ResearchJob job = jobService.get(id);
-        List<ResearchSourceResponse> results = filtered(id, kind, q, host, publishedFrom, publishedTo);
+        List<ResearchSourceResponse> results = filtered(id, kind, provider, q, host, publishedFrom, publishedTo);
         return ResearchSearchResponse.from(job, results);
     }
 
@@ -75,6 +76,7 @@ public class ResearchSearchController {
             @PathVariable UUID id,
             @RequestParam(defaultValue = "json") String format,
             @RequestParam(required = false) SourceType kind,
+            @RequestParam(required = false) String provider,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String host,
             @RequestParam(required = false) LocalDate publishedFrom,
@@ -83,7 +85,7 @@ public class ResearchSearchController {
         ResearchJob job = jobService.get(id);
         ResearchSearchResponse response = ResearchSearchResponse.from(
                 job,
-                filtered(id, kind, q, host, publishedFrom, publishedTo)
+                filtered(id, kind, provider, q, host, publishedFrom, publishedTo)
         );
 
         String normalizedFormat = format.strip().toLowerCase(Locale.ROOT);
@@ -123,12 +125,13 @@ public class ResearchSearchController {
     private List<ResearchSourceResponse> filtered(
             UUID id,
             SourceType kind,
+            String provider,
             String q,
             String host,
             LocalDate publishedFrom,
             LocalDate publishedTo
     ) {
-        return resultService.list(id, kind, q, host, publishedFrom, publishedTo)
+        return resultService.list(id, kind, provider, q, host, publishedFrom, publishedTo)
                 .stream()
                 .map(ResearchSourceResponse::from)
                 .toList();
@@ -142,7 +145,7 @@ public class ResearchSearchController {
             LocalDate from,
             LocalDate to
     ) {
-        return ResearchSearchResponse.from(job, filtered(job.getId(), kind, q, host, from, to));
+        return ResearchSearchResponse.from(job, filtered(job.getId(), kind, null, q, host, from, to));
     }
 
     private static String csv(ResearchSearchResponse response) {

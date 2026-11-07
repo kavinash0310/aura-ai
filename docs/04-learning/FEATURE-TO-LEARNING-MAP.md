@@ -12,7 +12,7 @@ CORE means needed for AURA; CAREER means high value for the target role; OPTIONA
 | Document ingestion | File validation, parsing, metadata, chunking, offsets | Parser adapters, PostgreSQL | Streams, encodings, security | CORE / CAREER |
 | Search and RAG | Tokenization, embeddings, similarity, FTS, hybrid search, reranking, citations | PostgreSQL FTS, optional pgvector | Probability, vectors, SQL | CORE / CAREER |
 | LLM integration | Prompt injection, structured outputs, source-ID validation, context and latency bounds | Local Ollama `/api/chat`, Pydantic JSON Schema | HTTP, JSON schemas, evidence provenance | CORE / CAREER |
-| Research sources | Query planning, quotas, source terms, retries, normalization, dedupe | Provider-neutral adapters | HTTP, pagination | CORE |
+| Research sources | Query planning, quotas, source terms, provider aggregation, per-source provenance, retries, normalization, dedupe | Provider-neutral adapters | HTTP, pagination | CORE |
 | Evidence/reports | Provenance, claim/evidence distinction, contradictions, reproducibility | PostgreSQL, Markdown/PDF | Domain modeling | CORE |
 | Controlled workflows | Tool permission, state, audit, approval, recovery | Java state machine, optional LangGraph | Workflow fundamentals | CORE / CAREER |
 | Cyber intelligence | CVE/CPE/SBOM, KEV, EPSS, CVSS, explainable scoring | NVD/CISA/FIRST adapters | Normalization, probability | CORE |

@@ -27,6 +27,7 @@ public class ResearchResultService {
     public List<ResearchSource> list(
             UUID jobId,
             SourceType kind,
+            String provider,
             String query,
             String host,
             LocalDate publishedFrom,
@@ -39,11 +40,17 @@ public class ResearchResultService {
 
         String normalizedQuery = query == null ? null : query.strip().toLowerCase(Locale.ROOT);
         String normalizedHost = host == null ? null : host.strip().toLowerCase(Locale.ROOT);
+        String normalizedProvider = provider == null || provider.isBlank()
+                ? null
+                : provider.strip().toLowerCase(Locale.ROOT);
         if (normalizedQuery != null && normalizedQuery.length() > 200) {
             throw new InvalidResearchFilterException("The text filter is too long.");
         }
         if (normalizedHost != null && normalizedHost.length() > 253) {
             throw new InvalidResearchFilterException("The host filter is too long.");
+        }
+        if (normalizedProvider != null && !normalizedProvider.matches("[a-z][a-z0-9-]{0,31}")) {
+            throw new InvalidResearchFilterException("The provider filter is invalid.");
         }
         if (publishedFrom != null && publishedTo != null && publishedFrom.isAfter(publishedTo)) {
             throw new InvalidResearchFilterException("The publication date range is reversed.");
@@ -51,6 +58,7 @@ public class ResearchResultService {
 
         return sources.findByResearchJobIdOrderByRankAsc(jobId).stream()
                 .filter(source -> kind == null || source.getType() == kind)
+                .filter(source -> normalizedProvider == null || source.getProvider().equals(normalizedProvider))
                 .filter(source -> matchesQuery(source, normalizedQuery))
                 .filter(source -> matchesHost(source, normalizedHost))
                 .filter(source -> matchesDate(source, publishedFrom, publishedTo))

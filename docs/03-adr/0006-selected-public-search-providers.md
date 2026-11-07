@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-11-07
 
+> The one-provider-per-job behavior in this initial decision was extended by [ADR 0007](0007-explicit-multi-provider-search.md), which adds explicit all-configured search while preserving Automatic as single-provider selection.
+
 ## Context
 
 The initial public research feature used one optional Brave adapter. That left a clean-install with no API key unable to search and gave AURA only one provider's coverage. The product needs additional source coverage while preserving clear egress, provenance, and user control.

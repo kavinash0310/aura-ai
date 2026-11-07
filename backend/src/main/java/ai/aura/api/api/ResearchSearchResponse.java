@@ -39,6 +39,9 @@ public record ResearchSearchResponse(
     }
 
     private static String coverageNote(String provider) {
+        if ("all".equals(provider)) {
+            return "AURA queried every currently configured public search provider. Sources show which provider returned each result; duplicate links may appear under more than one provider. Coverage remains partial, and any provider failure marks the full search as failed. GDELT covers indexed news from at most the past three months; Brave discussions are not a direct social-account connector.";
+        }
         if ("gdelt".equals(provider)) {
             return "GDELT indexes a subset of public global news and searches at most the past three months. It does not search social posts or the entire internet.";
         }

@@ -42,7 +42,7 @@ Deletes a saved brief and its associated source metadata. Returns `204 No Conten
 
 ### POST `/api/v1/research-jobs/{id}/search`
 
-Runs one bounded request against one provider. The optional `provider` is `brave` or `gdelt`; when omitted, AURA selects the first configured provider (Brave, then GDELT). GDELT public news search is enabled by default and needs no API key; set `AURA_GDELT_ENABLED=false` to disable it. Brave requires the owner's `AURA_BRAVE_API_KEY`. An unavailable or disabled selection returns `503 SEARCH_PROVIDER_NOT_CONFIGURED` and leaves the job `REQUESTED`. A job can be searched once; other states return `409 RESEARCH_JOB_STATE_CONFLICT`.
+Runs one bounded research job. The optional `provider` is `brave`, `gdelt`, or `all`; when omitted, AURA selects the first configured provider (Brave, then GDELT). `all` queries every currently configured provider in order. GDELT public news search is enabled by default and needs no API key; set `AURA_GDELT_ENABLED=false` to disable it. Brave requires the owner's `AURA_BRAVE_API_KEY`. If no provider is available, the request returns `503 SEARCH_PROVIDER_NOT_CONFIGURED` and leaves the job `REQUESTED`. A job can be searched once; other states return `409 RESEARCH_JOB_STATE_CONFLICT`.
 
 Optional request fields:
 
@@ -50,11 +50,11 @@ Optional request fields:
 - `language`: two lowercase letters, for example `en`.
 - `freshness`: `pd` (day), `pw` (week), `pm` (month), or `py` (year).
 - `resultLimit`: 1–20 per provider result type; defaults to 20.
-- `provider`: `brave`, `gdelt`, or `null` for automatic selection.
+- `provider`: `brave`, `gdelt`, `all`, or `null` for automatic selection.
 
-Brave requests web, news, and discussion result types with strict SafeSearch. GDELT requests the article-list mode and accepts source-country and source-language filters; its search horizon is limited to the last three months, so `py` maps to that three-month maximum. GDELT provides article metadata and titles, not article-body excerpts. AURA stores normalized HTTP(S) URLs and source metadata (provider, type, title, domain, publisher, description when available, published time when known, retrieval time, and rank). Brave can return up to three result types, so its combined result count can be as high as 60; GDELT returns at most 20 articles. Returned links are not fetched by AURA.
+Brave requests web, news, and discussion result types with strict SafeSearch. GDELT requests the article-list mode and accepts source-country and source-language filters; its search horizon is limited to the last three months, so `py` maps to that three-month maximum. GDELT provides article metadata and titles, not article-body excerpts. AURA stores normalized HTTP(S) URLs and source metadata (provider, type, title, domain, publisher, description when available, published time when known, retrieval time, and rank). Brave can return up to three result types (up to 60 results); GDELT returns at most 20 articles. In `all` mode the combined maximum is 80, and duplicate URLs may appear with separate provider provenance. Returned links are not fetched by AURA. Calls are sequential; if any selected provider fails, AURA marks the job failed and saves no source rows, although earlier providers in that request may already have received the query.
 
-Responses include `provider`, `providerResultCount`, source results, and a provider-specific coverage note. This is a single-provider sample, not a complete view of the internet. Brave discussion results are not a direct X/Twitter or social-account connector. See the [GDELT DOC API overview](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/) for supported modes and its three-month search window.
+Responses include `provider`, `providerResultCount`, source results with each source's actual provider, and a coverage note. In `all` mode, the job's provider is `all`; each source retains its provider name. Coverage remains partial, not a crawl of the internet. Brave discussion results are not a direct X/Twitter or social-account connector. See the [GDELT DOC API overview](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/) for supported modes and its three-month search window.
 
 ### POST `/api/v1/research-jobs/{id}/report`
 
@@ -69,6 +69,7 @@ The Java-to-Python call uses `AURA_AI_INTERNAL_TOKEN`, which must be a separate 
 Lists saved results for a completed job. Optional filters:
 
 - `kind`: `WEB`, `NEWS`, or `DISCUSSION`.
+- `provider`: exact provider name such as `brave` or `gdelt` (case-insensitive).
 - `q`: case-insensitive match in title, description, publisher, or domain (maximum 200 characters).
 - `host`: exact domain or subdomain match (maximum 253 characters).
 - `publishedFrom`, `publishedTo`: inclusive UTC calendar dates. Results with unknown publication time are excluded when a date filter is used.
@@ -146,7 +147,7 @@ Invalid content returns `400 INVALID_DOCUMENT`; requests exceeding the global mu
 
 ## Current limits and next contracts
 
-- Search sends the query to the configured external provider only when the owner invokes the search route. Provider access and possible charges are governed by that provider account.
+- Search sends the query to the selected configured external provider or providers only when the owner invokes the search route. Provider access and possible charges are governed by those provider accounts.
 - No direct social-media connector, complete-internet crawl, page fetch, cross-source fact checking, or claim comparison is implemented. Local-model synthesis is a bounded first slice over provider snippets only.
 - Person research is limited to public-interest material. Do not use this for doxxing, sensitive-trait inference, invasive tracking, or private-account access.
 - Research history is capped to the newest 100 results per request; there is no cursor pagination yet. Queries and source metadata are retained until the owner deletes a brief. Remote deployments still need documented retention, audit, backup, and account-isolation policies.

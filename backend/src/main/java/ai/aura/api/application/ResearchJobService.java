@@ -6,6 +6,7 @@ import ai.aura.api.domain.ResearchJobStatus;
 import ai.aura.api.domain.ResearchSource;
 import ai.aura.api.persistence.ResearchJobRepository;
 import ai.aura.api.persistence.ResearchSourceRepository;
+import ai.aura.api.search.ProviderSearchResult;
 import ai.aura.api.search.ProviderSource;
 import ai.aura.api.domain.ResearchMode;
 import org.springframework.stereotype.Service;
@@ -64,7 +65,7 @@ public class ResearchJobService {
     }
 
     @Transactional
-    public ResearchJob completeSearch(UUID id, String provider, List<ProviderSource> results) {
+    public ResearchJob completeSearch(UUID id, List<ProviderSearchResult> providerResults) {
         ResearchJob job = repository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResearchJobNotFoundException(id));
         if (job.getStatus() != ResearchJobStatus.SEARCHING) {
@@ -74,8 +75,10 @@ public class ResearchJobService {
         Instant retrievedAt = Instant.now();
         List<ResearchSource> entities = new ArrayList<>();
         int rank = 1;
-        for (ProviderSource result : results) {
-            entities.add(ResearchSource.from(id, provider, rank++, result, retrievedAt));
+        for (ProviderSearchResult providerResult : providerResults) {
+            for (ProviderSource result : providerResult.sources()) {
+                entities.add(ResearchSource.from(id, providerResult.provider(), rank++, result, retrievedAt));
+            }
         }
         sources.saveAll(entities);
         job.completeSearch(entities.size(), retrievedAt);
