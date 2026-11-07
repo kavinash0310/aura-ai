@@ -152,4 +152,41 @@ describe("AURA research workspace", () => {
     expect(screen.getByRole("link", { name: "CISA catalog" })).toHaveAttribute("href", "https://www.cisa.gov/known-exploited-vulnerabilities-catalog");
     expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ cves: ["CVE-2026-12345"] });
   });
+
+  it("uploads a CycloneDX file as multipart and shows only its declared CVEs", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requestedAt: "2026-11-07T00:00:00Z",
+        format: "CycloneDX JSON",
+        specVersion: "1.7",
+        componentCount: 1,
+        cveCount: 1,
+        vulnerabilities: [{
+          cve: "CVE-2026-12345",
+          affectedBomRefs: ["pkg:npm/demo@1.0"],
+          affectedComponents: [{ bomRef: "pkg:npm/demo@1.0", name: "demo", version: "1.0", purl: "pkg:npm/demo@1.0" }],
+        }],
+        intelligence: null,
+        coverageNote: "Only CVEs declared in the SBOM are checked.",
+      }), { status: 200 }));
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
+    await screen.findByText("Connected securely");
+    const file = new File([JSON.stringify({ bomFormat: "CycloneDX" })], "inventory.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("CycloneDX JSON file"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: /Review SBOM/ }));
+
+    expect(await screen.findByText("CVE-2026-12345 ↗")).toBeInTheDocument();
+    expect(screen.getByText("demo")).toBeInTheDocument();
+    const [url, options] = fetchMock.mock.calls[2]!;
+    expect(url).toBe("/api/v1/cyber/sbom/lookup");
+    expect(options?.body).toBeInstanceOf(FormData);
+    expect((options?.body as FormData).get("file")).toBeInstanceOf(File);
+    expect(new Headers(options?.headers).has("Content-Type")).toBe(false);
+  });
 });

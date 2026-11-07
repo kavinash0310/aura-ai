@@ -82,6 +82,14 @@ The CISA catalog is read from the [CISA-maintained KEV data mirror](https://gith
 
 No result performs network probing, asset discovery, vulnerability scanning, exploit execution, or patching. AURA does not persist these lookups; download JSON or CSV from the local UI if a copy is needed.
 
+### POST `/api/v1/cyber/sbom/lookup`
+
+Requires the local owner Basic Auth account. Send one `file` part as `multipart/form-data`. The accepted input is CycloneDX JSON with `specVersion` 1.3–1.7; files are limited to 2 MB, 10,000 components, 2,000 vulnerability records, 25 distinct CVE IDs, and 10,000 distinct affected-reference pairs. Malformed JSON, unsupported formats/versions, duplicate component `bom-ref` values, and limit violations return `400 INVALID_SBOM`; a request above the configured multipart cap returns `413 SBOM_TOO_LARGE`.
+
+The parser reads component metadata and references, then extracts only CVE identifiers already present in the SBOM's `vulnerabilities[].id` values. It maps `affects[].ref` to component `bom-ref` values where possible. A reference that cannot be resolved remains visible in the response. AURA does not use package names, versions, PURLs, or CPEs to infer missing CVEs, and does not establish that an inventory is installed or affected. Those exact declared CVEs are enriched using the same CISA KEV and FIRST EPSS behavior described above; no provider is called when the SBOM declares no CVEs.
+
+The response includes format/spec version, component and CVE counts, declared CVEs, affected references and resolved component names/versions/PURLs, the enrichment response (or `null`), and a coverage note. Uploads are parsed in memory and are not saved to AURA's database. The web UI supports JSON and CSV downloads of the review. The SBOM file itself is not sent to CISA or FIRST; the public-service egress is limited to the CVE identifiers for EPSS and a KEV catalog refresh/match.
+
 ## Provider errors
 
 - `502 SEARCH_PROVIDER_FAILURE` / `SEARCH_PROVIDER_INVALID_RESPONSE`: provider request or response failed.
@@ -94,4 +102,4 @@ No result performs network probing, asset discovery, vulnerability scanning, exp
 - No direct social-media connector, complete-internet crawl, page fetch, AI synthesis, cross-source fact checking, or claim comparison is implemented.
 - Person research is limited to public-interest material. Do not use this for doxxing, sensitive-trait inference, invasive tracking, or private-account access.
 - Research history is capped to the newest 100 results per request; there is no cursor pagination yet. Queries and source metadata are retained until the owner deletes a brief. Remote deployments still need documented retention, audit, backup, and account-isolation policies.
-- Future work: cursor-paginated history; source-specific adapters with their own quotas and terms; document upload and owner-filtered retrieval; cited synthesis; report retention/deletion; NVD and SBOM defensive analysis.
+- Future work: cursor-paginated history; source-specific adapters with their own quotas and terms; document upload and owner-filtered retrieval; cited synthesis; report retention/deletion; NVD enrichment, SPDX/SARIF SBOM support, vendor advisories, and inventory matching.

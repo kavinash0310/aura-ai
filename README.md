@@ -23,7 +23,7 @@ This is also a practical AI software engineering learning path: a Java/Spring ap
 
 ## Current milestone
 
-M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI health service. The first M5 research slice adds an explicit, bounded Brave search, saved source metadata, filters, and JSON/CSV/Markdown downloads. The local React workspace can reopen and delete saved briefs. The M7 first slice adds an authenticated read-only lookup for exact CVE IDs against CISA KEV and FIRST EPSS, with transparent ranking and JSON/CSV download. The Python service still has no model or data access. AURA does not search every page or social post, connect to social accounts, fetch result pages, synthesize reports, ingest SBOMs, or probe systems.
+M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI health service. The first M5 research slice adds an explicit, bounded Brave search, saved source metadata, filters, and JSON/CSV/Markdown downloads. The local React workspace can reopen and delete saved briefs. The M7 defensive slice checks exact CVE IDs against CISA KEV and FIRST EPSS and can inspect CycloneDX JSON SBOMs up to 2 MB. SBOM analysis enriches only CVEs already declared in the file; it does not match packages to vulnerabilities. The Python service still has no model or data access. AURA does not search every page or social post, connect to social accounts, fetch result pages, synthesize reports, or probe systems.
 
 See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and [MVP backlog](docs/00-overview/MVP-AND-BACKLOG.md).
 
@@ -39,10 +39,11 @@ Requirements: JDK 21, Docker Desktop with Compose, Git, Maven 3.9+ for local Jav
 6. Add an optional Brave key to `.env` to enable searches. Your query is sent to Brave; the workspace shows the returned coverage limitation.
 7. Spring health: http://127.0.0.1:8080/api/v1/health; AI-service health: http://127.0.0.1:8001/api/v1/health.
 8. Direct API: create a `GENERAL` research job, explicitly run its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See [API contracts](docs/02-architecture/API-CONTRACTS.md) for request shapes and limits.
-9. Verify Java with `mvn -f backend/pom.xml verify`. For frontend development, use Node 22 in `web` and run `npm ci`, `npm test`, then `npm run build`.
-10. In a terminal, change to `ai-service`, then run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
+9. In Cyber intelligence, submit exact CVE IDs or upload a CycloneDX JSON SBOM of 2 MB or less. AURA parses the file in memory and checks only CVEs declared in it; it does not identify package vulnerabilities or scan systems.
+10. Verify Java with `mvn -f backend/pom.xml verify`. For frontend development, use Node 22 in `web` and run `npm ci`, `npm test`, then `npm run build`.
+11. In a terminal, change to `ai-service`, then run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
 
-All host ports bind to loopback. The Python health endpoint is public and returns no user data. The Spring API uses development-only Basic Auth. The web app proxies `/api` to Spring inside the Compose network. An explicit search sends its query to Brave; a CVE lookup reads the CISA KEV catalog and sends submitted identifiers to FIRST EPSS. Search metadata is stored; vulnerability lookups are not persisted. Provider access is governed by each provider's terms. Do not expose or port-forward the local stack. See [local development guide](docs/19-operations/LOCAL-DEV.md).
+All host ports bind to loopback. The Python health endpoint is public and returns no user data. The Spring API uses development-only Basic Auth. The web app proxies `/api` to Spring inside the Compose network. An explicit search sends its query to Brave; a vulnerability or SBOM lookup reads the CISA KEV catalog and sends only exact CVE identifiers to FIRST EPSS. SBOM files and vulnerability results are not persisted by AURA. Provider access is governed by each provider's terms. Do not expose or port-forward the local stack. See [local development guide](docs/19-operations/LOCAL-DEV.md).
 
 ## Start here
 

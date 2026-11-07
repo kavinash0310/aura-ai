@@ -1,6 +1,7 @@
 package ai.aura.api.api;
 
 import ai.aura.api.application.InvalidResearchFilterException;
+import ai.aura.api.application.InvalidSbomException;
 import ai.aura.api.application.ResearchJobConflictException;
 import ai.aura.api.application.ResearchJobNotFoundException;
 import ai.aura.api.search.SearchProviderException;
@@ -10,6 +11,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -49,6 +51,19 @@ public class ApiExceptionHandler {
     ProblemDetail handleInvalidFilter(InvalidResearchFilterException exception) {
         return problem(HttpStatus.BAD_REQUEST, exception.getMessage(),
                 "Invalid research filter", "INVALID_RESEARCH_FILTER");
+    }
+
+    @ExceptionHandler(InvalidSbomException.class)
+    ProblemDetail handleInvalidSbom(InvalidSbomException exception) {
+        return problem(HttpStatus.BAD_REQUEST, exception.getMessage(),
+                "Invalid CycloneDX SBOM", "INVALID_SBOM");
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ProblemDetail handleOversizedUpload(MaxUploadSizeExceededException exception) {
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE,
+                "CycloneDX JSON SBOM files must be 2 MB or smaller.",
+                "SBOM is too large", "SBOM_TOO_LARGE");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

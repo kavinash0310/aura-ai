@@ -5,6 +5,7 @@ import {
   createResearchJob,
   deleteResearchJob,
   downloadExport,
+  lookupSbom,
   lookupVulnerabilities,
   listResearchJobs,
   listSources,
@@ -17,6 +18,7 @@ import type {
   ResearchMode,
   ResearchSource,
   ResultFilters,
+  SbomLookupResponse,
   SearchResponse,
   VulnerabilityFinding,
   VulnerabilityLookupResponse,
@@ -38,6 +40,7 @@ function errorMessage(error: unknown): string {
     }
     if (error.code === "SEARCH_PROVIDER_RATE_LIMITED") return "The search provider rate limited this request. Wait a little and try again.";
     if (error.code === "VALIDATION_FAILED") return "Enter one to 25 CVE IDs, such as CVE-2024-12345.";
+    if (error.code === "INVALID_SBOM" || error.code === "SBOM_TOO_LARGE") return error.message;
     if (error.status === 0) return error.message;
     return error.message;
   }
@@ -97,6 +100,9 @@ export default function App() {
   const [cveInput, setCveInput] = useState("");
   const [vulnerabilityLookup, setVulnerabilityLookup] = useState<VulnerabilityLookupResponse | null>(null);
   const [vulnerabilityBusy, setVulnerabilityBusy] = useState(false);
+  const [sbomFile, setSbomFile] = useState<File | null>(null);
+  const [sbomLookup, setSbomLookup] = useState<SbomLookupResponse | null>(null);
+  const [sbomBusy, setSbomBusy] = useState(false);
 
   const credentials = useMemo<Credentials>(() => ({ username, password }), [username, password]);
 
@@ -295,6 +301,62 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
+  async function analyzeSbom(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!connected || !sbomFile) return;
+    if (sbomFile.size > 2 * 1024 * 1024) {
+      setError("CycloneDX JSON SBOM files must be 2 MB or smaller.");
+      return;
+    }
+    setSbomBusy(true);
+    setSbomLookup(null);
+    setError("");
+    try {
+      setSbomLookup(await lookupSbom(credentials, sbomFile));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setSbomBusy(false);
+    }
+  }
+
+  function downloadSbom(format: "json" | "csv") {
+    if (!sbomLookup) return;
+    let content: string;
+    let mimeType: string;
+    if (format === "json") {
+      content = JSON.stringify(sbomLookup, null, 2);
+      mimeType = "application/json;charset=utf-8";
+    } else {
+      const findings = new Map((sbomLookup.intelligence?.results ?? []).map((finding) => [finding.cve, finding]));
+      const columns = ["cve", "affectedBomRefs", "componentNames", "componentVersions", "purls", "knownExploited", "epssScore", "priorityRank"];
+      const rows = sbomLookup.vulnerabilities.map((vulnerability) => {
+        const finding = findings.get(vulnerability.cve);
+        const values: Array<string | number | boolean | null> = [
+          vulnerability.cve,
+          vulnerability.affectedBomRefs.join("; "),
+          vulnerability.affectedComponents.map((component) => component.name).filter(Boolean).join("; "),
+          vulnerability.affectedComponents.map((component) => component.version).filter(Boolean).join("; "),
+          vulnerability.affectedComponents.map((component) => component.purl).filter(Boolean).join("; "),
+          finding?.knownExploited ?? null,
+          finding?.epssScore ?? null,
+          finding?.priorityRank ?? null,
+        ];
+        return values.map(csvCell).join(",");
+      });
+      content = [columns.map(csvCell).join(","), ...rows].join("\r\n");
+      mimeType = "text/csv;charset=utf-8";
+    }
+    const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aura-sbom-lookup.${format}`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function disconnect() {
     setConnected(false);
     setUsername("");
@@ -303,6 +365,8 @@ export default function App() {
     setJob(null);
     setSearch(null);
     setSources([]);
+    setSbomFile(null);
+    setSbomLookup(null);
     setCanRetry(false);
     setError("");
   }
@@ -560,6 +624,62 @@ export default function App() {
                   </div>
                 </article>)}
               </div> : <div className="empty-results"><strong>No data matched those CVE IDs</strong><p>Check the identifier or retry when the public data sources are available.</p></div>}
+            </div>}
+
+            <div className="sbom-divider" />
+            <div className="sbom-heading"><div><h3>CycloneDX SBOM review</h3><p>Enrich CVEs already listed in a CycloneDX JSON file.</p></div><span className="panel-tag">MAX 2 MB</span></div>
+            <form className="sbom-form" onSubmit={analyzeSbom}>
+              <label className="field-label" htmlFor="sbom-file">CycloneDX JSON file</label>
+              <input
+                id="sbom-file"
+                className="text-input sbom-file-input"
+                type="file"
+                accept=".json,application/json"
+                onChange={(event) => {
+                  setSbomFile(event.currentTarget.files?.[0] ?? null);
+                  setSbomLookup(null);
+                }}
+              />
+              <div className="cyber-form-footer">
+                <span className="provider-note"><i className="shield-icon">◇</i> Declared CVEs only · no package matching or scanning</span>
+                <button className="primary-button" type="submit" disabled={!connected || sbomBusy || !sbomFile}>
+                  {sbomBusy ? <><span className="spinner" /> Reviewing SBOM</> : <>Review SBOM <span aria-hidden="true">↗</span></>}
+                </button>
+              </div>
+              <p className="cyber-egress-note">AURA parses this file locally in memory and does not save it. Only CVE IDs already declared in the file are sent to FIRST EPSS; CISA KEV data is matched locally.</p>
+            </form>
+
+            {sbomLookup && <div className="cyber-results" aria-live="polite">
+              <div className="cyber-results-header">
+                <div>
+                  <div className="section-kicker">SBOM SUMMARY</div>
+                  <p className="cyber-source-status">{sbomLookup.format} {sbomLookup.specVersion} · {sbomLookup.componentCount} components · {sbomLookup.cveCount} declared CVEs</p>
+                  {sbomLookup.intelligence && <p className="cyber-source-status">KEV {sbomLookup.intelligence.kev.status} · EPSS {sbomLookup.intelligence.epss.status}</p>}
+                </div>
+                <div className="export-actions" aria-label="Download SBOM review">
+                  <button type="button" onClick={() => downloadSbom("csv")}>↓ CSV</button>
+                  <button type="button" onClick={() => downloadSbom("json")}>↓ JSON</button>
+                </div>
+              </div>
+              <p className="coverage-note"><span>ⓘ</span> {sbomLookup.coverageNote}</p>
+              {sbomLookup.vulnerabilities.length ? <div className="cyber-findings">
+                {sbomLookup.vulnerabilities.map((declared) => {
+                  const finding = sbomLookup.intelligence?.results.find((result) => result.cve === declared.cve);
+                  const visibleRefs = declared.affectedBomRefs.slice(0, 50);
+                  const visibleComponents = declared.affectedComponents.slice(0, 50);
+                  return <article className="cyber-finding" key={declared.cve}>
+                    <div className="cyber-finding-rank">{finding ? String(finding.priorityRank).padStart(2, "0") : "—"}</div>
+                    <div className="cyber-finding-main">
+                      <div className="cyber-finding-heading"><a href={`https://nvd.nist.gov/vuln/detail/${encodeURIComponent(declared.cve)}`} target="_blank" rel="noopener noreferrer">{declared.cve} ↗</a><span className={finding?.knownExploited ? "kev-badge kev-badge-active" : "kev-badge"}>{finding?.knownExploited ? "CISA KEV" : finding?.knownExploited === false ? "Not in KEV" : "KEV unavailable"}</span></div>
+                      <p className="cyber-product">Affected BOM references: {visibleRefs.join(" · ") || "None declared"}{declared.affectedBomRefs.length > visibleRefs.length ? ` · and ${declared.affectedBomRefs.length - visibleRefs.length} more` : ""}</p>
+                      {visibleComponents.map((component) => <p className="sbom-component" key={component.bomRef}><strong>{component.name || component.bomRef}</strong>{component.version ? ` · ${component.version}` : ""}{component.purl ? ` · ${component.purl}` : ""}</p>)}
+                      {declared.affectedComponents.length > visibleComponents.length && <p className="sbom-component">Showing {visibleComponents.length} of {declared.affectedComponents.length} resolved components. Download the full JSON or CSV for the complete list.</p>}
+                      {declared.affectedBomRefs.length > declared.affectedComponents.length && <p className="sbom-component">Some references did not resolve to a component in this file.</p>}
+                      {finding && <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>Priority <strong>{finding.priorityRank}</strong></span></div>}
+                    </div>
+                  </article>;
+                })}
+              </div> : <div className="empty-results"><strong>No CVE IDs were declared in this SBOM</strong><p>AURA does not infer vulnerabilities from package names or versions.</p></div>}
             </div>}
           </section>
           {error && <div className="toast-error" role="alert"><span>!</span><p>{error}</p><button type="button" onClick={() => setError("")} aria-label="Dismiss error">×</button></div>}

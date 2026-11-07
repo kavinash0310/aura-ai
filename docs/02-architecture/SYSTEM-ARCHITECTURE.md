@@ -2,7 +2,7 @@
 
 ## Current repository state
 
-The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, a local React workspace served through Nginx, a bounded public-search adapter, and a read-only vulnerability lookup. Research queries use the configured Brave Search API and persist source metadata. Vulnerability lookups send explicit CVE IDs to CISA KEV and FIRST EPSS and do not persist results. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, ingest documents or SBOMs, or probe systems.
+The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, a local React workspace served through Nginx, a bounded public-search adapter, and read-only vulnerability intelligence. Research queries use the configured Brave Search API and persist source metadata. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, ingest arbitrary documents, or probe systems.
 
 ## Target architecture
 

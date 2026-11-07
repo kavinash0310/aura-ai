@@ -5,6 +5,7 @@ import type {
   ResearchSource,
   ResultFilters,
   SearchResponse,
+  SbomLookupResponse,
   VulnerabilityLookupResponse,
 } from "./types";
 
@@ -33,7 +34,7 @@ async function request<T>(
   const headers = new Headers(init.headers);
   headers.set("Authorization", authHeader(credentials));
   headers.set("Accept", "application/json");
-  if (init.body) headers.set("Content-Type", "application/json");
+  if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
 
   let response: Response;
   try {
@@ -78,6 +79,15 @@ export function lookupVulnerabilities(
   return request<VulnerabilityLookupResponse>("/api/v1/cyber/vulnerabilities/lookup", credentials, {
     method: "POST",
     body: JSON.stringify({ cves }),
+  });
+}
+
+export function lookupSbom(credentials: Credentials, file: File): Promise<SbomLookupResponse> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  return request<SbomLookupResponse>("/api/v1/cyber/sbom/lookup", credentials, {
+    method: "POST",
+    body: form,
   });
 }
 

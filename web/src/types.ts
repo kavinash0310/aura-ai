@@ -89,3 +89,27 @@ export interface VulnerabilityLookupResponse {
   epss: VulnerabilitySourceStatus;
   results: VulnerabilityFinding[];
 }
+
+export interface SbomComponent {
+  bomRef: string;
+  name: string;
+  version: string;
+  purl: string;
+}
+
+export interface SbomDeclaredVulnerability {
+  cve: string;
+  affectedBomRefs: string[];
+  affectedComponents: SbomComponent[];
+}
+
+export interface SbomLookupResponse {
+  requestedAt: string;
+  format: string;
+  specVersion: string;
+  componentCount: number;
+  cveCount: number;
+  vulnerabilities: SbomDeclaredVulnerability[];
+  intelligence: VulnerabilityLookupResponse | null;
+  coverageNote: string;
+}
