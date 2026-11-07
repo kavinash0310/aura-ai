@@ -55,8 +55,9 @@ Add persisted steps, typed tools, retries/backoff, cancellation, approval, audit
 **Accept when:** provider failures recover or surface terminal state; policy denies out-of-scope operations.
 
 ### M7 — Cybersecurity intelligence
-Add NVD, KEV, EPSS, vendor advisories, SBOM JSON/CSV/SARIF, transparent ranking.
-**Accept when:** findings include timestamps, match evidence, confidence, and rationale.
+**Delivered first slice:** authenticated, read-only lookup for up to 25 explicit CVE IDs against the CISA KEV catalog and FIRST EPSS lookup API. It reports source status and dates, caches KEV data for six hours, explains KEV-first/EPSS-second ordering, and downloads JSON or CSV.
+**Still needed:** NVD enrichment (including CVSS/CPE evidence), SBOM ingestion for SPDX and CycloneDX JSON/CSV/SARIF, vendor advisories, inventory matching, and broader priority evaluations. No host scanning or exploit checks are included.
+**Accept when:** findings include timestamps, exact match evidence, confidence limits, and rationale; SBOM parsing has bounded size/type validation and fixtures; rankings are evaluated against documented remediation scenarios.
 
 ### M8 — Workspace and production readiness
 Add React pages, observability, security review, backup/restore, packaging, runbooks.

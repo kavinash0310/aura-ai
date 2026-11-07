@@ -5,6 +5,7 @@ import {
   createResearchJob,
   deleteResearchJob,
   downloadExport,
+  lookupVulnerabilities,
   listResearchJobs,
   listSources,
   runResearch,
@@ -17,6 +18,8 @@ import type {
   ResearchSource,
   ResultFilters,
   SearchResponse,
+  VulnerabilityFinding,
+  VulnerabilityLookupResponse,
 } from "./types";
 
 const emptyFilters: ResultFilters = {
@@ -34,6 +37,7 @@ function errorMessage(error: unknown): string {
       return "Public search is not configured yet. Add your own AURA_BRAVE_API_KEY to .env, restart the stack, then retry this search.";
     }
     if (error.code === "SEARCH_PROVIDER_RATE_LIMITED") return "The search provider rate limited this request. Wait a little and try again.";
+    if (error.code === "VALIDATION_FAILED") return "Enter one to 25 CVE IDs, such as CVE-2024-12345.";
     if (error.status === 0) return error.message;
     return error.message;
   }
@@ -54,6 +58,16 @@ function kindLabel(kind: ResearchSource["kind"]): string {
 
 function sourceInitial(domain: string): string {
   return domain.replace(/^www\./, "").slice(0, 1).toUpperCase() || "S";
+}
+
+function csvCell(value: string | number | boolean | null): string {
+  const text = value == null ? "" : String(value);
+  const safe = /^[\s]*[=+@-]/.test(text) ? `'${text}` : text;
+  return `"${safe.replaceAll('"', '""')}"`;
+}
+
+function formatProbability(value: number | null): string {
+  return value == null ? "Not available" : `${(value * 100).toFixed(1)}%`;
 }
 
 export default function App() {
@@ -80,6 +94,9 @@ export default function App() {
   const [exporting, setExporting] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [canRetry, setCanRetry] = useState(false);
+  const [cveInput, setCveInput] = useState("");
+  const [vulnerabilityLookup, setVulnerabilityLookup] = useState<VulnerabilityLookupResponse | null>(null);
+  const [vulnerabilityBusy, setVulnerabilityBusy] = useState(false);
 
   const credentials = useMemo<Credentials>(() => ({ username, password }), [username, password]);
 
@@ -219,6 +236,65 @@ export default function App() {
     }
   }
 
+  async function searchVulnerabilities(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!connected) return;
+    const cves = [...new Set(cveInput.split(/[\s,;]+/).map((value) => value.trim().toUpperCase()).filter(Boolean))];
+    if (cves.length === 0 || cves.length > 25) {
+      setError("Enter between one and 25 CVE IDs.");
+      return;
+    }
+    setVulnerabilityBusy(true);
+    setError("");
+    try {
+      setVulnerabilityLookup(await lookupVulnerabilities(credentials, cves));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setVulnerabilityBusy(false);
+    }
+  }
+
+  function downloadVulnerabilityLookup(format: "json" | "csv") {
+    if (!vulnerabilityLookup) return;
+    let content: string;
+    let mimeType: string;
+    if (format === "json") {
+      content = JSON.stringify(vulnerabilityLookup, null, 2);
+      mimeType = "application/json;charset=utf-8";
+    } else {
+      const columns: Array<[string, (finding: VulnerabilityFinding) => string | number | boolean | null]> = [
+        ["priorityRank", (finding) => finding.priorityRank],
+        ["cve", (finding) => finding.cve],
+        ["knownExploited", (finding) => finding.knownExploited],
+        ["vendorProject", (finding) => finding.vendorProject],
+        ["product", (finding) => finding.product],
+        ["epssScore", (finding) => finding.epssScore],
+        ["epssPercentile", (finding) => finding.epssPercentile],
+        ["epssScoreDate", (finding) => finding.epssScoreDate],
+        ["knownRansomwareCampaignUse", (finding) => finding.knownRansomwareCampaignUse],
+        ["dateAdded", (finding) => finding.dateAdded],
+        ["dueDate", (finding) => finding.dueDate],
+        ["priorityRationale", (finding) => finding.priorityRationale],
+        ["cisaUrl", (finding) => finding.cisaUrl],
+        ["nvdUrl", (finding) => finding.nvdUrl],
+        ["epssUrl", (finding) => finding.epssUrl],
+      ];
+      content = [columns.map(([name]) => csvCell(name)).join(","), ...vulnerabilityLookup.results.map((finding) =>
+        columns.map(([, value]) => csvCell(value(finding))).join(","),
+      )].join("\r\n");
+      mimeType = "text/csv;charset=utf-8";
+    }
+    const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aura-vulnerability-lookup.${format}`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function disconnect() {
     setConnected(false);
     setUsername("");
@@ -245,6 +321,9 @@ export default function App() {
           <span className="nav-icon">⌕</span> Research
           <span className="nav-indicator" />
         </button>
+        <a className="nav-item nav-link" href="#cyber-intelligence" aria-label="Cybersecurity vulnerability lookup">
+          <span className="nav-icon">⌖</span> Cyber intelligence
+        </a>
         <div className="sidebar-divider" />
         <div className="workspace-label">YOUR WORK <span className="history-count">{jobs.length}</span></div>
         {jobs.length > 0 ? <div className="history-list" aria-label="Recent research briefs">
@@ -437,6 +516,52 @@ export default function App() {
               </section>
             </aside>
           </div>
+          <section className="panel cyber-panel" id="cyber-intelligence" aria-labelledby="cyber-title">
+            <div className="panel-heading">
+              <div className="step-number">03</div>
+              <div><h2 id="cyber-title">Cybersecurity vulnerability lookup</h2><p>Check specific CVE IDs against CISA KEV and FIRST EPSS.</p></div>
+              <span className="panel-tag">READ ONLY</span>
+            </div>
+            <form className="cyber-lookup-form" onSubmit={searchVulnerabilities}>
+              <label className="field-label" htmlFor="cve-list">CVE IDs</label>
+              <textarea id="cve-list" className="text-input cyber-cve-input" rows={3} maxLength={600} value={cveInput} onChange={(event) => setCveInput(event.target.value)} placeholder="CVE-2024-12345, CVE-2023-67890" required />
+              <div className="cyber-form-footer">
+                <span className="provider-note"><i className="shield-icon">◇</i> One to 25 exact IDs · no scanning or asset probing</span>
+                <button className="primary-button" type="submit" disabled={!connected || vulnerabilityBusy || !cveInput.trim()}>
+                  {vulnerabilityBusy ? <><span className="spinner" /> Checking sources</> : <>Check vulnerabilities <span aria-hidden="true">↗</span></>}
+                </button>
+              </div>
+              <p className="cyber-egress-note">AURA checks the CISA KEV catalog and sends the CVE IDs to FIRST EPSS. CISA data is cached locally for six hours; results show source dates and retrieval times.</p>
+            </form>
+
+            {vulnerabilityLookup && <div className="cyber-results" aria-live="polite">
+              <div className="cyber-results-header">
+                <div><div className="section-kicker">SOURCE STATUS</div><p className="cyber-source-status"><a href={vulnerabilityLookup.kev.sourceUrl} target="_blank" rel="noopener noreferrer">CISA KEV</a> {vulnerabilityLookup.kev.status}{vulnerabilityLookup.kev.dataAsOf ? ` · data ${vulnerabilityLookup.kev.dataAsOf}` : ""}{vulnerabilityLookup.kev.note ? ` · ${vulnerabilityLookup.kev.note}` : ""}</p>
+                  <p className="cyber-source-status"><a href={vulnerabilityLookup.epss.sourceUrl} target="_blank" rel="noopener noreferrer">FIRST EPSS</a> {vulnerabilityLookup.epss.status}{vulnerabilityLookup.epss.dataAsOf ? ` · data ${vulnerabilityLookup.epss.dataAsOf}` : ""}{vulnerabilityLookup.epss.note ? ` · ${vulnerabilityLookup.epss.note}` : ""}</p>
+                  <p className="cyber-retrieved">Checked {formatDate(vulnerabilityLookup.requestedAt)}</p>
+                </div>
+                <div className="export-actions" aria-label="Download vulnerability lookup">
+                  <button type="button" onClick={() => downloadVulnerabilityLookup("csv")}>↓ CSV</button>
+                  <button type="button" onClick={() => downloadVulnerabilityLookup("json")}>↓ JSON</button>
+                </div>
+              </div>
+              <p className="coverage-note"><span>ⓘ</span> {vulnerabilityLookup.coverageNote}</p>
+              {vulnerabilityLookup.results.length ? <div className="cyber-findings">
+                {vulnerabilityLookup.results.map((finding) => <article className="cyber-finding" key={finding.cve}>
+                  <div className="cyber-finding-rank">{String(finding.priorityRank).padStart(2, "0")}</div>
+                  <div className="cyber-finding-main">
+                    <div className="cyber-finding-heading"><a href={finding.nvdUrl} target="_blank" rel="noopener noreferrer">{finding.cve} ↗</a><span className={finding.knownExploited ? "kev-badge kev-badge-active" : "kev-badge"}>{finding.knownExploited ? "CISA KEV" : finding.knownExploited === null ? "KEV unavailable" : vulnerabilityLookup.kev.status === "STALE" ? "Not in stale snapshot" : "Not in KEV"}</span></div>
+                    <h3>{finding.vulnerabilityName || "No KEV name in current source"}</h3>
+                    <p className="cyber-product">{[finding.vendorProject, finding.product].filter(Boolean).join(" · ") || "Product not listed in KEV"}</p>
+                    <p className="cyber-rationale">{finding.priorityRationale}</p>
+                    <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>KEV added <strong>{finding.dateAdded || "—"}</strong></span><span>Due date <strong>{finding.dueDate || "—"}</strong></span><span>Known ransomware use <strong>{finding.knownRansomwareCampaignUse || "—"}</strong></span></div>
+                    {finding.requiredAction && <p className="cyber-action">CISA action: {finding.requiredAction}</p>}
+                    <div className="cyber-source-links"><a href={finding.cisaUrl} target="_blank" rel="noopener noreferrer">CISA catalog</a><a href={finding.epssUrl} target="_blank" rel="noopener noreferrer">EPSS record</a></div>
+                  </div>
+                </article>)}
+              </div> : <div className="empty-results"><strong>No data matched those CVE IDs</strong><p>Check the identifier or retry when the public data sources are available.</p></div>}
+            </div>}
+          </section>
           {error && <div className="toast-error" role="alert"><span>!</span><p>{error}</p><button type="button" onClick={() => setError("")} aria-label="Dismiss error">×</button></div>}
           <footer className="page-footer"><span>© AURA AI · LOCAL RESEARCH WORKSPACE</span><span>Evidence linked to source · Search scope shown clearly</span></footer>
         </div>

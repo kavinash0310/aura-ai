@@ -5,6 +5,7 @@ import type {
   ResearchSource,
   ResultFilters,
   SearchResponse,
+  VulnerabilityLookupResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -68,6 +69,16 @@ const jobPath = (id: string) => `/api/v1/research-jobs/${encodeURIComponent(id)}
 
 export async function validateConnection(credentials: Credentials): Promise<void> {
   await request<{ authenticated: boolean }>("/api/v1/session", credentials);
+}
+
+export function lookupVulnerabilities(
+  credentials: Credentials,
+  cves: string[],
+): Promise<VulnerabilityLookupResponse> {
+  return request<VulnerabilityLookupResponse>("/api/v1/cyber/vulnerabilities/lookup", credentials, {
+    method: "POST",
+    body: JSON.stringify({ cves }),
+  });
 }
 
 export function createResearchJob(

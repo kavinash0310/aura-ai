@@ -5,7 +5,7 @@ Do not mark a skill complete because code was generated. The owner should explai
 ## Snapshot — 2026-11-07
 
 - Repository was empty; no previous implementation or conventions existed.
-- M1 Spring API is implemented and CI verified; M2 Python service is implemented; M5 public search and the first React UI are wired to the authenticated API. Learning explanations remain unassessed.
+- M1 Spring API is implemented and CI verified; M2 Python health service and M5 public search/UI are implemented; the first M7 exact-CVE lookup is implemented locally. Learning explanations remain unassessed.
 - Concepts completed: none assessed yet.
 - Skills demonstrated independently: none recorded.
 - Background assumption: Java/Spring experience; Python/AI/ML learning; Windows with 16 GB RAM.
@@ -20,6 +20,7 @@ Do not mark a skill complete because code was generated. The owner should explai
 | M3 document lifecycle | Not started | No document code | No | Design upload limits and text extraction boundary |
 | M5 public research slice | Implemented; explanation pending | Optional Brave adapter, persisted provenance, filters, downloads, 12 local backend tests | No | Explain provider boundaries, URL validation, state transitions, and partial coverage |
 | First local UI slice | Implemented; explanation pending | React/TypeScript workspace, in-memory API credentials, search, filters, downloads, recent history, delete with source cascade | No | Explain credential handling, same-origin proxy, and retention behavior |
+| M7 CISA KEV/FIRST EPSS lookup | Implemented; explanation pending | Authenticated CVE-only endpoint, bounded inputs, fixed providers, cache and stale status, ranking explanation, UI, JSON/CSV export | No | Explain the different meanings of KEV and EPSS and how provider freshness is surfaced |
 
 ## Check-in template
 

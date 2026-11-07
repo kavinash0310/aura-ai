@@ -118,4 +118,38 @@ describe("AURA research workspace", () => {
     expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({ method: "DELETE" });
     expect(await screen.findByText("No saved briefs yet.")).toBeInTheDocument();
   });
+
+  it("looks up only submitted CVE IDs and shows source attribution", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requestedAt: "2026-11-07T00:00:00Z",
+        coverageNote: "Read-only CVE lookup. This is not a complete asset-specific risk rating.",
+        kev: { status: "AVAILABLE", retrievedAt: "2026-11-07T00:00:00Z", dataAsOf: "2026-11-07", sourceUrl: "https://github.com/CISAGov/kev-data", note: "" },
+        epss: { status: "AVAILABLE", retrievedAt: "2026-11-07T00:00:00Z", dataAsOf: "2026-11-07", sourceUrl: "https://api.first.org/epss/", note: "" },
+        results: [{
+          cve: "CVE-2026-12345", priorityRank: 1, knownExploited: true, vendorProject: "Example", product: "Server",
+          vulnerabilityName: "Example issue", dateAdded: "2026-11-06", dueDate: "2026-11-20", requiredAction: "Apply the patch.",
+          knownRansomwareCampaignUse: "Unknown", epssScore: 0.8, epssPercentile: 0.95, epssScoreDate: "2026-11-07",
+          priorityRationale: "CISA KEV-listed: CISA reports known exploitation in the wild.",
+          cisaUrl: "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+          nvdUrl: "https://nvd.nist.gov/vuln/detail/CVE-2026-12345",
+          epssUrl: "https://api.first.org/data/v1/epss?cve=CVE-2026-12345",
+        }],
+      }), { status: 200 }));
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
+    await screen.findByText("Connected securely");
+    fireEvent.change(screen.getByLabelText("CVE IDs"), { target: { value: "cve-2026-12345, CVE-2026-12345" } });
+    fireEvent.click(screen.getByRole("button", { name: /Check vulnerabilities/ }));
+
+    expect(await screen.findByText("CISA KEV-listed: CISA reports known exploitation in the wild.")).toBeInTheDocument();
+    expect(screen.getByText("80.0%")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "CISA catalog" })).toHaveAttribute("href", "https://www.cisa.gov/known-exploited-vulnerabilities-catalog");
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ cves: ["CVE-2026-12345"] });
+  });
 });

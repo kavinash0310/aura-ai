@@ -70,6 +70,18 @@ Reversed dates and invalid filters return `400 INVALID_RESEARCH_FILTER`. A job t
 
 Downloads the same filtered result set as JSON, CSV, or Markdown. `format` defaults to `json`. CSV fields are quoted and formula-leading values are neutralized. Export includes provider metadata, source links, retrieval times, and the coverage note; it is not a synthesized report.
 
+## Defensive vulnerability lookup
+
+### POST `/api/v1/cyber/vulnerabilities/lookup`
+
+Requires the local owner Basic Auth account. Request: `{ "cves": ["CVE-2024-12345"] }`. The list must contain 1–25 CVE IDs (`CVE-YYYY-NNNN...`); IDs are normalized to uppercase and duplicates are removed. After this explicit request, AURA downloads the fixed CISA KEV catalog and matches the identifiers locally; it sends the identifiers to FIRST's EPSS lookup API.
+
+The response includes one finding per distinct input ID, provider status, retrieval time, provider data date where available, source links, CISA KEV fields, EPSS score and percentile, a priority rank, and the rationale. `knownExploited` is `null` if KEV is unavailable, `false` only when an available catalog has no match, and `true` for a catalog match. KEV entries sort first; within each group results sort by descending EPSS score, with original input order breaking ties. This is a transparent ordering rule, not an asset-specific risk score. EPSS is an estimate of exploitation probability in the next 30 days; a high estimate is not evidence that a particular asset is affected or currently exploited.
+
+The CISA catalog is read from the [CISA-maintained KEV data mirror](https://github.com/CISAGov/kev-data), which documents that it mirrors the canonical CISA catalog and synchronizes shortly after CISA updates. A successful catalog snapshot is cached in memory for six hours. If refresh fails, an existing snapshot is returned with `kev.status=STALE`; without a snapshot the source is marked unavailable. EPSS uses FIRST's [lookup API](https://api.first.org/epss/), intended for one CVE or small batches, not bulk synchronization. Source failures are independent, so one provider can still return findings while the other is unavailable.
+
+No result performs network probing, asset discovery, vulnerability scanning, exploit execution, or patching. AURA does not persist these lookups; download JSON or CSV from the local UI if a copy is needed.
+
 ## Provider errors
 
 - `502 SEARCH_PROVIDER_FAILURE` / `SEARCH_PROVIDER_INVALID_RESPONSE`: provider request or response failed.
@@ -82,4 +94,4 @@ Downloads the same filtered result set as JSON, CSV, or Markdown. `format` defau
 - No direct social-media connector, complete-internet crawl, page fetch, AI synthesis, cross-source fact checking, or claim comparison is implemented.
 - Person research is limited to public-interest material. Do not use this for doxxing, sensitive-trait inference, invasive tracking, or private-account access.
 - Research history is capped to the newest 100 results per request; there is no cursor pagination yet. Queries and source metadata are retained until the owner deletes a brief. Remote deployments still need documented retention, audit, backup, and account-isolation policies.
-- Future work: cursor-paginated history; source-specific adapters with their own quotas and terms; document upload and owner-filtered retrieval; cited synthesis; report retention/deletion; defensive findings.
+- Future work: cursor-paginated history; source-specific adapters with their own quotas and terms; document upload and owner-filtered retrieval; cited synthesis; report retention/deletion; NVD and SBOM defensive analysis.

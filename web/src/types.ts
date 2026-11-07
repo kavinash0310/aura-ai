@@ -53,3 +53,39 @@ export interface ResultFilters {
   publishedFrom: string;
   publishedTo: string;
 }
+
+export interface VulnerabilitySourceStatus {
+  status: "AVAILABLE" | "STALE" | "UNAVAILABLE";
+  retrievedAt: string | null;
+  dataAsOf: string | null;
+  sourceUrl: string;
+  note: string;
+}
+
+export interface VulnerabilityFinding {
+  cve: string;
+  priorityRank: number;
+  knownExploited: boolean | null;
+  vendorProject: string | null;
+  product: string | null;
+  vulnerabilityName: string | null;
+  dateAdded: string | null;
+  dueDate: string | null;
+  requiredAction: string | null;
+  knownRansomwareCampaignUse: string | null;
+  epssScore: number | null;
+  epssPercentile: number | null;
+  epssScoreDate: string | null;
+  priorityRationale: string;
+  cisaUrl: string;
+  nvdUrl: string;
+  epssUrl: string;
+}
+
+export interface VulnerabilityLookupResponse {
+  requestedAt: string;
+  coverageNote: string;
+  kev: VulnerabilitySourceStatus;
+  epss: VulnerabilitySourceStatus;
+  results: VulnerabilityFinding[];
+}

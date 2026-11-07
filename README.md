@@ -23,7 +23,7 @@ This is also a practical AI software engineering learning path: a Java/Spring ap
 
 ## Current milestone
 
-M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI service with validated configuration and a health endpoint. The first M5 research slice adds one explicit, bounded search through an optional Brave Search API key, source metadata, result filters, and JSON/CSV/Markdown downloads. The local React workspace can start searches, reopen the latest saved briefs, filter sources, download results, and delete a brief with its stored sources. The Python service still has no model or data access. AURA does not search every page or social post, connect to social accounts, fetch result pages, or generate a synthesized report yet.
+M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI health service. The first M5 research slice adds an explicit, bounded Brave search, saved source metadata, filters, and JSON/CSV/Markdown downloads. The local React workspace can reopen and delete saved briefs. The M7 first slice adds an authenticated read-only lookup for exact CVE IDs against CISA KEV and FIRST EPSS, with transparent ranking and JSON/CSV download. The Python service still has no model or data access. AURA does not search every page or social post, connect to social accounts, fetch result pages, synthesize reports, ingest SBOMs, or probe systems.
 
 See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and [MVP backlog](docs/00-overview/MVP-AND-BACKLOG.md).
 
@@ -42,7 +42,7 @@ Requirements: JDK 21, Docker Desktop with Compose, Git, Maven 3.9+ for local Jav
 9. Verify Java with `mvn -f backend/pom.xml verify`. For frontend development, use Node 22 in `web` and run `npm ci`, `npm test`, then `npm run build`.
 10. In a terminal, change to `ai-service`, then run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
 
-All host ports bind to loopback. The Python health endpoint is public and returns no user data. The Spring API uses development-only Basic Auth. The web app proxies `/api` to Spring inside the Compose network. A configured search sends the query to the external provider; AURA stores the returned source metadata. Provider access is governed by your provider account and terms. Do not expose or port-forward the local stack. See [local development guide](docs/19-operations/LOCAL-DEV.md).
+All host ports bind to loopback. The Python health endpoint is public and returns no user data. The Spring API uses development-only Basic Auth. The web app proxies `/api` to Spring inside the Compose network. An explicit search sends its query to Brave; a CVE lookup reads the CISA KEV catalog and sends submitted identifiers to FIRST EPSS. Search metadata is stored; vulnerability lookups are not persisted. Provider access is governed by each provider's terms. Do not expose or port-forward the local stack. See [local development guide](docs/19-operations/LOCAL-DEV.md).
 
 ## Start here
 
