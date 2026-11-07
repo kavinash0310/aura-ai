@@ -26,6 +26,7 @@ import type {
   ResearchDocument,
   ResearchDocumentSearchHit,
   ResearchMode,
+  SearchProviderChoice,
   ResearchSource,
   ResearchReportResponse,
   ResultFilters,
@@ -49,7 +50,7 @@ function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) return "Those API credentials were not accepted. Check your local .env values.";
     if (error.code === "SEARCH_PROVIDER_NOT_CONFIGURED") {
-      return "Public search is not configured yet. Add your own AURA_BRAVE_API_KEY to .env, restart the stack, then retry this search.";
+      return "That search provider is not enabled. Choose Automatic or GDELT, or configure your own Brave API key in .env.";
     }
     if (error.code === "SEARCH_PROVIDER_RATE_LIMITED") return "The search provider rate limited this request. Wait a little and try again.";
     if (error.code === "AI_SERVICE_UNAVAILABLE") return "The local report model is disabled or unavailable. Configure Ollama and an installed model in .env, then retry.";
@@ -71,6 +72,10 @@ function formatDate(value: string | null): string {
 
 function kindLabel(kind: ResearchSource["kind"]): string {
   return kind === "DISCUSSION" ? "Discussion" : kind === "NEWS" ? "News" : "Web";
+}
+
+function providerLabel(provider: string): string {
+  return provider === "brave" ? "Brave" : provider === "gdelt" ? "GDELT" : provider;
 }
 
 function sourceInitial(domain: string): string {
@@ -118,6 +123,7 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [subject, setSubject] = useState("");
   const [mode, setMode] = useState<ResearchMode>("GENERAL");
+  const [searchProvider, setSearchProvider] = useState<SearchProviderChoice>("");
   const [country, setCountry] = useState("");
   const [language, setLanguage] = useState("");
   const [freshness, setFreshness] = useState("");
@@ -201,6 +207,7 @@ export default function App() {
         language,
         freshness,
         resultLimit,
+        provider: searchProvider,
       });
       setSearch(response);
       setSources(response.results);
@@ -769,13 +776,21 @@ export default function App() {
                       </select><span>⌄</span></div>
                     </div>
                     <div className="field-group">
+                      <label className="field-label" htmlFor="search-provider">Search source</label>
+                      <div className="select-wrap"><select id="search-provider" value={searchProvider} onChange={(event) => setSearchProvider(event.target.value as SearchProviderChoice)}>
+                        <option value="">Automatic</option>
+                        <option value="brave">Brave · web and discussions</option>
+                        <option value="gdelt">GDELT · global news</option>
+                      </select><span>⌄</span></div>
+                    </div>
+                    <div className="field-group">
                       <label className="field-label" htmlFor="freshness">Time window</label>
                       <div className="select-wrap"><select id="freshness" value={freshness} onChange={(event) => setFreshness(event.target.value)}>
-                        <option value="">Any time</option>
+                        <option value="">Provider default (GDELT: 3 months)</option>
                         <option value="pd">Past 24 hours</option>
                         <option value="pw">Past week</option>
                         <option value="pm">Past month</option>
-                        <option value="py">Past year</option>
+                        <option value="py">Past year (GDELT: max 3 months)</option>
                       </select><span>⌄</span></div>
                     </div>
                     <div className="field-group field-limit">
@@ -795,7 +810,7 @@ export default function App() {
                   </details>
 
                   <div className="form-footer">
-                    <span className="provider-note"><i className="shield-icon">◇</i> SafeSearch enabled · Public sources only</span>
+                    <span className="provider-note"><i className="shield-icon">◇</i> Public results only · no page fetching</span>
                     <button className="primary-button" type="submit" disabled={!connected || searching || !subject.trim()}>
                       {searching ? <><span className="spinner" /> Searching sources</> : <>Start research <span aria-hidden="true">↗</span></>}
                     </button>
@@ -819,7 +834,7 @@ export default function App() {
                   <div className="research-meta">
                     <span className="meta-query"><span>↳</span> {search.query}</span>
                     <span className="meta-divider" />
-                    <span className="meta-item"><i className="status-dot" /> {provider ?? "Provider pending"}</span>
+                    <span className="meta-item"><i className="status-dot" /> {provider ? providerLabel(provider) : "Provider pending"}</span>
                     <span className="meta-item">Updated {formatDate(search.searchedAt)}</span>
                   </div>
                   <form className="filter-bar" onSubmit={applyFilters}>
@@ -856,7 +871,7 @@ export default function App() {
                       <div className="source-meta"><span className={`type-pill type-${source.kind.toLowerCase()}`}>{kindLabel(source.kind)}</span><span className="source-domain">{source.domain}</span><span className="source-date">{formatDate(source.publishedAt)}</span></div>
                       <h3><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}<span aria-hidden="true"> ↗</span></a></h3>
                       {source.description && <p>{source.description}</p>}
-                      <div className="publisher-line">{source.publisher || source.domain}<span>·</span> Retrieved {formatDate(source.retrievedAt)}</div>
+                      <div className="publisher-line">{providerLabel(source.provider)}<span>·</span> {source.publisher || source.domain}<span>·</span> Retrieved {formatDate(source.retrievedAt)}</div>
                     </div>
                     <span className="source-rank">{String(source.rank).padStart(2, "0")}</span>
                   </article>)}</div> : <div className="empty-results"><span>⌕</span><strong>No sources match these filters</strong><p>Try clearing a filter or widening the date range.</p></div>}
@@ -881,11 +896,11 @@ export default function App() {
 
               <section className="source-scope panel">
                 <div className="scope-head"><span className="scope-icon">◎</span><div><h2>Source scope</h2><p>What this search can reach</p></div></div>
-                <div className="scope-provider"><span className="provider-mark">B</span><div><strong>Brave Search</strong><span>Web · News · Discussions</span></div><span className="scope-live"><i /> {connected ? "API LINKED" : "LOCAL API"}</span></div>
+                <div className="scope-provider"><span className="provider-mark">{searchProvider === "gdelt" ? "G" : searchProvider === "brave" ? "B" : "A"}</span><div><strong>{searchProvider === "gdelt" ? "GDELT News" : searchProvider === "brave" ? "Brave Search" : "Automatic provider"}</strong><span>{searchProvider === "gdelt" ? "Public global news" : searchProvider === "brave" ? "Web · News · Discussions" : "Brave when configured · otherwise GDELT"}</span></div><span className="scope-live"><i /> {connected ? "API LINKED" : "LOCAL API"}</span></div>
                 <div className="scope-divider" />
-                <p className="scope-copy">AURA searches the configured provider and keeps each returned link. The brief category is saved as metadata; both categories use the same search scope today. Coverage is partial, not a crawl of the entire internet.</p>
-                <p className="scope-copy">Search needs your own Brave key in the local .env file.</p>
-                <div className="scope-foot"><span>⌁</span> Strict SafeSearch is always on</div>
+                <p className="scope-copy">AURA searches one selected public provider and saves each returned link. Brave covers web, news, and discussions; GDELT covers indexed global news from at most the past three months. Coverage is partial, not a crawl of the entire internet.</p>
+                <p className="scope-copy">Automatic uses Brave when its key is configured, then falls back to GDELT. GDELT is public and needs no key. Queries leave your computer only when you start a search.</p>
+                <div className="scope-foot"><span>⌁</span> No direct social-account access</div>
               </section>
 
               <section className="responsible-card">

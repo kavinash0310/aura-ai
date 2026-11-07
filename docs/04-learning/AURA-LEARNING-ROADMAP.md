@@ -33,7 +33,7 @@ Review local-only no-egress behavior, untrusted output fields, and retry rules.
 
 ## Phase 5 — Public research
 Learn search APIs, pagination, quotas, source terms, canonical URLs, deduplication, evidence claims, coverage bias.
-Implemented first slice: one optional Brave Search adapter for web/news/discussion metadata, bounded queries, safe URL filtering, result persistence, source filters, and JSON/CSV/Markdown export. Search is explicit and authenticated. A first local cited synthesis action now works over up to 20 filtered provider snippets. Direct X/Twitter or other social-account connectors, linked-page fetching, query planning, claim comparison, and multiple providers remain future work.
+Implemented first slices: Brave Search for web/news/discussion metadata and GDELT DOC for public global news metadata; the UI lets the owner select one provider or use automatic preference/fallback. Both use bounded queries, safe URL filtering, provenance, saved results, filters, and JSON/CSV/Markdown export. Search is explicit and authenticated. A first local cited synthesis action works over up to 20 filtered provider snippets. Direct X/Twitter or other social-account connectors, linked-page fetching, query planning, claim comparison, and provider aggregation remain future work.
 Review coverage definition, contradiction retention, and why search cannot prove completeness.
 
 ## Phase 6 — Controlled workflow

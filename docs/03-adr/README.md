@@ -7,6 +7,7 @@ ADRs capture trade-offs, not feature completion.
 - 0003 Deterministic workflow before autonomous loops
 - 0004 Local-first operation and explicit model egress
 - 0005 Bounded local research reports
+- 0006 Selected public search providers
 
 ## Template
 

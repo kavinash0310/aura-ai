@@ -9,7 +9,8 @@ public record RunResearchRequest(
         @Pattern(regexp = "[A-Z]{2}") String country,
         @Pattern(regexp = "[a-z]{2}") String language,
         @Pattern(regexp = "pd|pw|pm|py") String freshness,
-        @Min(1) @Max(20) Integer resultLimit
+        @Min(1) @Max(20) Integer resultLimit,
+        @Pattern(regexp = "[a-z][a-z0-9-]{0,31}") String provider
 ) {
     public ResearchFilters toFilters() {
         return new ResearchFilters(

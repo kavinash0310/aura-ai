@@ -6,6 +6,7 @@ import type {
   ResearchDocumentSearchHit,
   ResearchJob,
   ResearchMode,
+  SearchProviderChoice,
   ResearchSource,
   ResearchReportResponse,
   ResultFilters,
@@ -156,7 +157,7 @@ export function deleteResearchJob(credentials: Credentials, id: string): Promise
 export function runResearch(
   credentials: Credentials,
   id: string,
-  options: { country: string; language: string; freshness: string; resultLimit: number },
+  options: { country: string; language: string; freshness: string; resultLimit: number; provider: SearchProviderChoice },
 ): Promise<SearchResponse> {
   return request<SearchResponse>(`${jobPath(id)}/search`, credentials, {
     method: "POST",
@@ -165,6 +166,7 @@ export function runResearch(
       language: options.language || null,
       freshness: options.freshness || null,
       resultLimit: options.resultLimit,
+      provider: options.provider || null,
     }),
   });
 }

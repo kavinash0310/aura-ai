@@ -5,6 +5,7 @@ import ai.aura.api.domain.SourceType;
 import tools.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -25,6 +26,7 @@ import java.util.Optional;
 import java.util.Set;
 
 @Component
+@Order(1)
 public class BraveSearchProvider implements SearchProvider {
     private static final String BASE_URL = "https://api.search.brave.com";
     private static final String ENDPOINT = "/res/v1/web/search";

@@ -48,7 +48,7 @@ Add provider interface, local and optional hosted adapters, structured output, p
 
 ### M5 — Public research
 Add web/news adapters, query planning, normalization, deduplication, evidence, claim comparison, citations, filters, exports, coverage.
-**Delivered slice:** one optional Brave provider returns bounded web/news/discussion results; the API persists provider provenance and timestamps, supports type/text/host/date filters, and downloads JSON/CSV/Markdown. Search is invoked explicitly and the response states that coverage is partial.
+**Delivered slice:** Brave returns bounded web/news/discussion results; GDELT returns bounded public news results. Automatic selection uses Brave when configured, otherwise GDELT. The API persists provider provenance and timestamps, supports type/text/host/date filters, and downloads JSON/CSV/Markdown. Search is invoked explicitly and each provider's coverage limits are shown.
 **Still needed:** official direct social providers, additional search providers, permitted page fetching, query planning, claim comparison, cited synthesis, and broader evaluations.
 **Accept when:** curated queries are reproducible, citations resolve, conflicts persist, source and coverage limits show, and each provider's terms/rate limits are tested.
 

@@ -9,20 +9,27 @@ import ai.aura.api.search.SearchProviderNotConfiguredException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 @Service
 public class ResearchSearchService {
 
-    private final SearchProvider provider;
+    private final List<SearchProvider> providers;
+    private final Map<String, SearchProvider> providersByName;
     private final ResearchJobService jobs;
 
-    public ResearchSearchService(SearchProvider provider, ResearchJobService jobs) {
-        this.provider = provider;
+    public ResearchSearchService(List<SearchProvider> providers, ResearchJobService jobs) {
+        this.providers = List.copyOf(providers);
+        this.providersByName = providers.stream()
+                .collect(Collectors.toUnmodifiableMap(SearchProvider::name, Function.identity()));
         this.jobs = jobs;
     }
 
-    public ResearchJob run(UUID jobId, ResearchFilters filters) {
+    public ResearchJob run(UUID jobId, ResearchFilters filters, String requestedProvider) {
+        SearchProvider provider = resolveProvider(requestedProvider);
         if (!provider.isConfigured()) {
             throw new SearchProviderNotConfiguredException();
         }
@@ -39,6 +46,20 @@ public class ResearchSearchService {
             throw new SearchProviderException("SEARCH_PROVIDER_FAILURE", false);
         }
         return jobs.completeSearch(jobId, provider.name(), results);
+    }
+
+    private SearchProvider resolveProvider(String requestedProvider) {
+        if (requestedProvider != null && !requestedProvider.isBlank()) {
+            SearchProvider selected = providersByName.get(requestedProvider);
+            if (selected == null) {
+                throw new InvalidResearchFilterException("Search provider must be brave or gdelt.");
+            }
+            return selected;
+        }
+        return providers.stream()
+                .filter(SearchProvider::isConfigured)
+                .findFirst()
+                .orElseThrow(SearchProviderNotConfiguredException::new);
     }
 }
 

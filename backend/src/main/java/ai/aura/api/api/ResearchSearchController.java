@@ -52,7 +52,7 @@ public class ResearchSearchController {
             @PathVariable UUID id,
             @Valid @RequestBody RunResearchRequest request
     ) {
-        ResearchJob job = searchService.run(id, request.toFilters());
+        ResearchJob job = searchService.run(id, request.toFilters(), request.provider());
         return response(job, null, null, null, null, null);
     }
 
@@ -147,9 +147,10 @@ public class ResearchSearchController {
 
     private static String csv(ResearchSearchResponse response) {
         StringBuilder out = new StringBuilder();
-        out.append("rank,kind,title,url,domain,publisher,publishedAt,retrievedAt,description\r\n");
+        out.append("provider,rank,kind,title,url,domain,publisher,publishedAt,retrievedAt,description\r\n");
         for (ResearchSourceResponse source : response.results()) {
-            out.append(source.rank()).append(',')
+            out.append(cell(source.provider())).append(',')
+                    .append(source.rank()).append(',')
                     .append(cell(source.kind().name())).append(',')
                     .append(cell(source.title())).append(',')
                     .append(cell(source.url())).append(',')
@@ -183,6 +184,7 @@ public class ResearchSearchController {
                 .append("Coverage: ").append(markdownValue(response.coverageNote())).append("\n\n");
         for (ResearchSourceResponse source : response.results()) {
             out.append("## ").append(source.rank()).append(". ").append(markdownValue(source.title())).append("\n\n")
+                    .append("- Provider: ").append(markdownValue(source.provider())).append("\n")
                     .append("- Type: ").append(markdownValue(source.kind().name())).append("\n")
                     .append("- Publisher: ").append(markdownValue(source.publisher())).append("\n")
                     .append("- Published: ").append(markdownValue(source.publishedAt() == null ? "unknown" : source.publishedAt().toString())).append("\n")

@@ -75,7 +75,7 @@ describe("AURA research workspace", () => {
   it("creates a job, renders linked evidence, and applies server-side filters", async () => {
     const source = {
       id: "source-1",
-      provider: "brave",
+      provider: "gdelt",
       kind: "WEB",
       rank: 1,
       title: "Passkeys overview",
@@ -95,13 +95,13 @@ describe("AURA research workspace", () => {
         createdAt: "2026-11-07T00:00:00Z", searchProvider: null, searchResultCount: 0,
       }), { status: 201 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        jobId: "job-1", query: "passkeys", status: "COMPLETED", provider: "brave",
+        jobId: "job-1", query: "passkeys", status: "COMPLETED", provider: "gdelt",
         country: null, language: null, freshness: null, requestedLimit: 10,
         providerResultCount: 1, searchedAt: "2026-11-07T00:00:00Z", results: [source],
         coverageNote: "Partial provider coverage.",
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        jobId: "job-1", query: "passkeys", status: "COMPLETED", provider: "brave",
+        jobId: "job-1", query: "passkeys", status: "COMPLETED", provider: "gdelt",
         country: null, language: null, freshness: null, requestedLimit: 10,
         providerResultCount: 1, searchedAt: "2026-11-07T00:00:00Z", results: [source],
         coverageNote: "Partial provider coverage.",
@@ -114,10 +114,14 @@ describe("AURA research workspace", () => {
     await screen.findByText("Connected securely");
 
     fireEvent.change(screen.getByLabelText("Research question or topic"), { target: { value: "passkeys" } });
+    fireEvent.change(screen.getByLabelText("Search source"), { target: { value: "gdelt" } });
     fireEvent.click(screen.getByRole("button", { name: /Start research/ }));
     const resultLink = await screen.findByRole("link", { name: /Passkeys overview/ });
     expect(resultLink).toHaveAttribute("href", "https://example.com/passkeys");
     expect(resultLink).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getAllByText("GDELT").length).toBeGreaterThan(0);
+    const searchRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/api/v1/research-jobs/job-1/search"));
+    expect(JSON.parse(String(searchRequest?.[1]?.body))).toMatchObject({ provider: "gdelt" });
 
     fireEvent.change(screen.getByLabelText("Filter by domain"), { target: { value: "example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));

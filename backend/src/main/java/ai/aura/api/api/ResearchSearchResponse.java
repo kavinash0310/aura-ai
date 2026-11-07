@@ -34,8 +34,15 @@ public record ResearchSearchResponse(
                 job.getSearchResultCount(),
                 job.getSearchCompletedAt(),
                 List.copyOf(results),
-                "Results cover only the configured provider and enabled result types; they do not represent the entire internet."
+                coverageNote(job.getSearchProvider())
         );
+    }
+
+    private static String coverageNote(String provider) {
+        if ("gdelt".equals(provider)) {
+            return "GDELT indexes a subset of public global news and searches at most the past three months. It does not search social posts or the entire internet.";
+        }
+        return "Results cover only the selected provider and enabled result types; they do not represent the entire internet. Brave discussion results are not a direct social-account connector.";
     }
 }
 

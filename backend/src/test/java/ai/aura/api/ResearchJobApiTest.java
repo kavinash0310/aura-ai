@@ -25,7 +25,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.username=sa",
         "spring.datasource.password=",
         "aura.auth.username=test-owner",
-        "aura.auth.password=this-is-a-test-password-with-enough-length"
+        "aura.auth.password=this-is-a-test-password-with-enough-length",
+        "aura.search.gdelt.enabled=false"
 })
 class ResearchJobApiTest {
 

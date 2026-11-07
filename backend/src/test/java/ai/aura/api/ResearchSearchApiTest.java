@@ -97,11 +97,13 @@ class ResearchSearchApiTest {
         mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
                         .with(httpBasic(USERNAME, PASSWORD))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"country\":\"US\",\"language\":\"en\",\"freshness\":\"pm\",\"resultLimit\":5}"))
+                        .content("{\"country\":\"US\",\"language\":\"en\",\"freshness\":\"pm\",\"resultLimit\":5,\"provider\":\"test\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.provider").value("test"))
                 .andExpect(jsonPath("$.providerResultCount").value(3))
                 .andExpect(jsonPath("$.results.length()").value(3))
+                .andExpect(jsonPath("$.results[0].provider").value("test"))
                 .andExpect(jsonPath("$.coverageNote").value(org.hamcrest.Matchers.containsString("do not represent the entire internet")));
 
         mockMvc.perform(get("/api/v1/research-jobs/" + id + "/sources")
@@ -134,6 +136,8 @@ class ResearchSearchApiTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition", "attachment; filename=\"aura-research-" + id + ".csv\""))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("text/csv")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("provider,rank,kind")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("\"test\",1,\"WEB\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("'=SUM(1,1)")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(",\"\",\"\",\"")));
     }
@@ -206,14 +210,14 @@ class ResearchSearchApiTest {
 
         mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content("{\"provider\":\"test\"}"))
                 .andExpect(status().isUnauthorized());
 
         runSearch(id);
         mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
                         .with(httpBasic(USERNAME, PASSWORD))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content("{\"provider\":\"test\"}"))
                 .andExpect(status().isConflict());
     }
 
@@ -224,7 +228,7 @@ class ResearchSearchApiTest {
         mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
                         .with(httpBasic(USERNAME, PASSWORD))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content("{\"provider\":\"test\"}"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value("SEARCH_PROVIDER_RATE_LIMITED"));
 
@@ -232,6 +236,22 @@ class ResearchSearchApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FAILED"))
                 .andExpect(jsonPath("$.failureCode").value("SEARCH_PROVIDER_RATE_LIMITED"));
+    }
+
+    @Test
+    void unknownProviderIsRejectedBeforeTheJobStarts() throws Exception {
+        UUID id = createJob("unsupported provider");
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"provider\":\"unknown\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_RESEARCH_FILTER"));
+
+        mockMvc.perform(get("/api/v1/research-jobs/" + id).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REQUESTED"));
     }
 
     private UUID createJob(String subject) {
@@ -242,7 +262,7 @@ class ResearchSearchApiTest {
         mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
                         .with(httpBasic(USERNAME, PASSWORD))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
+                        .content("{\"provider\":\"test\"}"))
                 .andExpect(status().isOk());
     }
 
