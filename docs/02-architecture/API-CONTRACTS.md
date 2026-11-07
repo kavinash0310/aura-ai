@@ -1,48 +1,74 @@
 # API contracts
 
-Base path: /api/v1. JSON uses camelCase. Errors use RFC 9457-style Problem Details. IDs are UUIDs and timestamps ISO-8601 UTC.
+Base path: `/api/v1`. JSON uses camelCase. Errors use RFC 9457-style Problem Details. IDs are UUIDs and timestamps are ISO-8601 UTC. All routes except health require the local owner Basic Auth account.
 
-## Implemented M1 routes
+## Health
 
-### GET /api/v1/health
-Public liveness response: { "status": "UP", "service": "aura-api" }.
+### GET `/api/v1/health` (Spring API)
 
-### POST /api/v1/research-jobs
-Requires local HTTP Basic authentication.
+Public liveness response: `{ "status": "UP", "service": "aura-api" }`.
 
-Request: { "subject": "Example public topic", "mode": "GENERAL" }
+### GET `/api/v1/health` (Python AI service, port 8001 on loopback)
 
-Validation: subject is nonblank and at most 300 characters; mode is required and is GENERAL or CYBERSECURITY.
+Public response: `{ "status": "UP", "service": "aura-ai-service", "version": "0.1.0" }`. OpenAPI and interactive docs are disabled. The service has no model, database, or research-provider route.
 
-Response 201 with Location header:
-{ "id": "uuid", "subject": "Example public topic", "mode": "GENERAL", "status": "REQUESTED", "createdAt": "2026-10-31T00:00:00Z" }
+## Research jobs
 
-### GET /api/v1/research-jobs/{id}
-Requires authentication. Returns the response fields above; returns 404 Problem Details if the UUID is unknown.
+### POST `/api/v1/research-jobs`
 
-A REQUESTED job is a persisted request only. M1 does not search sources.
+Creates a saved request; it does not search yet.
 
-## Implemented M2 route
+Request: `{ "subject": "Example public topic", "mode": "GENERAL" }`
 
-### GET /api/v1/health (Python AI service)
-Public loopback health response: { "status": "UP", "service": "aura-ai-service", "version": "0.1.0" }. OpenAPI and interactive docs are disabled. This service has no model or provider routes yet.
+`subject` is required, nonblank, and at most 300 characters. `mode` is `GENERAL` or `CYBERSECURITY`.
 
-## Planned contract rules
+Response: `201 Created`, a `Location` header, and a body containing `id`, `subject`, `mode`, `status` (`REQUESTED`), and `createdAt`.
 
-- Every request has a server-generated request ID; propagate it to downstream AI calls.
-- Do not accept arbitrary tool names or active target URLs from clients.
-- Use idempotency keys before automatic retry can repeat side effects.
-- Use cursor pagination for large collections.
-- Contract changes are documented. Java/Python uses versioned JSON schemas and explicit timeout behavior.
-- Export routes enforce owner access and source-specific data-use rules.
-- Hosted-model use is visible in response and report provenance.
+### GET `/api/v1/research-jobs/{id}`
 
-## Future routes (not implemented)
+Returns job state and search metadata. Unknown IDs return `404 RESEARCH_JOB_NOT_FOUND`.
 
-- GET /api/v1/research-jobs — owner-scoped history.
-- POST /api/v1/research-jobs/{id}/run — schedule bounded workflow.
-- POST /api/v1/documents — selected document upload.
-- POST /api/v1/knowledge/search — owner-filtered full-text retrieval.
-- GET /api/v1/reports/{id}/export?format=md|pdf|json|csv.
-- GET /api/v1/findings — defensive vulnerability findings.
+### POST `/api/v1/research-jobs/{id}/search`
+
+Runs one bounded request against the configured Brave Search API. A configured `AURA_BRAVE_API_KEY` is required. Missing configuration returns `503 SEARCH_PROVIDER_NOT_CONFIGURED` and leaves the job `REQUESTED`. A job can be searched once; other states return `409 RESEARCH_JOB_STATE_CONFLICT`.
+
+Optional request fields:
+
+- `country`: two uppercase letters, for example `US`.
+- `language`: two lowercase letters, for example `en`.
+- `freshness`: `pd` (day), `pw` (week), `pm` (month), or `py` (year).
+- `resultLimit`: 1–20 per provider result type; defaults to 20.
+
+The adapter requests web, news, and discussion result types with strict SafeSearch. It stores normalized URLs and source metadata (type, title, domain, publisher, provider description, published time when known, retrieval time, and rank). The provider can return up to three result types, so the combined result count can be as high as 60. Returned links are not fetched by AURA.
+
+Responses include `provider`, `providerResultCount`, source results, and a coverage note. This is a single-provider sample, not a complete view of the internet. Discussion results are not a direct X/Twitter or social-account connector.
+
+### GET `/api/v1/research-jobs/{id}/sources`
+
+Lists saved results for a completed job. Optional filters:
+
+- `kind`: `WEB`, `NEWS`, or `DISCUSSION`.
+- `q`: case-insensitive match in title, description, publisher, or domain (maximum 200 characters).
+- `host`: exact domain or subdomain match (maximum 253 characters).
+- `publishedFrom`, `publishedTo`: inclusive UTC calendar dates. Results with unknown publication time are excluded when a date filter is used.
+
+Reversed dates and invalid filters return `400 INVALID_RESEARCH_FILTER`. A job that has not completed returns `409 RESEARCH_JOB_STATE_CONFLICT`.
+
+### GET `/api/v1/research-jobs/{id}/export?format=json|csv|md`
+
+Downloads the same filtered result set as JSON, CSV, or Markdown. `format` defaults to `json`. CSV fields are quoted and formula-leading values are neutralized. Export includes provider metadata, source links, retrieval times, and the coverage note; it is not a synthesized report.
+
+## Provider errors
+
+- `502 SEARCH_PROVIDER_FAILURE` / `SEARCH_PROVIDER_INVALID_RESPONSE`: provider request or response failed.
+- `503 SEARCH_PROVIDER_RATE_LIMITED` / `SEARCH_PROVIDER_UNAVAILABLE`: provider rate limit or temporary unavailability.
+- Errors leave the job in `FAILED` with a stable `failureCode`; raw provider details and credentials are not returned.
+
+## Current limits and next contracts
+
+- Search sends the query to the configured external provider only when the owner invokes the search route. Provider access and possible charges are governed by that provider account.
+- No direct social-media connector, complete-internet crawl, page fetch, AI synthesis, cross-source fact checking, or claim comparison is implemented.
+- Person research is limited to public-interest material. Do not use this for doxxing, sensitive-trait inference, invasive tracking, or private-account access.
+- Research history, queries, and source metadata currently have no delete or retention endpoint; add those before multi-user or hosted use.
+- Future work: cursor-paginated history; source-specific adapters with their own quotas and terms; document upload and owner-filtered retrieval; cited synthesis; report retention/deletion; defensive findings.
 

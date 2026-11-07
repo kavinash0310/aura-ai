@@ -2,7 +2,7 @@
 
 ## Current repository state
 
-M1 is a Java/Spring Boot API with PostgreSQL. It persists research jobs but does not search the web, call an LLM, ingest documents, or run cyber checks. M2 adds a separate Python FastAPI process with a configuration-backed health endpoint; it has no data, model, or provider access.
+The repository now has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, and a first bounded public-search adapter. A completed request can query the configured Brave Search API for web, news, and discussion results, save source metadata, filter results, and download JSON/CSV/Markdown. Search is manual and single-provider. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, ingest documents, or run cyber checks.
 
 ## Target architecture
 
@@ -34,17 +34,20 @@ Why: Java matches the owner's backend strengths; Python concentrates AI librarie
 
 **Interview:** “Spring Boot owns the product API and durable workflow. Python is an optional AI boundary, not the authority for access control. PostgreSQL remains the system of record.”
 
-## Current M1/M2 container diagram
+## Current container and search flow
 
-Spring and Python services plus PostgreSQL are implemented. The AI service currently exposes only health and does not connect to Java, PostgreSQL, models, or external providers.
+Spring, Python, and PostgreSQL services are implemented. Only the Spring API has the optional outbound search connection. The AI service exposes health and does not connect to Java, PostgreSQL, models, or external providers.
 
 ~~~mermaid
 flowchart TB
   Owner[Single local owner] -->|HTTP Basic over loopback| Spring[Spring Boot API]
   Spring -->|JDBC| PostgreSQL[(PostgreSQL)]
   Spring -->|Flyway migration at startup| PostgreSQL
+  Spring -->|query only when configured and requested| Brave[Brave Search API]
   Owner -->|loopback health only| Python[FastAPI AI service]
 ~~~
+
+The outbound adapter uses a fixed provider host, a short timeout, strict SafeSearch, and web/news/discussion result types. It keeps only HTTP(S) result URLs, caps text, strips URL fragments, and deduplicates URLs. AURA does not fetch returned URLs, so this search flow does not turn provider result links into arbitrary server-side requests.
 
 ## Research request lifecycle
 
@@ -67,6 +70,30 @@ sequenceDiagram
 
 REQUESTED means only that AURA saved the user's intent. Search is not complete.
 
+## Public search lifecycle (implemented)
+
+~~~mermaid
+sequenceDiagram
+  actor Owner
+  participant API as Spring API
+  participant Service as Search workflow
+  participant Brave as Configured Brave API
+  participant DB as PostgreSQL
+  Owner->>API: POST job/{id}/search with filters
+  API->>Service: authenticate, validate, check provider configuration
+  Service->>DB: lock REQUESTED job and mark SEARCHING
+  Service->>Brave: send query and bounded search options
+  Brave-->>Service: untrusted web/news/discussion result metadata
+  Service->>Service: validate URLs, cap fields, deduplicate
+  Service->>DB: save source metadata and mark COMPLETED
+  API-->>Owner: source results with provider coverage note
+  Owner->>API: GET filtered sources or export
+  API->>DB: read saved metadata
+  API-->>Owner: JSON, CSV, or Markdown download
+~~~
+
+The owner invokes each search explicitly. A missing provider key fails before the job leaves `REQUESTED`; provider failures are recorded as a stable failure code. Source content is not treated as verified fact, and search coverage is explicitly partial.
+
 ## Future document/RAG lifecycle
 
 ~~~mermaid
@@ -87,5 +114,5 @@ Future flow only. Parsing, chunking, indexing, retrieval, and synthesis remain s
 
 ## Deployment target
 
-Docker Compose runs PostgreSQL and the Spring API and AI service, with host ports bound to loopback. The AI service has no outbound integrations in M2. Local model runtime is opt-in. Remote access requires separate auth, TLS, retention, and abuse review.
+Docker Compose runs PostgreSQL and the Spring API and AI service, with host ports bound to loopback. The search API key is optional and must be supplied by the owner; only an explicit search call sends a query to Brave. The Python service has no outbound integrations or model runtime. Remote access requires separate auth, TLS, retention, and abuse review.
 

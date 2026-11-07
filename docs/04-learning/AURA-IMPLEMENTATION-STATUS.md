@@ -7,10 +7,12 @@ Updated 2026-10-31.
 | Project brief and README | Implemented | Root README |
 | Requirements and MVP | Documented | docs/00-overview |
 | Architecture, data/API boundaries, ADRs, threat model | Documented proposal | docs/02-architecture and docs/03-adr |
-| Spring Boot API | M1 implemented; GitHub Actions passed (compile + 4 API tests) | backend source and Actions run for 01ae1be |
-| PostgreSQL migration and Compose | M1 implemented; migration and API integration tests passed | backend migration, compose.yaml, Actions run for 01ae1be |
-| Python AI service | M2 implemented; 3 local tests and Ruff checks passed | ai-service source, locked uv environment, and workflow |
-| Public web/news/social search | Not implemented | M5; provider selection and credentials remain future work |
+| Spring Boot API | M1 foundation plus M5 search routes; 12 local tests pass | backend source and API/provider tests |
+| PostgreSQL migration and Compose | M1 plus V2 job/search-result schema; H2 migrations pass locally | backend migrations and compose.yaml |
+| Python AI service | M2 implemented; 3 tests and Ruff passed locally; health only | ai-service source, locked uv environment, and workflow |
+| Public web/news/discussion search | First provider slice implemented; Brave key optional; 12 backend tests pass locally | Brave adapter, persisted source metadata, authenticated API, filters, exports |
+| Direct social-media connectors | Not implemented | Separate official, permissioned APIs and account credentials would be needed |
+| Web interface, page fetching, AI synthesis | Not implemented | Later milestones; search remains usable through the authenticated API |
 | Document ingestion/RAG | Not implemented | M3 |
 | LLM/model gateway | Not implemented | M4 |
 | Cybersecurity ingestion/SBOM | Not implemented | M7 |
@@ -18,5 +20,5 @@ Updated 2026-10-31.
 
 ## Verification rule
 
-Do not claim build/tests passed until GitHub Actions is green or a local command ran. Basic Auth is loopback development only. The Python service currently exposes only a loopback health endpoint and cannot access a model or data provider.
+Do not claim build/tests passed until GitHub Actions is green or a local command ran. Basic Auth is loopback development only. The Python service currently exposes only a loopback health endpoint and cannot access a model or data provider. Brave search is performed only after an authenticated request and only when the owner supplies a key; the provider receives the query. Search results are partial and AURA does not fetch the returned links.
 

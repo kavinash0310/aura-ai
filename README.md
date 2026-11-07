@@ -23,7 +23,7 @@ This is also a practical AI software engineering learning path: a Java/Spring ap
 
 ## Current milestone
 
-M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI service with validated configuration and a health endpoint. The AI service has no model, database, connector, or external-network capability yet. Research search, documents, synthesis, and exports remain future work.
+M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI service with validated configuration and a health endpoint. The first M5 research slice adds one explicit, bounded search through an optional Brave Search API key, source metadata, result filters, and JSON/CSV/Markdown downloads. The Python service still has no model or data access. AURA does not search every page or social post, connect to social accounts, fetch result pages, or generate a synthesized report yet.
 
 See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and [MVP backlog](docs/00-overview/MVP-AND-BACKLOG.md).
 
@@ -32,14 +32,15 @@ See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and 
 Requirements: JDK 21, Docker Desktop with Compose, Git, Maven 3.9+ for local Java builds, and Python 3.12+ with uv 0.13.6 for local AI-service work.
 
 1. Copy .env.example to .env and replace all placeholder values with unique random passwords of at least 24 characters.
-2. Keep .env private and untracked.
+2. Keep .env private and untracked. Leave `AURA_BRAVE_API_KEY` blank to disable search, or provide your own provider key to enable explicit public searches.
 3. Start the stack with docker compose up --build.
 4. Spring health: http://127.0.0.1:8080/api/v1/health
 5. AI-service health: http://127.0.0.1:8001/api/v1/health
-6. Verify Java tests with mvn -f backend/pom.xml verify.
-7. In a terminal, change to ai-service, then run uv sync --locked --all-groups, uv run pytest, and uv run ruff check src tests.
+6. Create a `GENERAL` research job, explicitly run its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See [API contracts](docs/02-architecture/API-CONTRACTS.md) for request shapes and limits.
+7. Verify Java with `mvn -f backend/pom.xml verify`.
+8. In a terminal, change to `ai-service`, then run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
 
-Both host ports bind to loopback. The Python health endpoint is public and returns no user data. The Spring API uses development-only Basic Auth. Do not expose or port-forward either service. See [local development guide](docs/19-operations/LOCAL-DEV.md).
+Both host ports bind to loopback. The Python health endpoint is public and returns no user data. The Spring API uses development-only Basic Auth. A configured search sends the query to the external provider; AURA stores the returned source metadata. Provider access is governed by your provider account and terms. Do not expose or port-forward either service. See [local development guide](docs/19-operations/LOCAL-DEV.md).
 
 ## Start here
 

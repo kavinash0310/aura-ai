@@ -12,7 +12,16 @@ public record ResearchJobResponse(
         String subject,
         ResearchMode mode,
         ResearchJobStatus status,
-        Instant createdAt
+        Instant createdAt,
+        String searchProvider,
+        String searchCountry,
+        String searchLanguage,
+        String searchFreshness,
+        Integer searchLimit,
+        Instant searchStartedAt,
+        Instant searchCompletedAt,
+        int searchResultCount,
+        String failureCode
 ) {
     public static ResearchJobResponse from(ResearchJob job) {
         return new ResearchJobResponse(
@@ -20,7 +29,17 @@ public record ResearchJobResponse(
                 job.getSubject(),
                 job.getMode(),
                 job.getStatus(),
-                job.getCreatedAt()
+                job.getCreatedAt(),
+                job.getSearchProvider(),
+                job.getSearchCountry(),
+                job.getSearchLanguage(),
+                job.getSearchFreshness(),
+                job.getSearchLimit(),
+                job.getSearchStartedAt(),
+                job.getSearchCompletedAt(),
+                job.getSearchResultCount(),
+                job.getFailureCode()
         );
     }
 }
+

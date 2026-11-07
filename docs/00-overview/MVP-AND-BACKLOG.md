@@ -2,7 +2,7 @@
 
 ## MVP definition
 
-The first useful release is a local research workspace that accepts a subject, searches a small set of permitted public sources, keeps source metadata, returns a cited summary, and exports a report. The first code milestone here is smaller: a secure Spring Boot foundation that persists a research request and exposes health. It does not yet perform research.
+The first useful release is a local research workspace that accepts a subject, searches a small set of permitted public sources, keeps source metadata, returns a cited summary, and exports a report. The repository has the Spring foundation, an isolated Python health service, and a first authenticated search slice. The search slice returns provider source metadata and filtered downloads; page reading, cross-source analysis, synthesized reports, and the web interface remain planned.
 
 ## Feature priority
 
@@ -46,7 +46,9 @@ Add provider interface, local and optional hosted adapters, structured output, p
 
 ### M5 — Public research
 Add web/news adapters, query planning, normalization, deduplication, evidence, claim comparison, citations, filters, exports, coverage.
-**Accept when:** curated queries are reproducible, citations resolve, conflicts persist, source limits show.
+**Delivered slice:** one optional Brave provider returns bounded web/news/discussion results; the API persists provider provenance and timestamps, supports type/text/host/date filters, and downloads JSON/CSV/Markdown. Search is invoked explicitly and the response states that coverage is partial.
+**Still needed:** official direct social providers, additional search providers, permitted page fetching, query planning, claim comparison, cited synthesis, and broader evaluations.
+**Accept when:** curated queries are reproducible, citations resolve, conflicts persist, source and coverage limits show, and each provider's terms/rate limits are tested.
 
 ### M6 — Controlled workflow
 Add persisted steps, typed tools, retries/backoff, cancellation, approval, audit.
@@ -59,3 +61,4 @@ Add NVD, KEV, EPSS, vendor advisories, SBOM JSON/CSV/SARIF, transparent ranking.
 ### M8 — Workspace and production readiness
 Add React pages, observability, security review, backup/restore, packaging, runbooks.
 **Accept when:** setup, report flow, auth boundaries, recovery, and limitations are demonstrated from a clean environment.
+

@@ -60,4 +60,3 @@ jobs:
       - name: Build the AI service image
         run: docker compose build ai
 
-

@@ -32,6 +32,33 @@ public class ResearchJob {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "search_provider", length = 32)
+    private String searchProvider;
+
+    @Column(name = "search_country", length = 2)
+    private String searchCountry;
+
+    @Column(name = "search_language", length = 2)
+    private String searchLanguage;
+
+    @Column(name = "search_freshness", length = 2)
+    private String searchFreshness;
+
+    @Column(name = "search_limit")
+    private Integer searchLimit;
+
+    @Column(name = "search_started_at")
+    private Instant searchStartedAt;
+
+    @Column(name = "search_completed_at")
+    private Instant searchCompletedAt;
+
+    @Column(name = "search_result_count", nullable = false)
+    private int searchResultCount;
+
+    @Column(name = "failure_code", length = 64)
+    private String failureCode;
+
     protected ResearchJob() {
     }
 
@@ -53,23 +80,45 @@ public class ResearchJob {
         );
     }
 
-    public UUID getId() {
-        return id;
+    public void beginSearch(String provider, ResearchFilters filters, Instant startedAt) {
+        this.status = ResearchJobStatus.SEARCHING;
+        this.searchProvider = provider;
+        this.searchCountry = filters.country();
+        this.searchLanguage = filters.language();
+        this.searchFreshness = filters.freshness();
+        this.searchLimit = filters.resultLimit();
+        this.searchStartedAt = startedAt;
+        this.searchCompletedAt = null;
+        this.searchResultCount = 0;
+        this.failureCode = null;
     }
 
-    public String getSubject() {
-        return subject;
+    public void completeSearch(int resultCount, Instant completedAt) {
+        this.status = ResearchJobStatus.COMPLETED;
+        this.searchResultCount = resultCount;
+        this.searchCompletedAt = completedAt;
+        this.failureCode = null;
     }
 
-    public ResearchMode getMode() {
-        return mode;
+    public void failSearch(String code, Instant completedAt) {
+        this.status = ResearchJobStatus.FAILED;
+        this.searchCompletedAt = completedAt;
+        this.failureCode = code;
     }
 
-    public ResearchJobStatus getStatus() {
-        return status;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
+    public UUID getId() { return id; }
+    public String getSubject() { return subject; }
+    public ResearchMode getMode() { return mode; }
+    public ResearchJobStatus getStatus() { return status; }
+    public Instant getCreatedAt() { return createdAt; }
+    public String getSearchProvider() { return searchProvider; }
+    public String getSearchCountry() { return searchCountry; }
+    public String getSearchLanguage() { return searchLanguage; }
+    public String getSearchFreshness() { return searchFreshness; }
+    public Integer getSearchLimit() { return searchLimit; }
+    public Instant getSearchStartedAt() { return searchStartedAt; }
+    public Instant getSearchCompletedAt() { return searchCompletedAt; }
+    public int getSearchResultCount() { return searchResultCount; }
+    public String getFailureCode() { return failureCode; }
 }
+

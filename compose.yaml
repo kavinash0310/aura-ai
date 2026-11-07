@@ -26,6 +26,7 @@ services:
       AURA_DB_PASSWORD: ${AURA_DB_PASSWORD:?Set AURA_DB_PASSWORD in .env}
       AURA_AUTH_USERNAME: ${AURA_AUTH_USERNAME:?Set AURA_AUTH_USERNAME in .env}
       AURA_AUTH_PASSWORD: ${AURA_AUTH_PASSWORD:?Set AURA_AUTH_PASSWORD in .env}
+      AURA_BRAVE_API_KEY: ${AURA_BRAVE_API_KEY:-}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
@@ -44,5 +45,4 @@ services:
 
 volumes:
   aura-postgres-data:
-
 

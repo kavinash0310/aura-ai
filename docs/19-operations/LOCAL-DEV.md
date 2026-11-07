@@ -14,12 +14,14 @@
 1. Copy .env.example to .env.
 2. Replace placeholder DB and API passwords with unique random values of at least 24 characters.
 3. Keep .env untracked; never paste actual secrets into issues or logs.
-4. Start with docker compose up --build.
-5. Spring API binds to 127.0.0.1:8080. GET /api/v1/health is public; other routes use local HTTP Basic credentials.
-6. AI service binds to 127.0.0.1:8001. GET /api/v1/health is public and reports service identity only; model inference and provider access are not implemented.
-7. Stop with docker compose down. Use docker compose down -v only when you intend to delete the local database volume.
-8. Verify Java with mvn -f backend/pom.xml verify.
-9. For Python checks, change into ai-service and run uv sync --locked --all-groups, uv run pytest, and uv run ruff check src tests.
+4. To enable search, add your own `AURA_BRAVE_API_KEY` to `.env`. Leave it blank to keep the provider disabled. A search sends the query to Brave under your provider account and may be subject to its quotas or charges.
+5. Start with `docker compose up --build`.
+6. Spring API binds to 127.0.0.1:8080. GET `/api/v1/health` is public; other routes use local HTTP Basic credentials.
+7. AI service binds to 127.0.0.1:8001. GET `/api/v1/health` is public and reports service identity only; model inference and provider access are not implemented.
+8. Create a research job, explicitly call its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See the API contract for examples and limits.
+9. Stop with `docker compose down`. Use `docker compose down -v` only when you intend to delete the local database volume.
+10. Verify Java with `mvn -f backend/pom.xml verify`.
+11. For Python checks, change into `ai-service` and run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
 
 ## Useful commands
 
@@ -30,5 +32,5 @@
 
 ## Limits
 
-Basic Auth is development-only. Do not port-forward or publish the services. M2 establishes an internal service boundary only; it has no model, data connector, database access, or outbound research behavior.
+Basic Auth is development-only. Do not port-forward or publish the services. The Java API sends an explicit search query to the configured Brave provider; it does not fetch result URLs. The Python service remains isolated and has no model, data connector, database access, or outbound research behavior.
 

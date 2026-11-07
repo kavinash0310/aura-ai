@@ -82,4 +82,31 @@ class ResearchJobApiTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
+
+    @Test
+    void reportsMissingSearchProviderWithoutStartingTheJob() throws Exception {
+        String location = mockMvc.perform(post("/api/v1/research-jobs")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"subject":"A public research topic","mode":"GENERAL"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getHeader("Location");
+
+        mockMvc.perform(post(location + "/search")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SEARCH_PROVIDER_NOT_CONFIGURED"));
+
+        mockMvc.perform(get(location).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REQUESTED"))
+                .andExpect(jsonPath("$.failureCode").doesNotExist());
+    }
 }
+

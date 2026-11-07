@@ -21,3 +21,8 @@ aura:
   auth:
     username: ${AURA_AUTH_USERNAME}
     password: ${AURA_AUTH_PASSWORD}
+  search:
+    brave:
+      api-key: ${AURA_BRAVE_API_KEY:}
+      timeout: 8s
+

@@ -5,7 +5,7 @@ Do not mark a skill complete because code was generated. The owner should explai
 ## Snapshot — 2026-10-31
 
 - Repository was empty; no previous implementation or conventions existed.
-- M1 Spring API is implemented and CI verified; M2 Python service and local checks are implemented.
+- M1 Spring API is implemented and CI verified; M2 Python service and local checks are implemented; the first M5 search slice passes 12 local backend tests.
 - Concepts completed: none assessed yet.
 - Skills demonstrated independently: none recorded.
 - Background assumption: Java/Spring experience; Python/AI/ML learning; Windows with 16 GB RAM.
@@ -18,6 +18,7 @@ Do not mark a skill complete because code was generated. The owner should explai
 | M1 Spring API | Implemented; explanation pending | Backend source and passing CI | No | Run tests and explain lifecycle |
 | M2 Python service | Implemented; explanation pending | FastAPI health, settings, uv lock, 3 tests, Ruff check | No | Explain ASGI, settings, Pydantic, and test client |
 | M3 document lifecycle | Not started | No document code | No | Design upload limits and text extraction boundary |
+| M5 public research slice | Implemented; explanation pending | Optional Brave adapter, persisted provenance, filters, downloads, 12 local backend tests | No | Explain provider boundaries, URL validation, state transitions, and partial coverage |
 
 ## Check-in template
 

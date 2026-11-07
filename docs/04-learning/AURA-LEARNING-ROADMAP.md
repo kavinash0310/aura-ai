@@ -31,7 +31,7 @@ Review local-only no-egress behavior, untrusted output fields, and retry rules.
 
 ## Phase 5 — Public research
 Learn search APIs, pagination, quotas, source terms, canonical URLs, deduplication, evidence claims, coverage bias.
-Implement source adapters, metadata normalization, timestamps, evidence, reports.
+Implemented first slice: one optional Brave Search adapter for web/news/discussion metadata, bounded queries, safe URL filtering, result persistence, source filters, and JSON/CSV/Markdown export. Search is explicit and authenticated. Direct X/Twitter or other social-account connectors, linked-page fetching, query planning, claim comparison, cited synthesis, and multiple providers remain future work.
 Review coverage definition, contradiction retention, and why search cannot prove completeness.
 
 ## Phase 6 — Controlled workflow
