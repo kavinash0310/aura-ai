@@ -1,21 +1,28 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   ApiError,
   createResearchJob,
+  deleteDocument,
   deleteResearchJob,
   downloadExport,
   lookupSbom,
   lookupNvd,
   lookupVulnerabilities,
+  getDocument,
+  listDocuments,
   listResearchJobs,
   listSources,
+  searchDocuments,
   runResearch,
+  uploadDocument,
   validateConnection,
 } from "./api";
 import type {
   Credentials,
   ResearchJob,
+  ResearchDocument,
+  ResearchDocumentSearchHit,
   ResearchMode,
   ResearchSource,
   ResultFilters,
@@ -42,7 +49,7 @@ function errorMessage(error: unknown): string {
     }
     if (error.code === "SEARCH_PROVIDER_RATE_LIMITED") return "The search provider rate limited this request. Wait a little and try again.";
     if (error.code === "VALIDATION_FAILED") return "Enter one to 25 CVE IDs, such as CVE-2024-12345.";
-    if (error.code === "INVALID_SBOM" || error.code === "SBOM_TOO_LARGE") return error.message;
+    if (error.code === "INVALID_SBOM" || error.code === "SBOM_TOO_LARGE" || error.code === "INVALID_DOCUMENT" || error.code === "UPLOAD_TOO_LARGE") return error.message;
     if (error.status === 0) return error.message;
     return error.message;
   }
@@ -98,6 +105,7 @@ function NvdDetails({ data }: { data: NvdLookupResponse }) {
 }
 
 export default function App() {
+  const workspaceSession = useRef(0);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [connected, setConnected] = useState(false);
@@ -126,6 +134,16 @@ export default function App() {
   const [vulnerabilityBusy, setVulnerabilityBusy] = useState(false);
   const [nvdLookups, setNvdLookups] = useState<Record<string, NvdLookupResponse>>({});
   const [nvdBusyCve, setNvdBusyCve] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<ResearchDocument[]>([]);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentInputKey, setDocumentInputKey] = useState(0);
+  const [documentTitle, setDocumentTitle] = useState("");
+  const [documentQuery, setDocumentQuery] = useState("");
+  const [documentHits, setDocumentHits] = useState<ResearchDocumentSearchHit[]>([]);
+  const [openedDocument, setOpenedDocument] = useState<ResearchDocument | null>(null);
+  const [documentUploading, setDocumentUploading] = useState(false);
+  const [documentSearching, setDocumentSearching] = useState(false);
+  const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
   const [sbomFile, setSbomFile] = useState<File | null>(null);
   const [sbomLookup, setSbomLookup] = useState<SbomLookupResponse | null>(null);
   const [sbomBusy, setSbomBusy] = useState(false);
@@ -138,7 +156,12 @@ export default function App() {
     setError("");
     try {
       await validateConnection(credentials);
-      setJobs(await listResearchJobs(credentials));
+      const [recentJobs, savedDocuments] = await Promise.all([
+        listResearchJobs(credentials),
+        listDocuments(credentials),
+      ]);
+      setJobs(recentJobs);
+      setDocuments(savedDocuments);
       setConnected(true);
     } catch (caught) {
       setConnected(false);
@@ -289,16 +312,104 @@ export default function App() {
 
   async function loadNvd(cve: string) {
     if (!connected || nvdBusyCve) return;
+    const session = workspaceSession.current;
     setNvdBusyCve(cve);
     setError("");
     try {
       const result = await lookupNvd(credentials, cve);
-      setNvdLookups((current) => ({ ...current, [result.cve]: result }));
+      if (session === workspaceSession.current) {
+        setNvdLookups((current) => ({ ...current, [result.cve]: result }));
+      }
+    } catch (caught) {
+      if (session === workspaceSession.current) setError(errorMessage(caught));
+    } finally {
+      if (session === workspaceSession.current) setNvdBusyCve(null);
+    }
+  }
+
+  async function importDocument(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!connected || !documentFile) return;
+    if (documentFile.size > 1024 * 1024) {
+      setError("Document files must be 1 MB or smaller.");
+      return;
+    }
+    const session = workspaceSession.current;
+    setDocumentUploading(true);
+    setError("");
+    try {
+      const uploaded = await uploadDocument(credentials, documentFile, documentTitle);
+      if (session !== workspaceSession.current) return;
+      setDocuments((current) => [uploaded, ...current.filter((item) => item.id !== uploaded.id)].slice(0, 100));
+      setOpenedDocument(null);
+      setDocumentHits([]);
+      setDocumentFile(null);
+      setDocumentTitle("");
+      setDocumentInputKey((current) => current + 1);
+    } catch (caught) {
+      if (session === workspaceSession.current) setError(errorMessage(caught));
+    } finally {
+      if (session === workspaceSession.current) setDocumentUploading(false);
+    }
+  }
+
+  async function searchDocumentLibrary(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!connected) return;
+    const session = workspaceSession.current;
+    setDocumentSearching(true);
+    setError("");
+    try {
+      const results = await searchDocuments(credentials, documentQuery);
+      if (session === workspaceSession.current) {
+        setDocumentHits(results);
+        setOpenedDocument(null);
+      }
+    } catch (caught) {
+      if (session === workspaceSession.current) setError(errorMessage(caught));
+    } finally {
+      if (session === workspaceSession.current) setDocumentSearching(false);
+    }
+  }
+
+  async function openDocument(id: string) {
+    if (!connected) return;
+    const session = workspaceSession.current;
+    setOpeningDocumentId(id);
+    setError("");
+    try {
+      const result = await getDocument(credentials, id);
+      if (session === workspaceSession.current) setOpenedDocument(result);
+    } catch (caught) {
+      if (session === workspaceSession.current) setError(errorMessage(caught));
+    } finally {
+      if (session === workspaceSession.current) setOpeningDocumentId(null);
+    }
+  }
+
+  async function removeDocument(item: ResearchDocument) {
+    if (!window.confirm(`Delete “${item.title}” and its stored text?`)) return;
+    setError("");
+    try {
+      await deleteDocument(credentials, item.id);
+      setDocuments((current) => current.filter((document) => document.id !== item.id));
+      setDocumentHits((current) => current.filter((hit) => hit.documentId !== item.id));
+      if (openedDocument?.id === item.id) setOpenedDocument(null);
     } catch (caught) {
       setError(errorMessage(caught));
-    } finally {
-      setNvdBusyCve(null);
     }
+  }
+
+  function downloadDocument(item: ResearchDocument) {
+    if (item.content == null) return;
+    const url = URL.createObjectURL(new Blob([item.content], { type: item.mediaType }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = item.originalFilename;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   }
 
   function downloadVulnerabilityLookup(format: "json" | "csv") {
@@ -420,6 +531,7 @@ export default function App() {
   }
 
   function disconnect() {
+    workspaceSession.current += 1;
     setConnected(false);
     setUsername("");
     setPassword("");
@@ -431,6 +543,16 @@ export default function App() {
     setSbomLookup(null);
     setNvdLookups({});
     setNvdBusyCve(null);
+    setDocumentUploading(false);
+    setDocumentSearching(false);
+    setOpeningDocumentId(null);
+    setDocuments([]);
+    setDocumentFile(null);
+    setDocumentInputKey((current) => current + 1);
+    setDocumentTitle("");
+    setDocumentQuery("");
+    setDocumentHits([]);
+    setOpenedDocument(null);
     setCanRetry(false);
     setError("");
   }
@@ -451,6 +573,9 @@ export default function App() {
         </button>
         <a className="nav-item nav-link" href="#cyber-intelligence" aria-label="Cybersecurity vulnerability lookup">
           <span className="nav-icon">⌖</span> Cyber intelligence
+        </a>
+        <a className="nav-item nav-link" href="#documents" aria-label="Document library">
+          <span className="nav-icon">▤</span> Documents
         </a>
         <div className="sidebar-divider" />
         <div className="workspace-label">YOUR WORK <span className="history-count">{jobs.length}</span></div>
@@ -644,9 +769,49 @@ export default function App() {
               </section>
             </aside>
           </div>
-          <section className="panel cyber-panel" id="cyber-intelligence" aria-labelledby="cyber-title">
+          <section className="panel documents-panel" id="documents" aria-labelledby="documents-title">
             <div className="panel-heading">
               <div className="step-number">03</div>
+              <div><h2 id="documents-title">Document library</h2><p>Store and search selected UTF‑8 text and Markdown files.</p></div>
+              <span className="panel-tag">MAX 1 MB</span>
+            </div>
+            <form className="document-upload-form" onSubmit={importDocument}>
+              <label className="field-label" htmlFor="document-file">Choose a .txt or .md file</label>
+              <input key={documentInputKey} id="document-file" className="text-input sbom-file-input" type="file" accept=".txt,.md,text/plain,text/markdown" onChange={(event) => setDocumentFile(event.currentTarget.files?.[0] ?? null)} />
+              <label className="field-label document-title-label" htmlFor="document-title">Title (optional)</label>
+              <input id="document-title" className="text-input" maxLength={300} value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} placeholder="Use the file name if left blank" />
+              <div className="cyber-form-footer">
+                <span className="provider-note"><i className="shield-icon">◇</i> Local upload · UTF‑8 only · no external provider calls</span>
+                <button className="primary-button" type="submit" disabled={!connected || documentUploading || !documentFile}>
+                  {documentUploading ? <><span className="spinner" /> Importing</> : <>Import document <span aria-hidden="true">↗</span></>}
+                </button>
+              </div>
+              <p className="cyber-egress-note">AURA stores the text in its local database with a SHA‑256 content hash. Search returns exact phrase matches and character-offset citations; documents are not sent to Brave or an AI model.</p>
+            </form>
+
+            <form className="document-search-form" onSubmit={searchDocumentLibrary}>
+              <label className="filter-search"><span aria-hidden="true">⌕</span><input aria-label="Search documents" placeholder="Search your documents" value={documentQuery} onChange={(event) => setDocumentQuery(event.target.value)} /></label>
+              <button className="filter-button" type="submit" disabled={!connected || documentSearching || documentQuery.trim().length < 2}>{documentSearching ? "Searching…" : "Search"}</button>
+            </form>
+            {documentHits.length > 0 && <div className="document-hit-list" aria-label="Document search results">{documentHits.map((hit) => <article className="document-hit" key={hit.documentId}>
+              <div><button className="document-open-button" type="button" onClick={() => void openDocument(hit.documentId)}>{hit.title}</button><p>{hit.originalFilename} · {hit.startOffset}–{hit.endOffset}</p><blockquote>{hit.snippet}</blockquote><code>{hit.citation}</code></div>
+            </article>)}</div>}
+            {documentHits.length === 0 && documentQuery && <p className="cyber-egress-note">No matching document results yet. Run the search to check this library.</p>}
+            <div className="document-list-heading"><strong>Your documents</strong><span>{documents.length} shown</span></div>
+            {documents.length > 0 ? <div className="document-list">{documents.map((item) => <article className="document-row" key={item.id}>
+              <button type="button" className="document-open-button" onClick={() => void openDocument(item.id)} disabled={openingDocumentId === item.id}>{openingDocumentId === item.id ? "Opening…" : item.title}</button>
+              <span>{item.originalFilename} · {item.characterCount.toLocaleString()} characters · {item.contentHash.slice(0, 12)}…</span>
+              <button type="button" className="history-delete" aria-label={`Delete document ${item.title}`} onClick={() => void removeDocument(item)}>×</button>
+            </article>)}</div> : <div className="empty-results"><strong>No documents imported</strong><p>Upload a UTF‑8 text or Markdown file to start a private library.</p></div>}
+            {openedDocument && <div className="document-preview" aria-live="polite">
+              <div className="document-list-heading"><strong>{openedDocument.title}</strong><div><button className="document-open-button" type="button" onClick={() => downloadDocument(openedDocument)}>Download</button><button className="document-open-button" type="button" onClick={() => setOpenedDocument(null)}>Close</button></div></div>
+              <p>{openedDocument.originalFilename} · SHA‑256 {openedDocument.contentHash} · {openedDocument.characterCount.toLocaleString()} characters</p>
+              <pre>{(openedDocument.content ?? "").slice(0, 20000)}{openedDocument.characterCount > 20000 ? "\n\n[Preview limited to 20,000 characters. Download the complete file.]" : ""}</pre>
+            </div>}
+          </section>
+          <section className="panel cyber-panel" id="cyber-intelligence" aria-labelledby="cyber-title">
+            <div className="panel-heading">
+              <div className="step-number">04</div>
               <div><h2 id="cyber-title">Cybersecurity vulnerability lookup</h2><p>Check specific CVE IDs against CISA KEV and FIRST EPSS.</p></div>
               <span className="panel-tag">READ ONLY</span>
             </div>

@@ -5,7 +5,7 @@ Do not mark a skill complete because code was generated. The owner should explai
 ## Snapshot — 2026-11-07
 
 - Repository was empty; no previous implementation or conventions existed.
-- M1 Spring API is implemented and CI verified; M2 Python health service and M5 public search/UI are implemented; M7 exact-CVE, bounded CycloneDX JSON review, and explicit single-CVE NVD details are implemented locally. On 2026-11-07, 29 Java tests, 7 UI tests, and the production UI build passed. Learning explanations remain unassessed.
+- M1 Spring API is implemented and CI verified; M2 Python health service and M5 public search/UI are implemented; the first M3 private text/Markdown document library and M7 exact-CVE, bounded CycloneDX JSON review, and explicit single-CVE NVD details are implemented locally. On 2026-11-07, 31 Java tests, 8 UI tests, and the production UI build passed. Learning explanations remain unassessed.
 - Concepts completed: none assessed yet.
 - Skills demonstrated independently: none recorded.
 - Background assumption: Java/Spring experience; Python/AI/ML learning; Windows with 16 GB RAM.
@@ -17,7 +17,7 @@ Do not mark a skill complete because code was generated. The owner should explai
 | M0 context and architecture | Implemented; review pending | Requirements, ADRs, boundaries, threat model, learning map | No | Review choices; draw request and trust flows |
 | M1 Spring API | Implemented; explanation pending | Backend source and passing CI | No | Run tests and explain lifecycle |
 | M2 Python service | Implemented; explanation pending | FastAPI health, settings, uv lock, 3 tests, Ruff check | No | Explain ASGI, settings, Pydantic, and test client |
-| M3 document lifecycle | Not started | No document code | No | Design upload limits and text extraction boundary |
+| M3 document lifecycle | First slice implemented; explanation pending | Authenticated UTF-8 `.txt`/`.md` upload up to 1 MB, SHA-256 metadata, exact-phrase search, character citations, preview/download, explicit delete | No | Explain strict text decoding, content hashing, safe preview rendering, offset citations, and why phrase matching is not full-text search |
 | M5 public research slice | Implemented; explanation pending | Optional Brave adapter, persisted provenance, filters, downloads, 12 local backend tests | No | Explain provider boundaries, URL validation, state transitions, and partial coverage |
 | First local UI slice | Implemented; explanation pending | React/TypeScript workspace, in-memory API credentials, search, filters, downloads, recent history, delete with source cascade | No | Explain credential handling, same-origin proxy, and retention behavior |
 | M7 CISA KEV/FIRST EPSS lookup | Implemented; explanation pending | Authenticated CVE-only endpoint, bounded inputs, fixed providers, cache and stale status, ranking explanation, UI, JSON/CSV export | No | Explain the different meanings of KEV and EPSS and how provider freshness is surfaced |

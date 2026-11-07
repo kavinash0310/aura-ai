@@ -21,6 +21,7 @@ Next: define a typed, bounded Java-to-Python contract only when a real model tra
 ## Phase 3 — Documents and retrieval
 Learn encodings, parser risk, metadata, chunking/offsets, tokenization, inverted indexes, embeddings, vector similarity, access filters.
 Implement explicit upload validation → parser → normalized text → chunks → PostgreSQL FTS → retrieval → citations. Benchmark before pgvector.
+Implemented first slice: authenticated UTF-8 `.txt`/`.md` upload up to 1 MB, normalized line endings, SHA-256 metadata, local storage, exact-phrase search with character-offset citations, preview/download, and deletion. Full-text indexing, versioning, richer parsers, chunking, and semantic retrieval remain future work.
 Review: How does chunk size alter context/recall? What if retrieval is irrelevant? How is citation tied to page/offset?
 Explain keyword vs semantic search and the lifecycle.
 

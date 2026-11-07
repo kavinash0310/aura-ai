@@ -84,7 +84,7 @@ No result performs network probing, asset discovery, vulnerability scanning, exp
 
 ### POST `/api/v1/cyber/sbom/lookup`
 
-Requires the local owner Basic Auth account. Send one `file` part as `multipart/form-data`. The accepted input is CycloneDX JSON with `specVersion` 1.3–1.7; files are limited to 2 MB, 10,000 components, 2,000 vulnerability records, 25 distinct CVE IDs, and 10,000 distinct affected-reference pairs. Malformed JSON, unsupported formats/versions, duplicate component `bom-ref` values, and limit violations return `400 INVALID_SBOM`; a request above the configured multipart cap returns `413 SBOM_TOO_LARGE`.
+Requires the local owner Basic Auth account. Send one `file` part as `multipart/form-data`. The accepted input is CycloneDX JSON with `specVersion` 1.3–1.7; files are limited to 2 MB, 10,000 components, 2,000 vulnerability records, 25 distinct CVE IDs, and 10,000 distinct affected-reference pairs. Malformed JSON, unsupported formats/versions, duplicate component `bom-ref` values, and limit violations return `400 INVALID_SBOM`; a request above the configured multipart cap returns `413 UPLOAD_TOO_LARGE`.
 
 The parser reads component metadata and references, then extracts only CVE identifiers already present in the SBOM's `vulnerabilities[].id` values. It maps `affects[].ref` to component `bom-ref` values where possible. A reference that cannot be resolved remains visible in the response. AURA does not use package names, versions, PURLs, or CPEs to infer missing CVEs, and does not establish that an inventory is installed or affected. Those exact declared CVEs are enriched using the same CISA KEV and FIRST EPSS behavior described above; no provider is called when the SBOM declares no CVEs.
 
@@ -97,6 +97,32 @@ Requires the local owner Basic Auth account. Request exactly one CVE ID: `{ "cve
 The response status is `AVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`, or `UNAVAILABLE` and includes request/retrieval timestamps, NVD record link, description (up to 2,000 characters), CVSS severity/version/vector when available, CWE identifiers, up to 50 CPE applicability criteria, and up to 10 HTTPS references. Truncation flags indicate when CPE criteria or references were capped. Results are held in a six-hour, memory-only cache capped at 500 records; unavailable and rate-limited responses are not cached. A 429 is returned as `RATE_LIMITED` without retry. CPE criteria are evidence from NVD and are not automatically matched to SBOM packages. NVD CVSS is severity information, not an asset-specific risk assessment.
 
 NVD receives only the requested CVE identifier. SBOM files and component inventories are not sent to NVD. AURA does not persist NVD responses.
+
+## Personal document library
+
+All document routes require the local owner Basic Auth account. Document upload is an explicit local action; file contents are stored in PostgreSQL and are not sent to Brave, FIRST, CISA, NVD, or an AI model.
+
+### POST `/api/v1/documents`
+
+Send one `file` part and an optional `title` part as `multipart/form-data`. Only `.txt` and `.md` files with valid UTF-8 are accepted. Files are limited to 1 MB and the local library is capped at 100 documents; filenames are reduced to a basename, line endings are normalized to LF, empty/binary/control-heavy content is rejected, and SHA-256 is calculated over the normalized UTF-8 text. The response is `201 Created`, includes metadata and a `Location` header, and does not include content. Repeated uploads create separate document records; version history is not implemented.
+
+### GET `/api/v1/documents`
+
+Returns up to the 100 newest documents as metadata only. There is no pagination yet.
+
+### GET `/api/v1/documents/{id}`
+
+Returns metadata and full stored text for one document. The local UI previews at most 20,000 characters and offers a download of the complete normalized text.
+
+### GET `/api/v1/documents/search?q=...`
+
+Searches up to 10 documents for a case-insensitive exact phrase. `q` must be 2–100 letters, numbers, spaces, periods, commas, underscores, or hyphens. Results include a bounded snippet, offsets into normalized document text, content hash, and a stable `aura-doc://{id}#chars={start}-{end}` citation. This first slice uses bounded phrase matching; PostgreSQL full-text indexing, stemming, chunking, and semantic retrieval remain future work.
+
+### DELETE `/api/v1/documents/{id}`
+
+Deletes the document and its stored text. Returns `204 No Content`; an unknown ID returns `404 RESEARCH_DOCUMENT_NOT_FOUND`.
+
+Invalid content returns `400 INVALID_DOCUMENT`; requests exceeding the global multipart cap return `413 UPLOAD_TOO_LARGE`. No uploaded file is executed or parsed as an archive, HTML page, PDF, or office document.
 
 
 ## Provider errors
@@ -111,4 +137,4 @@ NVD receives only the requested CVE identifier. SBOM files and component invento
 - No direct social-media connector, complete-internet crawl, page fetch, AI synthesis, cross-source fact checking, or claim comparison is implemented.
 - Person research is limited to public-interest material. Do not use this for doxxing, sensitive-trait inference, invasive tracking, or private-account access.
 - Research history is capped to the newest 100 results per request; there is no cursor pagination yet. Queries and source metadata are retained until the owner deletes a brief. Remote deployments still need documented retention, audit, backup, and account-isolation policies.
-- Future work: cursor-paginated history; source-specific adapters with their own quotas and terms; document upload and owner-filtered retrieval; cited synthesis; report retention/deletion; NVD enrichment, SPDX/SARIF SBOM support, vendor advisories, and inventory matching.
+- Future work: cursor-paginated history; source-specific adapters with their own quotas and terms; document versioning, PostgreSQL full-text search, richer parsers, chunking and owner-filtered retrieval; cited synthesis; report retention/deletion; automated NVD enrichment, SPDX/SARIF SBOM support, vendor advisories, and inventory matching.

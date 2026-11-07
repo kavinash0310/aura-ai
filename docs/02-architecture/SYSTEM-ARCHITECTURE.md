@@ -2,7 +2,7 @@
 
 ## Current repository state
 
-The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, a local React workspace served through Nginx, a bounded public-search adapter, and read-only vulnerability intelligence. Research queries use the configured Brave Search API and persist source metadata. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV; users can separately request one exact-CVE NVD detail record at a time. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, ingest arbitrary documents, or probe systems.
+The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, a local React workspace served through Nginx, a bounded public-search adapter, read-only vulnerability intelligence, and a private document library. Research queries use the configured Brave Search API and persist source metadata. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV; users can separately request one exact-CVE NVD detail record at a time. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. Selected UTF-8 text and Markdown files are stored in PostgreSQL and searched as exact phrases with character-offset citations. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, process PDF/office documents, or probe systems.
 
 ## Target architecture
 
@@ -51,6 +51,10 @@ flowchart TB
 ~~~
 
 The outbound adapter uses a fixed provider host, a short timeout, strict SafeSearch, and web/news/discussion result types. It keeps only HTTP(S) result URLs, caps text, strips URL fragments, and deduplicates URLs. AURA does not fetch returned URLs, so this search flow does not turn provider result links into arbitrary server-side requests.
+
+## Local document import and retrieval
+
+The owner uploads one UTF-8 `.txt` or `.md` file to the authenticated API. Java validates the extension, encoded text, control characters, and 1 MB limit; normalizes line endings; calculates SHA-256; and stores the text and metadata in PostgreSQL. Search is a local case-insensitive phrase match over stored content. Results include a short snippet and character offsets that point into the normalized text. The browser previews escaped text and can download or delete it. No parser executes document content, and the current document workflow makes no external provider or model calls.
 
 ## Defensive CVE lookup flow
 

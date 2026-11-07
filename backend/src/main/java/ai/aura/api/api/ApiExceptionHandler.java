@@ -1,9 +1,11 @@
 package ai.aura.api.api;
 
 import ai.aura.api.application.InvalidResearchFilterException;
+import ai.aura.api.application.InvalidDocumentException;
 import ai.aura.api.application.InvalidSbomException;
 import ai.aura.api.application.ResearchJobConflictException;
 import ai.aura.api.application.ResearchJobNotFoundException;
+import ai.aura.api.application.ResearchDocumentNotFoundException;
 import ai.aura.api.search.SearchProviderException;
 import ai.aura.api.search.SearchProviderNotConfiguredException;
 import org.springframework.http.HttpStatus;
@@ -23,6 +25,18 @@ public class ApiExceptionHandler {
     ProblemDetail handleNotFound(ResearchJobNotFoundException exception) {
         return problem(HttpStatus.NOT_FOUND, "The requested research job does not exist.",
                 "Research job not found", "RESEARCH_JOB_NOT_FOUND");
+    }
+
+    @ExceptionHandler(ResearchDocumentNotFoundException.class)
+    ProblemDetail handleDocumentNotFound(ResearchDocumentNotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, "The requested research document does not exist.",
+                "Research document not found", "RESEARCH_DOCUMENT_NOT_FOUND");
+    }
+
+    @ExceptionHandler(InvalidDocumentException.class)
+    ProblemDetail handleInvalidDocument(InvalidDocumentException exception) {
+        return problem(HttpStatus.BAD_REQUEST, exception.getMessage(),
+                "Invalid research document", "INVALID_DOCUMENT");
     }
 
     @ExceptionHandler(ResearchJobConflictException.class)
@@ -62,8 +76,8 @@ public class ApiExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     ProblemDetail handleOversizedUpload(MaxUploadSizeExceededException exception) {
         return problem(HttpStatus.PAYLOAD_TOO_LARGE,
-                "CycloneDX JSON SBOM files must be 2 MB or smaller.",
-                "SBOM is too large", "SBOM_TOO_LARGE");
+                "Uploaded files exceed the configured request size limit.",
+                "Upload is too large", "UPLOAD_TOO_LARGE");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

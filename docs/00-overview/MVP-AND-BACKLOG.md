@@ -2,7 +2,7 @@
 
 ## MVP definition
 
-The first useful release is a local research workspace that accepts a subject, searches a small set of permitted public sources, keeps source metadata, returns a cited summary, and exports a report. The repository has the Spring foundation, an isolated Python health service, a first authenticated search slice, and a local React workspace. The UI starts searches, reopens recent briefs, filters stored source metadata, downloads JSON/CSV/Markdown, and deletes a brief with its source rows; page reading, cross-source analysis, and synthesized reports remain planned.
+The first useful release is a local research workspace that accepts a subject, searches a small set of permitted public sources, keeps source metadata, returns a cited summary, and exports a report. The repository has the Spring foundation, an isolated Python health service, a first authenticated search slice, a local React workspace, and a first private document-library slice. The UI starts searches, reopens recent briefs, filters stored source metadata, downloads JSON/CSV/Markdown, deletes a brief with its source rows, and can import/search/preview/delete UTF-8 text and Markdown; page reading, cross-source analysis, and synthesized reports remain planned.
 
 ## Feature priority
 
@@ -38,6 +38,8 @@ Deliver Python packaging, FastAPI health, settings, Pydantic schemas, logging/er
 
 ### M3 — Document lifecycle
 Deliver explicit uploads, type/size validation, parser adapters, metadata, content hashes, versioning, PostgreSQL FTS, retrieval, citations, tests.
+**Delivered first slice:** authenticated `.txt` and `.md` uploads with strict UTF-8 validation, a 1 MB limit, normalized line endings, SHA-256 metadata, local PostgreSQL storage, exact-phrase search, character-offset citations, preview/download, and explicit deletion.
+**Still needed:** document version history, PostgreSQL full-text indexing, PDF/HTML/CSV/JSON parsers, chunking, and access-scoped retrieval beyond the current single local owner.
 **Accept when:** imported content is searchable with stable source/page/chunk references.
 
 ### M4 — LLM integration

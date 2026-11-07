@@ -1,6 +1,8 @@
 import type {
   Credentials,
   NvdLookupResponse,
+  ResearchDocument,
+  ResearchDocumentSearchHit,
   ResearchJob,
   ResearchMode,
   ResearchSource,
@@ -97,6 +99,30 @@ export function lookupNvd(credentials: Credentials, cve: string): Promise<NvdLoo
     method: "POST",
     body: JSON.stringify({ cve }),
   });
+}
+
+export function uploadDocument(credentials: Credentials, file: File, title: string): Promise<ResearchDocument> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  if (title.trim()) form.append("title", title.trim());
+  return request<ResearchDocument>("/api/v1/documents", credentials, { method: "POST", body: form });
+}
+
+export function listDocuments(credentials: Credentials): Promise<ResearchDocument[]> {
+  return request<ResearchDocument[]>("/api/v1/documents", credentials);
+}
+
+export function getDocument(credentials: Credentials, id: string): Promise<ResearchDocument> {
+  return request<ResearchDocument>(`/api/v1/documents/${encodeURIComponent(id)}`, credentials);
+}
+
+export function searchDocuments(credentials: Credentials, query: string): Promise<ResearchDocumentSearchHit[]> {
+  const params = new URLSearchParams({ q: query });
+  return request<ResearchDocumentSearchHit[]>(`/api/v1/documents/search?${params.toString()}`, credentials);
+}
+
+export function deleteDocument(credentials: Credentials, id: string): Promise<void> {
+  return request<void>(`/api/v1/documents/${encodeURIComponent(id)}`, credentials, { method: "DELETE" });
 }
 
 export function createResearchJob(

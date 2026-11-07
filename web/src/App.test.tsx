@@ -12,6 +12,7 @@ describe("AURA research workspace", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ authenticated: true }), { status: 200 }),
     ).mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response("[]", { status: 200 }));
     render(<App />);
     fireEvent.change(screen.getByLabelText("Username"), { target: { value: "local-owner" } });
@@ -21,6 +22,47 @@ describe("AURA research workspace", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/session", expect.objectContaining({ cache: "no-store", credentials: "omit" }));
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it("imports a private text file and searches it with a stable character citation", async () => {
+    const document = {
+      id: "doc-1", title: "Local notes", originalFilename: "notes.md", mediaType: "text/markdown; charset=utf-8",
+      contentHash: "a".repeat(64), characterCount: 32, uploadedAt: "2026-11-07T00:00:00Z", content: null,
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(document), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{
+        documentId: "doc-1", title: "Local notes", originalFilename: "notes.md", contentHash: "a".repeat(64),
+        uploadedAt: "2026-11-07T00:00:00Z", snippet: "AURA notes for citation testing.",
+        startOffset: 0, endOffset: 4, citation: "aura-doc://doc-1#chars=0-4",
+      }]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...document, content: "AURA notes for citation testing." }), { status: 200 }));
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
+    await screen.findByText("Connected securely");
+
+    const file = new File(["AURA notes for citation testing."], "notes.md", { type: "text/markdown" });
+    fireEvent.change(screen.getByLabelText("Choose a .txt or .md file"), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText("Title (optional)"), { target: { value: "Local notes" } });
+    fireEvent.click(screen.getByRole("button", { name: /Import document/ }));
+    await screen.findByText(/notes\.md · 32 characters/);
+    const uploadCall = fetchMock.mock.calls[3]!;
+    expect(uploadCall[0]).toBe("/api/v1/documents");
+    expect(uploadCall[1]?.body).toBeInstanceOf(FormData);
+    expect((uploadCall[1]?.body as FormData).get("file")).toBeInstanceOf(File);
+
+    fireEvent.change(screen.getByLabelText("Search documents"), { target: { value: "AURA" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(await screen.findByText("aura-doc://doc-1#chars=0-4")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Local notes" })[0]!);
+    expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
+    expect(fetchMock.mock.calls[5]?.[0]).toBe("/api/v1/documents/doc-1");
   });
 
   it("shows public coverage and responsible-use limits before a search", () => {
@@ -46,6 +88,7 @@ describe("AURA research workspace", () => {
     };
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: "job-1", subject: "passkeys", mode: "GENERAL", status: "REQUESTED",
@@ -78,8 +121,8 @@ describe("AURA research workspace", () => {
 
     fireEvent.change(screen.getByLabelText("Filter by domain"), { target: { value: "example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
-    expect(fetchMock.mock.calls[4]?.[0]).toContain("host=example.com");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(6));
+    expect(fetchMock.mock.calls[5]?.[0]).toContain("host=example.com");
   });
 
   it("reopens a saved brief and deletes it after an explicit confirmation", async () => {
@@ -96,6 +139,7 @@ describe("AURA research workspace", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([savedJob]), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         jobId: savedJob.id, query: savedJob.subject, status: "COMPLETED", provider: "brave",
         country: null, language: null, freshness: null, requestedLimit: 10,
@@ -114,14 +158,15 @@ describe("AURA research workspace", () => {
     expect(await screen.findByRole("link", { name: /Saved source/ })).toHaveAttribute("href", "https://example.org/saved");
 
     fireEvent.click(screen.getAllByRole("button", { name: "Delete old research brief" })[0]!);
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
-    expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({ method: "DELETE" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));
+    expect(fetchMock.mock.calls[4]?.[1]).toMatchObject({ method: "DELETE" });
     expect(await screen.findByText("No saved briefs yet.")).toBeInTheDocument();
   });
 
   it("looks up only submitted CVE IDs and shows source attribution", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         requestedAt: "2026-11-07T00:00:00Z",
@@ -150,12 +195,13 @@ describe("AURA research workspace", () => {
     expect(await screen.findByText("CISA KEV-listed: CISA reports known exploitation in the wild.")).toBeInTheDocument();
     expect(screen.getByText("80.0%")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "CISA catalog" })).toHaveAttribute("href", "https://www.cisa.gov/known-exploited-vulnerabilities-catalog");
-    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({ cves: ["CVE-2026-12345"] });
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ cves: ["CVE-2026-12345"] });
   });
 
   it("uploads a CycloneDX file as multipart and shows only its declared CVEs", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         requestedAt: "2026-11-07T00:00:00Z",
@@ -183,7 +229,7 @@ describe("AURA research workspace", () => {
 
     expect(await screen.findByText("CVE-2026-12345 ↗")).toBeInTheDocument();
     expect(screen.getByText("demo")).toBeInTheDocument();
-    const [url, options] = fetchMock.mock.calls[2]!;
+    const [url, options] = fetchMock.mock.calls[3]!;
     expect(url).toBe("/api/v1/cyber/sbom/lookup");
     expect(options?.body).toBeInstanceOf(FormData);
     expect((options?.body as FormData).get("file")).toBeInstanceOf(File);
@@ -193,6 +239,7 @@ describe("AURA research workspace", () => {
   it("loads NVD details only after an explicit single-CVE request", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         requestedAt: "2026-11-07T00:00:00Z",
@@ -228,12 +275,12 @@ describe("AURA research workspace", () => {
     fireEvent.change(screen.getByLabelText("CVE IDs"), { target: { value: "CVE-2026-12345" } });
     fireEvent.click(screen.getByRole("button", { name: /Check vulnerabilities/ }));
     await screen.findByRole("button", { name: "Load NVD details" });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
 
     fireEvent.click(screen.getByRole("button", { name: "Load NVD details" }));
     expect(await screen.findByText("8.2 HIGH")).toBeInTheDocument();
     expect(screen.getByText("Example vulnerability description.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View NVD record ↗" })).toHaveAttribute("href", "https://nvd.nist.gov/vuln/detail/CVE-2026-12345");
-    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ cve: "CVE-2026-12345" });
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ cve: "CVE-2026-12345" });
   });
 });

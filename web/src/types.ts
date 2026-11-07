@@ -31,6 +31,29 @@ export interface ResearchSource {
   retrievedAt: string;
 }
 
+export interface ResearchDocument {
+  id: string;
+  title: string;
+  originalFilename: string;
+  mediaType: string;
+  contentHash: string;
+  characterCount: number;
+  uploadedAt: string;
+  content: string | null;
+}
+
+export interface ResearchDocumentSearchHit {
+  documentId: string;
+  title: string;
+  originalFilename: string;
+  contentHash: string;
+  uploadedAt: string;
+  snippet: string;
+  startOffset: number;
+  endOffset: number;
+  citation: string;
+}
+
 export interface SearchResponse {
   jobId: string;
   query: string;
