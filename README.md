@@ -23,7 +23,7 @@ This is also a practical AI software engineering learning path: a Java/Spring ap
 
 ## Current milestone
 
-M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI health service. The first M5 research slice adds an explicit, bounded Brave search, saved source metadata, filters, and JSON/CSV/Markdown downloads. The local React workspace can reopen and delete saved briefs. M3 adds a private library for UTF-8 text and Markdown files with bounded uploads, hashes, indexed PostgreSQL candidate search guarded by exact-phrase matching, character citations, preview, download, and deletion. M7 checks exact CVE IDs against CISA KEV and FIRST EPSS, inspects CycloneDX JSON SBOMs up to 2 MB, and can load NVD detail for up to 25 explicitly selected CVEs in one request. SBOM analysis enriches only CVEs already declared in the file; it does not match packages to vulnerabilities. The Python service still has no model or data access. AURA does not search every page or social post, connect to social accounts, fetch result pages, synthesize reports, or probe systems.
+M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI service. The first M5 research slice adds an explicit, bounded Brave search, saved source metadata, filters, and JSON/CSV/Markdown downloads. The local React workspace can reopen and delete saved briefs. M3 adds a private library for UTF-8 text and Markdown files with bounded uploads, hashes, indexed PostgreSQL candidate search guarded by exact-phrase matching, character citations, preview, download, and deletion. M7 checks exact CVE IDs against CISA KEV and FIRST EPSS, inspects CycloneDX JSON SBOMs up to 2 MB, and can load NVD detail for up to 25 explicitly selected CVEs in one request. SBOM analysis enriches only CVEs already declared in the file; it does not match packages to vulnerabilities. M4 adds explicit, local-model report synthesis from up to 20 saved search-result snippets; reports remain in the UI until downloaded, and citation IDs are checked against the selected source set. AURA still does not search every page or social post, connect to social accounts, fetch result pages, or probe systems.
 
 See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and [MVP backlog](docs/00-overview/MVP-AND-BACKLOG.md).
 
@@ -31,7 +31,7 @@ See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and 
 
 Requirements: JDK 21, Docker Desktop with Compose, Git, Maven 3.9+ for local Java builds, and Python 3.12+ with uv 0.13.6 for local AI-service work.
 
-1. Copy .env.example to .env and replace all placeholder values with unique random passwords of at least 24 characters.
+1. Copy .env.example to .env and replace all placeholder secrets with unique random values of at least 24 characters.
 2. Keep .env private and untracked. Leave `AURA_BRAVE_API_KEY` blank to disable search, or provide your own provider key to enable explicit public searches. `AURA_NVD_API_KEY` is optional; single-CVE NVD lookups also work without it.
 3. Start the stack with docker compose up --build.
 4. Open the local research workspace at http://127.0.0.1:3000.
@@ -41,10 +41,11 @@ Requirements: JDK 21, Docker Desktop with Compose, Git, Maven 3.9+ for local Jav
 8. Direct API: create a `GENERAL` research job, explicitly run its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See [API contracts](docs/02-architecture/API-CONTRACTS.md) for request shapes and limits.
 9. In Documents, upload UTF-8 `.txt` or `.md` files up to 1 MB, search for exact phrases, inspect the returned character-offset citation, preview or download the text, and delete it when no longer needed. Files are stored in the local PostgreSQL database; they are not sent to search providers or models.
 10. In Cyber intelligence, submit exact CVE IDs or upload a CycloneDX JSON SBOM of 2 MB or less. AURA parses the file in memory and checks only CVEs declared in it; it does not identify package vulnerabilities or scan systems. Use “Load NVD details” on an individual CVE to request its NVD record, CVSS, and CPE applicability data.
-11. Verify Java with `mvn -f backend/pom.xml verify`. For frontend development, use Node 22 in `web` and run `npm ci`, `npm test`, then `npm run build`.
-12. In a terminal, change to `ai-service`, then run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
+11. Optional: to create a cited report, install Ollama and a local model. Set `AURA_AI_INTERNAL_TOKEN` to a separate random secret, `AURA_AI_MODEL_PROVIDER=ollama`, and `AURA_AI_OLLAMA_MODEL` to the installed model name. The Compose AI container calls the local Ollama endpoint at `AURA_AI_OLLAMA_BASE_URL`; keep Ollama reachable only on a trusted local interface. No model call occurs until you click Report, and only the first 20 currently visible source snippets and metadata are sent. Uploaded library documents are not included.
+12. Verify Java with `mvn -f backend/pom.xml verify`. For frontend development, use Node 22 in `web` and run `npm ci`, `npm test`, then `npm run build`.
+13. In a terminal, change to `ai-service`, then run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
 
-All host ports bind to loopback. The Python health endpoint is public and returns no user data. The Spring API uses development-only Basic Auth. The web app proxies `/api` to Spring inside the Compose network. An explicit search sends its query to Brave; vulnerability and SBOM lookups read the CISA KEV catalog and send only exact CVE identifiers to FIRST EPSS. An explicit per-CVE NVD detail request sends one CVE identifier to the official NVD API. SBOM files and lookup results are not persisted by AURA. Provider access is governed by each provider's terms. Do not expose or port-forward the local stack. See [local development guide](docs/19-operations/LOCAL-DEV.md).
+All host ports bind to loopback. The Python health endpoint is public and returns no user data; report generation requires a separate internal bearer token. The Spring API uses development-only Basic Auth. The web app proxies `/api` to Spring inside the Compose network. An explicit search sends its query to Brave; an explicit report sends up to 20 selected provider snippets to the configured local Ollama service. Uploaded documents are excluded. Vulnerability and SBOM lookups read the CISA KEV catalog and send only exact CVE identifiers to FIRST EPSS; explicit NVD detail requests send only exact CVE IDs to NVD. SBOM files and lookup results are not persisted by AURA. Provider access is governed by each provider's terms. Do not expose or port-forward the local stack. See [local development guide](docs/19-operations/LOCAL-DEV.md).
 
 ## Start here
 
@@ -52,6 +53,7 @@ All host ports bind to loopback. The Python health endpoint is public and return
 - [MVP and backlog](docs/00-overview/MVP-AND-BACKLOG.md)
 - [Context and decisions](AURA-CONTEXT-AND-DECISIONS.md)
 - [System architecture](docs/02-architecture/SYSTEM-ARCHITECTURE.md)
+- [Bounded local report design](docs/05-backend/RESEARCH-REPORT-GENERATION.md)
 - [Technology decisions](docs/02-architecture/TECHNOLOGY-DECISIONS.md)
 - [Threat model](docs/02-architecture/THREAT-MODEL.md)
 - [Learning roadmap](docs/04-learning/AURA-LEARNING-ROADMAP.md)

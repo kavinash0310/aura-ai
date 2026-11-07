@@ -69,6 +69,32 @@ export interface SearchResponse {
   coverageNote: string;
 }
 
+export interface ResearchReportFinding {
+  text: string;
+  sourceIds: string[];
+}
+
+export interface ResearchReportCitation {
+  id: string;
+  title: string;
+  url: string;
+  domain: string;
+  kind: SourceKind;
+}
+
+export interface ResearchReportResponse {
+  generatedAt: string;
+  provider: "ollama";
+  model: string;
+  title: string;
+  summary: string;
+  summarySourceIds: string[];
+  findings: ResearchReportFinding[];
+  limitations: string[];
+  citations: ResearchReportCitation[];
+  coverageNote: string;
+}
+
 export interface ResultFilters {
   kind: "" | SourceKind;
   q: string;

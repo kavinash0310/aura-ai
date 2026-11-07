@@ -30,6 +30,9 @@ aura:
     brave:
       api-key: ${AURA_BRAVE_API_KEY:}
       timeout: 8s
+  ai:
+    service-url: ${AURA_AI_SERVICE_URL:http://ai:8000}
+    internal-token: ${AURA_AI_INTERNAL_TOKEN:}
   cyber:
     nvd:
       api-key: ${AURA_NVD_API_KEY:}

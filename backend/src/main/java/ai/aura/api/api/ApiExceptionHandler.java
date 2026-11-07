@@ -1,6 +1,7 @@
 package ai.aura.api.api;
 
 import ai.aura.api.application.InvalidResearchFilterException;
+import ai.aura.api.application.AiServiceUnavailableException;
 import ai.aura.api.application.InvalidDocumentException;
 import ai.aura.api.application.InvalidSbomException;
 import ai.aura.api.application.ResearchJobConflictException;
@@ -43,6 +44,12 @@ public class ApiExceptionHandler {
     ProblemDetail handleConflict(ResearchJobConflictException exception) {
         return problem(HttpStatus.CONFLICT, exception.getMessage(),
                 "Research job state conflict", "RESEARCH_JOB_STATE_CONFLICT");
+    }
+
+    @ExceptionHandler(AiServiceUnavailableException.class)
+    ProblemDetail handleAiServiceUnavailable(AiServiceUnavailableException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage(),
+                "Local AI service unavailable", "AI_SERVICE_UNAVAILABLE");
     }
 
     @ExceptionHandler(SearchProviderNotConfiguredException.class)

@@ -299,4 +299,48 @@ describe("AURA research workspace", () => {
     expect(screen.getByRole("link", { name: "View NVD record ↗" })).toHaveAttribute("href", "https://nvd.nist.gov/vuln/detail/CVE-2026-12345");
     expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ cve: "CVE-2026-12345" });
   });
+
+  it("generates a report only from the visible source IDs and shows linked citations", async () => {
+    const source = {
+      id: "source-report-1", provider: "brave", kind: "NEWS", rank: 1,
+      title: "Passkey adoption report", url: "https://example.com/passkeys", domain: "example.com",
+      description: "A provider summary about passkey adoption.", publisher: "Example News",
+      publishedAt: null, retrievedAt: "2026-11-07T00:00:00Z",
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "job-report", subject: "passkey adoption", mode: "GENERAL", status: "REQUESTED",
+        createdAt: "2026-11-07T00:00:00Z", searchProvider: null, searchResultCount: 0,
+      }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        jobId: "job-report", query: "passkey adoption", status: "COMPLETED", provider: "brave",
+        country: null, language: null, freshness: null, requestedLimit: 10, providerResultCount: 1,
+        searchedAt: "2026-11-07T00:00:00Z", results: [source], coverageNote: "Partial provider coverage.",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        generatedAt: "2026-11-07T00:01:00Z", provider: "ollama", model: "test-model",
+        title: "Passkey adoption", summary: "The selected source describes adoption.",
+        summarySourceIds: [source.id], findings: [{ text: "A report covers passkeys.", sourceIds: [source.id] }],
+        limitations: ["Only one source was selected."],
+        citations: [{ id: source.id, title: source.title, url: source.url, domain: source.domain, kind: source.kind }],
+        coverageNote: "Model-generated; pages were not fetched.",
+      }), { status: 200 }));
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
+    await screen.findByText("Connected securely");
+    fireEvent.change(screen.getByLabelText("Research question or topic"), { target: { value: "passkey adoption" } });
+    fireEvent.click(screen.getByRole("button", { name: /Start research/ }));
+    await screen.findByRole("link", { name: /Passkey adoption report/ });
+    fireEvent.click(screen.getByRole("button", { name: "✳ Report (1)" }));
+
+    expect(await screen.findByRole("heading", { name: "Passkey adoption" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "[1] Passkey adoption report · example.com" })).toHaveAttribute("href", source.url);
+    expect(JSON.parse(String(fetchMock.mock.calls[5]?.[1]?.body))).toEqual({ sourceIds: [source.id] });
+  });
 });

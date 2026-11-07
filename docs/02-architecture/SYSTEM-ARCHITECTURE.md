@@ -2,7 +2,7 @@
 
 ## Current repository state
 
-The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, an isolated Python FastAPI health service, a local React workspace served through Nginx, a bounded public-search adapter, read-only vulnerability intelligence, and a private document library. Research queries use the configured Brave Search API and persist source metadata. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV; users can separately request one exact-CVE NVD detail record at a time. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. Selected UTF-8 text and Markdown files are stored in PostgreSQL and searched as exact phrases with character-offset citations. The app does not crawl the whole web, fetch linked pages, connect directly to social accounts, synthesize reports with a model, process PDF/office documents, or probe systems.
+The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, a Python FastAPI AI service, a local React workspace served through Nginx, a bounded public-search adapter, read-only vulnerability intelligence, and a private document library. Research queries use the configured Brave Search API and persist source metadata. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV; users can separately request one or up to 25 exact-CVE NVD details. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. Selected UTF-8 text and Markdown files are stored in PostgreSQL and searched as exact phrases with character-offset citations. An explicit report action sends up to 20 selected search-result snippets to a configured local Ollama model and checks the returned source IDs. It does not fetch linked pages, connect directly to social accounts, include uploaded documents in inference, or probe systems.
 
 ## Target architecture
 
@@ -26,9 +26,9 @@ flowchart LR
   Audit --> Pg
 ~~~
 
-The UI submits requests and displays evidence; Java owns durable state and policy; adapters contact configured sources; PostgreSQL stores jobs, provenance, documents, evidence, and findings; Python is a narrow model service; reports link back to stored evidence.
+The UI submits requests and displays evidence; Java owns durable state and policy; adapters contact configured sources; PostgreSQL stores jobs, provenance, documents, evidence, and findings; Python makes bounded model transformations; reports link back to stored evidence.
 
-Arrows represent target trust flow: requests pass Java authorization before external reads. Responses are normalized and stored with provenance. Only selected evidence reaches a model. Model output is validated and stored as interpretation. Reports do not replace evidence.
+Arrows represent product trust flow: requests pass Java authorization before provider calls. Search responses are normalized and stored with provenance. Only selected evidence reaches the explicitly configured local model. Model output is schema-validated and shown as interpretation; it is not stored as verified evidence.
 
 Why: Java matches the owner's backend strengths; Python concentrates AI libraries behind a small service boundary; PostgreSQL provides transactions and FTS without a separate data platform.
 
@@ -36,7 +36,7 @@ Why: Java matches the owner's backend strengths; Python concentrates AI librarie
 
 ## Current container and search flow
 
-Spring, Python, and PostgreSQL services are implemented. Only the Spring API has outbound provider connections. The AI service exposes health and does not connect to Java, PostgreSQL, models, or external providers.
+Spring, Python, and PostgreSQL services are implemented. The Spring API calls fixed research/vulnerability providers and, only for an explicit report request, makes an internal authenticated call to Python. Python calls only an explicitly configured local Ollama endpoint. The AI service has no database or research-provider access.
 
 ~~~mermaid
 flowchart TB
@@ -47,7 +47,9 @@ flowchart TB
   Spring -->|query only when configured and requested| Brave[Brave Search API]
   Spring -->|exact CVE IDs only after lookup| CISA[CISA KEV data mirror]
   Spring -->|small exact-ID lookup| FIRST[FIRST EPSS API]
-  Owner -->|loopback health only| Python[FastAPI AI service]
+  Spring -->|selected source metadata only, on explicit report| Python[FastAPI AI service]
+  Python -->|local endpoint, when enabled| Ollama[Local Ollama model]
+  Owner -->|loopback health only| Python
 ~~~
 
 The outbound adapter uses a fixed provider host, a short timeout, strict SafeSearch, and web/news/discussion result types. It keeps only HTTP(S) result URLs, caps text, strips URL fragments, and deduplicates URLs. AURA does not fetch returned URLs, so this search flow does not turn provider result links into arbitrary server-side requests.
@@ -109,6 +111,30 @@ sequenceDiagram
 
 The owner invokes each search explicitly. A missing provider key fails before the job leaves `REQUESTED`; provider failures are recorded as a stable failure code. Source content is not treated as verified fact, and search coverage is explicitly partial.
 
+## Local cited report flow
+
+~~~mermaid
+sequenceDiagram
+  actor Owner
+  participant Web as React workspace
+  participant Java as Authenticated Spring API
+  participant DB as PostgreSQL
+  participant Python as Token-protected FastAPI
+  participant Model as Local Ollama
+  Owner->>Web: Click Report after filtering results
+  Web->>Java: POST job/{id}/report with up to 20 source IDs
+  Java->>DB: Load completed job and verify every source belongs to it
+  Java->>Python: Send query and bounded source metadata/snippets
+  Python->>Model: Structured-output prompt; sources labeled untrusted
+  Model-->>Python: Report content and source IDs
+  Python->>Python: Validate schema and cited IDs against input set
+  Python-->>Java: Report plus source links and fixed coverage warning
+  Java-->>Web: Render report for this UI session
+  Owner->>Web: Download Markdown if desired
+~~~
+
+No model request runs in the background. No uploaded document or page content is sent. Unknown citation IDs fail the request. Valid source IDs are only candidate citations; no page fetch or semantic-support check is currently performed.
+
 ## Future document/RAG lifecycle
 
 ~~~mermaid
@@ -129,4 +155,4 @@ Future flow only. Parsing, chunking, indexing, retrieval, and synthesis remain s
 
 ## Deployment target
 
-Docker Compose runs PostgreSQL, the Spring API, the AI service, and the Nginx-served React UI, with host ports bound to loopback. The search API key is optional and must be supplied by the owner; only an explicit search call sends a query to Brave. The Python service has no outbound integrations or model runtime. Remote access requires separate auth, TLS, retention, and abuse review.
+Docker Compose runs PostgreSQL, the Spring API, the AI service, and the Nginx-served React UI, with host ports bound to loopback. The search API key is optional and must be supplied by the owner; only an explicit search call sends a query to Brave. The Python report route requires the internal service token and has no configured model by default; if enabled, it calls only the local/private Ollama address validated by settings. Remote access requires separate auth, TLS, retention, and abuse review.

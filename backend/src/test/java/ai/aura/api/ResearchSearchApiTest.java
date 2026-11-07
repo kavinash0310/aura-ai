@@ -1,10 +1,14 @@
 package ai.aura.api;
 
+import ai.aura.api.application.AiReportClient;
+import ai.aura.api.application.AiResearchReportRequest;
+import ai.aura.api.api.ResearchReportResponse;
 import ai.aura.api.domain.ResearchFilters;
 import ai.aura.api.search.ProviderSource;
 import ai.aura.api.search.SearchProvider;
 import ai.aura.api.search.SearchProviderException;
 import ai.aura.api.persistence.ResearchSourceRepository;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,11 +19,16 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -53,6 +62,9 @@ class ResearchSearchApiTest {
 
     @Autowired
     private ResearchSourceRepository sources;
+
+    @MockitoBean
+    private AiReportClient aiReportClient;
 
     @Test
     void listsRecentHistoryAndDeletesItsSavedSources() throws Exception {
@@ -138,6 +150,54 @@ class ResearchSearchApiTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("text/markdown")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("&lt;img src=x onerror=alert(1)&gt;")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("<img"))));
+    }
+
+    @Test
+    void reportRequiresAuthenticationAndSendsOnlySelectedSourcesToAiService() throws Exception {
+        UUID id = createJob("passkey adoption");
+        runSearch(id);
+        var selectedSource = sources.findByResearchJobIdOrderByRankAsc(id).getFirst();
+        var response = new ResearchReportResponse(
+                Instant.parse("2026-11-07T12:00:00Z"),
+                "ollama",
+                "test-model",
+                "Passkey research",
+                "The selected source describes passkey adoption.",
+                List.of(selectedSource.getId().toString()),
+                List.of(new ResearchReportResponse.Finding(
+                        "A public source discusses passkeys.",
+                        List.of(selectedSource.getId().toString())
+                )),
+                List.of("Pages were not fetched."),
+                List.of(new ResearchReportResponse.Citation(
+                        selectedSource.getId().toString(),
+                        selectedSource.getTitle(),
+                        selectedSource.getUrl(),
+                        selectedSource.getDomain(),
+                        selectedSource.getType()
+                )),
+                "Generated from selected provider snippets only."
+        );
+        when(aiReportClient.generate(any())).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id + "/report")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sourceIds\":[\"" + selectedSource.getId() + "\"]}"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id + "/report")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sourceIds\":[\"" + selectedSource.getId() + "\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.provider").value("ollama"))
+                .andExpect(jsonPath("$.citations[0].id").value(selectedSource.getId().toString()));
+
+        ArgumentCaptor<AiResearchReportRequest> request = ArgumentCaptor.forClass(AiResearchReportRequest.class);
+        verify(aiReportClient).generate(request.capture());
+        org.assertj.core.api.Assertions.assertThat(request.getValue().sources())
+                .extracting(AiResearchReportRequest.Source::id)
+                .containsExactly(selectedSource.getId().toString());
     }
 
     @Test

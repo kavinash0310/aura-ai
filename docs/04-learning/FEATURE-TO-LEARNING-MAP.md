@@ -8,10 +8,10 @@ CORE means needed for AURA; CAREER means high value for the target role; OPTIONA
 | Authentication | Filter chain, hashing, stateless/session trade-offs, least privilege | Spring Security | HTTP, crypto basics | CORE / CAREER |
 | Persistence | Entity lifecycle, repositories, transactions, indexes, migrations | PostgreSQL, JPA/Hibernate, Flyway | SQL, relational modeling | CORE / CAREER |
 | Research workflow | State machine, transactions, idempotency, retries, cancellation | Spring services, PostgreSQL | REST, persistence | CORE / CAREER |
-| Python AI service | Type hints, Pydantic, ASGI, async I/O, packaging | Python, FastAPI, HTTP client | Python basics, JSON/HTTP | CAREER |
+| Python AI service | Type hints, Pydantic, ASGI, async I/O, service authentication, timeouts | Python, FastAPI, `urllib`, Ollama API | Python basics, JSON/HTTP | CAREER |
 | Document ingestion | File validation, parsing, metadata, chunking, offsets | Parser adapters, PostgreSQL | Streams, encodings, security | CORE / CAREER |
 | Search and RAG | Tokenization, embeddings, similarity, FTS, hybrid search, reranking, citations | PostgreSQL FTS, optional pgvector | Probability, vectors, SQL | CORE / CAREER |
-| LLM integration | Prompts, structured outputs, function calls, context, cost | Provider SDKs, optional Spring AI | HTTP, JSON schemas | CORE / CAREER |
+| LLM integration | Prompt injection, structured outputs, source-ID validation, context and latency bounds | Local Ollama `/api/chat`, Pydantic JSON Schema | HTTP, JSON schemas, evidence provenance | CORE / CAREER |
 | Research sources | Query planning, quotas, source terms, retries, normalization, dedupe | Provider-neutral adapters | HTTP, pagination | CORE |
 | Evidence/reports | Provenance, claim/evidence distinction, contradictions, reproducibility | PostgreSQL, Markdown/PDF | Domain modeling | CORE |
 | Controlled workflows | Tool permission, state, audit, approval, recovery | Java state machine, optional LangGraph | Workflow fundamentals | CORE / CAREER |

@@ -7,6 +7,7 @@ import type {
   ResearchJob,
   ResearchMode,
   ResearchSource,
+  ResearchReportResponse,
   ResultFilters,
   SearchResponse,
   SbomLookupResponse,
@@ -165,6 +166,17 @@ export function runResearch(
       freshness: options.freshness || null,
       resultLimit: options.resultLimit,
     }),
+  });
+}
+
+export function generateResearchReport(
+  credentials: Credentials,
+  id: string,
+  sourceIds: string[],
+): Promise<ResearchReportResponse> {
+  return request<ResearchReportResponse>(`${jobPath(id)}/report`, credentials, {
+    method: "POST",
+    body: JSON.stringify({ sourceIds }),
   });
 }
 

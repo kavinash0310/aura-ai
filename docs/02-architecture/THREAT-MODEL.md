@@ -19,7 +19,7 @@ Research queries and reports; selected documents and source excerpts; account to
 | Threat | Example | Control |
 |---|---|---|
 | Unauthenticated access | Network caller reads research history | Basic Auth on non-health routes; loopback binding; review before remote use |
-| Prompt injection | Page asks model to leak other evidence | No direct model tools; source labeled untrusted; deterministic policy |
+| Prompt injection | A provider snippet contains instructions aimed at the model | Only selected snippets are sent after an explicit action; source content is marked untrusted; the model has no tools; outputs are schema-bounded and citations must match supplied IDs |
 | SSRF | Crafted URL redirects fetcher to metadata endpoint | Validate scheme and resolved IP before/after redirects; block private/reserved destinations |
 | Platform abuse | Crawler bypasses source controls | Permitted APIs/feeds/public access; respect terms/rate limits; no login/paywall/CAPTCHA bypass |
 | Query disclosure | Search terms reveal interests to the provider | Explain that configured searches are sent to Brave; keep provider key in local `.env`; send no documents or account data; search only on explicit request |
@@ -31,7 +31,9 @@ Research queries and reports; selected documents and source excerpts; account to
 | Secret leakage | Token appears in prompt/report/log | Secret store, redaction, structured logging |
 | Parser exploit | Malformed PDF exploits parser | Type/size caps, isolated process for risky parsers, archive path validation, no execution |
 | Cross-owner leak | Search returns another user's chunk | Current database is a single local-owner workspace; add owner scoping before multi-user or remote deployment |
-| Model misinformation | Unsupported claim sounds confident | Citations, uncertainty, entailment evaluation, human review |
+| Model misinformation | Unsupported claim sounds confident | The report displays citations and fixed coverage limits; ID membership is checked, but semantic support is not yet evaluated; owner reviews report before use |
+| AI service impersonation | A local process calls the Python report endpoint | Separate Java-to-Python bearer token; constant-time token comparison; disabled provider fails closed |
+| Model egress | Private text is sent to a remote model by configuration | Only loopback/private Ollama endpoints are accepted; no hosted fallback; report sends public provider snippets only, and excludes uploaded library documents |
 | Unsafe agent action | Model suggests broad scan | Fixed typed tools, explicit grant, target validation, approval, budgets, cancellation |
 | Replay or duplicate work | Retry repeats a check | Idempotency key, job hash, expiry, single-use approval |
 | Resource exhaustion | Huge results consume unbounded tokens | Input/result/token/time quotas, step limits, cancellation |
@@ -45,7 +47,7 @@ Research queries and reports; selected documents and source excerpts; account to
 
 ## Current implementation scope
 
-The M2 Python service accepts no research or document content, has no credential, database, or model integration, and exposes only a loopback health endpoint. Interactive API documentation is disabled. The local React UI checks credentials through an authenticated, read-only session endpoint; it does not persist them in browser storage. Outbound Java clients use fixed HTTPS endpoints: Brave Search receives a query only after explicit search; the KEV adapter downloads CISA's catalog and matches CVE IDs locally; FIRST EPSS receives exact CVE identifiers after explicit lookup; NVD receives only the exact CVE IDs named by an explicit per-item or batch request. The optional NVD key is sent in a request header. CycloneDX JSON uploads are limited to 2 MB and parsed without storage; only CVEs declared in the SBOM are enriched. Selected UTF-8 text and Markdown files are stored in the local database after authenticated upload; search runs locally and previews are rendered as text. Component resolution uses existing BOM references only. CISA data is cached for six hours; NVD detail is cached in memory for six hours with a 500-record cap. The UI labels data dates, retrieval times, and stale/unavailable status. Search results are untrusted and AURA never fetches returned links. Future model calls must be initiated by the authorized Java workflow with minimized, typed inputs.
+The Python service exposes a public health endpoint and a bearer-token-protected report route. Report generation is disabled unless a local Ollama model is configured. The authorized Java workflow sends at most 20 sources from one completed job, including only provider metadata and descriptions; uploaded documents are excluded. Python has no database, search provider, tools, or arbitrary command execution. It validates structured output and rejects unknown source IDs, but citation membership does not establish that the source semantically supports the text. Search results remain untrusted and AURA does not fetch returned links. The UI does not persist Basic Auth credentials in browser storage.
 
 ## Permission levels
 

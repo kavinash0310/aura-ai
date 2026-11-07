@@ -6,6 +6,7 @@ ADRs capture trade-offs, not feature completion.
 - 0002 PostgreSQL system of record and FTS baseline
 - 0003 Deterministic workflow before autonomous loops
 - 0004 Local-first operation and explicit model egress
+- 0005 Bounded local research reports
 
 ## Template
 

@@ -6,6 +6,7 @@ import {
   deleteDocument,
   deleteResearchJob,
   downloadExport,
+  generateResearchReport,
   lookupSbom,
   lookupNvdBatch,
   lookupNvd,
@@ -26,6 +27,7 @@ import type {
   ResearchDocumentSearchHit,
   ResearchMode,
   ResearchSource,
+  ResearchReportResponse,
   ResultFilters,
   NvdBatchLookupResponse,
   NvdLookupResponse,
@@ -50,6 +52,7 @@ function errorMessage(error: unknown): string {
       return "Public search is not configured yet. Add your own AURA_BRAVE_API_KEY to .env, restart the stack, then retry this search.";
     }
     if (error.code === "SEARCH_PROVIDER_RATE_LIMITED") return "The search provider rate limited this request. Wait a little and try again.";
+    if (error.code === "AI_SERVICE_UNAVAILABLE") return "The local report model is disabled or unavailable. Configure Ollama and an installed model in .env, then retry.";
     if (error.code === "VALIDATION_FAILED") return "Enter one to 25 CVE IDs, such as CVE-2024-12345.";
     if (error.code === "INVALID_SBOM" || error.code === "SBOM_TOO_LARGE" || error.code === "INVALID_DOCUMENT" || error.code === "UPLOAD_TOO_LARGE") return error.message;
     if (error.status === 0) return error.message;
@@ -123,6 +126,8 @@ export default function App() {
   const [job, setJob] = useState<ResearchJob | null>(null);
   const [search, setSearch] = useState<SearchResponse | null>(null);
   const [sources, setSources] = useState<ResearchSource[]>([]);
+  const [researchReport, setResearchReport] = useState<ResearchReportResponse | null>(null);
+  const [reportBusy, setReportBusy] = useState(false);
   const [draftFilters, setDraftFilters] = useState<ResultFilters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<ResultFilters>(emptyFilters);
   const [searching, setSearching] = useState(false);
@@ -181,6 +186,7 @@ export default function App() {
     setError("");
     setSearch(null);
     setSources([]);
+    setResearchReport(null);
     setDraftFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
     try {
@@ -224,6 +230,7 @@ export default function App() {
     setMode(item.mode);
     setSearch(null);
     setSources([]);
+    setResearchReport(null);
     setDraftFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
     setCanRetry(item.status === "REQUESTED");
@@ -250,6 +257,7 @@ export default function App() {
         setJob(null);
         setSearch(null);
         setSources([]);
+        setResearchReport(null);
         setCanRetry(false);
       }
     } catch (caught) {
@@ -266,6 +274,7 @@ export default function App() {
       const response = await listSources(credentials, job.id, draftFilters);
       setAppliedFilters({ ...draftFilters });
       setSources(response.results);
+      setResearchReport(null);
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -292,6 +301,71 @@ export default function App() {
     } finally {
       setExporting(null);
     }
+  }
+
+  async function createResearchReport() {
+    if (!job || sources.length === 0) return;
+    const selectedSources = sources.slice(0, 20);
+    setReportBusy(true);
+    setResearchReport(null);
+    setError("");
+    try {
+      const response = await generateResearchReport(
+        credentials,
+        job.id,
+        selectedSources.map((source) => source.id),
+      );
+      setResearchReport(response);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setReportBusy(false);
+    }
+  }
+
+  function downloadResearchReport() {
+    if (!researchReport || !job) return;
+    const citationById = new Map(researchReport.citations.map((citation) => [citation.id, citation]));
+    const escapeMarkdown = (value: string) => value
+      .replace(/[\r\n]+/g, " ")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll("`", "\\`")
+      .replaceAll("*", "\\*")
+      .replaceAll("_", "\\_");
+    const cite = (ids: string[]) => ids.map((id) => {
+      const citation = citationById.get(id);
+      return citation ? ` [${escapeMarkdown(citation.title)}](<${citation.url}>)` : "";
+    }).join("");
+    const lines = [
+      `# ${escapeMarkdown(researchReport.title)}`,
+      "",
+      `Query: ${escapeMarkdown(job.subject)}`,
+      `Generated: ${formatDate(researchReport.generatedAt)} · Model: ${escapeMarkdown(researchReport.model)}`,
+      "",
+      "## Summary",
+      "",
+      `${escapeMarkdown(researchReport.summary)}${cite(researchReport.summarySourceIds)}`,
+      "",
+      "## Findings",
+      "",
+      ...researchReport.findings.map((finding) => `- ${escapeMarkdown(finding.text)}${cite(finding.sourceIds)}`),
+      "",
+      "## Limitations",
+      "",
+      ...researchReport.limitations.map((limitation) => `- ${escapeMarkdown(limitation)}`),
+      `- ${escapeMarkdown(researchReport.coverageNote)}`,
+      "",
+    ];
+    const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aura-report-${job.id}.md`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   }
 
   async function searchVulnerabilities(event: FormEvent<HTMLFormElement>) {
@@ -567,6 +641,7 @@ export default function App() {
     setJob(null);
     setSearch(null);
     setSources([]);
+    setResearchReport(null);
     setSbomFile(null);
     setSbomLookup(null);
     setNvdLookups({});
@@ -732,7 +807,8 @@ export default function App() {
               <section className="results-section" aria-live="polite">
                 <div className="results-heading">
                   <div><div className="section-kicker">YOUR EVIDENCE</div><h2>Research results{search ? <span className="result-total">{sources.length}</span> : null}</h2></div>
-                  {search && <div className="export-actions" aria-label="Download filtered results">
+                  {search && <div className="export-actions" aria-label="Research actions and downloads">
+                    <button type="button" onClick={() => void createResearchReport()} disabled={!connected || reportBusy || sources.length === 0}>{reportBusy ? "Generating…" : `✳ Report (${Math.min(sources.length, 20)})`}</button>
                     <button type="button" onClick={() => void exportResults("csv")} disabled={Boolean(exporting)}>{exporting === "csv" ? "Preparing…" : "↓ CSV"}</button>
                     <button type="button" onClick={() => void exportResults("json")} disabled={Boolean(exporting)}>{exporting === "json" ? "Preparing…" : "↓ JSON"}</button>
                     <button type="button" onClick={() => void exportResults("md")} disabled={Boolean(exporting)}>{exporting === "md" ? "Preparing…" : "↓ MD"}</button>
@@ -754,6 +830,26 @@ export default function App() {
                     <button className="filter-button" type="submit" disabled={filtering}>{filtering ? "…" : "Apply"}</button>
                   </form>
                   {search.coverageNote && <p className="coverage-note"><span>ⓘ</span> {search.coverageNote}</p>}
+                  <p className="report-scope-note">A report uses up to 20 visible results after filtering. Their metadata and snippets go to your configured local model; AURA does not fetch the pages.</p>
+                  {researchReport && <section className="research-report" aria-label="Generated cited report">
+                    <div className="report-heading">
+                      <div><div className="section-kicker">LOCAL AI REPORT</div><h3>{researchReport.title}</h3><p>{researchReport.provider} · {researchReport.model} · {formatDate(researchReport.generatedAt)}</p></div>
+                      <button className="nvd-lookup-button" type="button" onClick={downloadResearchReport}>↓ Download Markdown</button>
+                    </div>
+                    <p className="report-summary">{researchReport.summary}{researchReport.summarySourceIds.map((id) => {
+                      const citation = researchReport.citations.find((item) => item.id === id);
+                      const citationNumber = researchReport.citations.findIndex((item) => item.id === id) + 1;
+                      return citation ? <a key={id} href={citation.url} target="_blank" rel="noopener noreferrer" title={citation.title}> [{citationNumber}]</a> : null;
+                    })}</p>
+                    {researchReport.findings.length > 0 && <div className="report-findings"><strong>Findings</strong>{researchReport.findings.map((finding, index) => <p key={`${index}-${finding.text}`}>{finding.text}{finding.sourceIds.map((id) => {
+                      const citation = researchReport.citations.find((item) => item.id === id);
+                      const citationNumber = researchReport.citations.findIndex((item) => item.id === id) + 1;
+                      return citation ? <a key={id} href={citation.url} target="_blank" rel="noopener noreferrer" title={citation.title}> [{citationNumber}]</a> : null;
+                    })}</p>)}</div>}
+                    {researchReport.limitations.length > 0 && <div className="report-findings"><strong>Limitations</strong>{researchReport.limitations.map((limitation, index) => <p key={`${index}-${limitation}`}>{limitation}</p>)}</div>}
+                    <div className="report-citations"><strong>Candidate sources</strong>{researchReport.citations.map((citation, index) => <a key={citation.id} href={citation.url} target="_blank" rel="noopener noreferrer">[{index + 1}] {citation.title} · {citation.domain}</a>)}</div>
+                    <p className="coverage-note"><span>ⓘ</span> {researchReport.coverageNote}</p>
+                  </section>}
                   {sources.length > 0 ? <div className="source-list">{sources.map((source) => <article className="source-card" key={source.id}>
                     <div className="source-monogram" aria-hidden="true">{sourceInitial(source.domain)}</div>
                     <div className="source-content">

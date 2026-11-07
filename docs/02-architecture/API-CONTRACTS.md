@@ -10,7 +10,7 @@ Public liveness response: `{ "status": "UP", "service": "aura-api" }`.
 
 ### GET `/api/v1/health` (Python AI service, port 8001 on loopback)
 
-Public response: `{ "status": "UP", "service": "aura-ai-service", "version": "0.1.0" }`. OpenAPI and interactive docs are disabled. The service has no model, database, or research-provider route.
+Public response: `{ "status": "UP", "service": "aura-ai-service", "version": "0.1.0" }`. OpenAPI and interactive docs are disabled. The service has no database or research-provider route. Its report route is separate, requires the internal bearer token, and is disabled unless local Ollama is explicitly configured.
 
 ### GET `/api/v1/session`
 
@@ -54,6 +54,14 @@ Optional request fields:
 The adapter requests web, news, and discussion result types with strict SafeSearch. It stores normalized URLs and source metadata (type, title, domain, publisher, provider description, published time when known, retrieval time, and rank). The provider can return up to three result types, so the combined result count can be as high as 60. Returned links are not fetched by AURA.
 
 Responses include `provider`, `providerResultCount`, source results, and a coverage note. This is a single-provider sample, not a complete view of the internet. Discussion results are not a direct X/Twitter or social-account connector.
+
+### POST `/api/v1/research-jobs/{id}/report`
+
+Requires the local owner Basic Auth account and a completed job. Request `{ "sourceIds": ["<source UUID>"] }` with one to 20 distinct source IDs from this job. The server resolves the IDs against the selected job and sends only their bounded metadata and provider descriptions plus the original query to the internal Python service. This action runs only after the owner clicks the report button. The local Ollama provider is disabled unless explicitly configured; there is no hosted fallback.
+
+The response includes a title, summary, findings, model-generated limitations, the Ollama model name, generated time, cited source IDs, and source links. The Python service rejects citations that are not among the supplied sources, but this verifies ID membership only; it does not prove that a source supports a claim. A fixed coverage note says that AURA did not fetch or independently verify linked pages. The UI sends the first 20 currently visible sources, so apply filters before generating a report. Reports are not persisted by AURA; the user may download the current result as Markdown.
+
+The Java-to-Python call uses `AURA_AI_INTERNAL_TOKEN`, which must be a separate random secret. Python accepts only Ollama at `localhost`, `host.docker.internal`, `ollama`, or a private IP on port 11434. `AURA_AI_MODEL_PROVIDER` defaults to `disabled`. Local model configuration is described in the local development guide.
 
 ### GET `/api/v1/research-jobs/{id}/sources`
 
@@ -138,7 +146,7 @@ Invalid content returns `400 INVALID_DOCUMENT`; requests exceeding the global mu
 ## Current limits and next contracts
 
 - Search sends the query to the configured external provider only when the owner invokes the search route. Provider access and possible charges are governed by that provider account.
-- No direct social-media connector, complete-internet crawl, page fetch, AI synthesis, cross-source fact checking, or claim comparison is implemented.
+- No direct social-media connector, complete-internet crawl, page fetch, cross-source fact checking, or claim comparison is implemented. Local-model synthesis is a bounded first slice over provider snippets only.
 - Person research is limited to public-interest material. Do not use this for doxxing, sensitive-trait inference, invasive tracking, or private-account access.
 - Research history is capped to the newest 100 results per request; there is no cursor pagination yet. Queries and source metadata are retained until the owner deletes a brief. Remote deployments still need documented retention, audit, backup, and account-isolation policies.
 - Future work: cursor-paginated history; source-specific adapters with their own quotas and terms; document versioning, PostgreSQL full-text search, richer parsers, chunking and owner-filtered retrieval; cited synthesis; report retention/deletion; automated NVD enrichment, SPDX/SARIF SBOM support, vendor advisories, and inventory matching.

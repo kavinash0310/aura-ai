@@ -7,7 +7,7 @@
 Research and documents may be sensitive. The owner prefers free/open-source technology and has Windows with 16 GB RAM. Hosted models help but send data externally.
 
 ## Decision
-Develop with Docker Compose and bind to loopback. Keep local models optional and hosted models disabled until configured. Local-only mode fails visibly when its provider is unavailable. Never send credentials or entire connected accounts to a model.
+Develop with Docker Compose and bind to loopback. Keep local models optional and hosted models disabled until configured. Local-only mode fails visibly when its provider is unavailable. Never send credentials, entire connected accounts, or uploaded document-library text to a model. The first local report feature sends only selected public search-result metadata/snippets after an explicit action.
 
 ## Trade-offs
 Local models need memory, disk, and updates and can be slower/weaker. Hosted models add cost, network dependence, and egress. Provider abstraction supports either without silent fallback.

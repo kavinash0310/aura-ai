@@ -5,7 +5,7 @@ Do not mark a skill complete because code was generated. The owner should explai
 ## Snapshot — 2026-11-07
 
 - Repository was empty; no previous implementation or conventions existed.
-- M1 Spring API is implemented and CI verified; M2 Python health service and M5 public search/UI are implemented; the first M3 private text/Markdown document library and M7 exact-CVE, bounded CycloneDX JSON review, and explicit single/batch NVD details are implemented locally. On 2026-11-07, 33 Java tests passed and one PostgreSQL integration test was skipped because Docker is absent; 8 UI tests and the production UI build passed. Learning explanations remain unassessed.
+- M1 Spring API is implemented and CI verified; M2 Python service, M5 public search/UI, the first M3 private text/Markdown library, and M7 exact-CVE/CycloneDX/NVD slices are implemented. The first M4 selected-source report path is implemented; new Java/Python checks are pending CI because Maven and Python/uv are not installed in this shell. The frontend now has 9 passing tests and a passing production build. Learning explanations remain unassessed.
 - Concepts completed: none assessed yet.
 - Skills demonstrated independently: none recorded.
 - Background assumption: Java/Spring experience; Python/AI/ML learning; Windows with 16 GB RAM.
@@ -18,6 +18,7 @@ Do not mark a skill complete because code was generated. The owner should explai
 | M1 Spring API | Implemented; explanation pending | Backend source and passing CI | No | Run tests and explain lifecycle |
 | M2 Python service | Implemented; explanation pending | FastAPI health, settings, uv lock, 3 tests, Ruff check | No | Explain ASGI, settings, Pydantic, and test client |
 | M3 document lifecycle | First slice implemented; explanation pending | Authenticated UTF-8 `.txt`/`.md` upload up to 1 MB, SHA-256 metadata, exact-phrase search, character citations, preview/download, explicit delete | No | Explain strict text decoding, content hashing, safe preview rendering, offset citations, and why phrase matching is not full-text search |
+| M4 local report generation | First slice implemented; CI and owner explanation pending | Explicit local Ollama synthesis from up to 20 visible provider snippets, Java ownership validation, internal token, bounded JSON Schema output, citation-ID validation, in-memory UI report, Markdown download | No | Explain source membership vs semantic support, prompt injection limits, and local model egress |
 | M5 public research slice | Implemented; explanation pending | Optional Brave adapter, persisted provenance, filters, downloads, 12 local backend tests | No | Explain provider boundaries, URL validation, state transitions, and partial coverage |
 | First local UI slice | Implemented; explanation pending | React/TypeScript workspace, in-memory API credentials, search, filters, downloads, recent history, delete with source cascade | No | Explain credential handling, same-origin proxy, and retention behavior |
 | M7 CISA KEV/FIRST EPSS lookup | Implemented; explanation pending | Authenticated CVE-only endpoint, bounded inputs, fixed providers, cache and stale status, ranking explanation, UI, JSON/CSV export | No | Explain the different meanings of KEV and EPSS and how provider freshness is surfaced |

@@ -46,7 +46,9 @@ Reproducible local PostgreSQL and API on Windows. Kubernetes helps multi-node or
 
 ## Model choices
 
-Start with direct provider adapters behind a small gateway. Local inference is optional and memory-constrained at 16 GB; hosted provider is explicit. Do not train a foundation model. Fine-tuning is considered only after measured RAG/prompt approaches fail.
+The first report path uses Ollama's local `/api/chat` with JSON Schema output behind the Python service. It is explicitly enabled and has no hosted fallback. Local inference is optional and memory-constrained at 16 GB; choose a small installed model based on measured latency and report quality. Do not train a foundation model. A multi-provider gateway, hosted model, prompt versioning, and evaluations follow only when a real requirement and test set exist. Fine-tuning is considered only after measured retrieval/prompt approaches fail.
+
+**Ollama trade-offs:** Ollama provides a local HTTP interface for model inference and supports JSON or JSON Schema response formatting. This solves the initial report synthesis use case without transmitting evidence to a hosted provider. It consumes local memory and compute, model output quality varies, and the application must validate all model output. Alternatives include a direct hosted SDK (simpler operations but explicit data egress and cost) or Spring AI (appropriate if Java should own model calls and no Python AI-specific workload emerges). Reconsider the Python boundary if local model calls remain the only AI need.
 
 ## Official references checked 2026-10-31
 
@@ -54,3 +56,4 @@ Start with direct provider adapters behind a small gateway. Local inference is o
 - Java SE 21: https://docs.oracle.com/en/java/javase/21/docs/specs/
 - PostgreSQL current: https://www.postgresql.org/docs/current/
 - FastAPI tutorial: https://fastapi.tiangolo.com/tutorial/
+- Ollama chat endpoint and JSON Schema response format (checked 2026-11-07): https://docs.ollama.com/api/chat
