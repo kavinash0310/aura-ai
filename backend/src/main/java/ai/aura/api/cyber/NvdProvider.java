@@ -32,6 +32,7 @@ public class NvdProvider {
     private static final int MAX_REFERENCES = 10;
     private static final int MAX_CWES = 20;
     private static final int MAX_CACHE_ENTRIES = 500;
+    public static final int MAX_BATCH_SIZE = 25;
 
     private final RestClient client;
     private final Duration cacheDuration;
@@ -54,38 +55,74 @@ public class NvdProvider {
     }
 
     public synchronized NvdCveData lookup(String cve) {
-        String normalized = cve.strip().toUpperCase(Locale.ROOT);
-        Instant now = Instant.now();
-        CacheEntry cached = cache.get(normalized);
-        if (cached != null && cached.expiresAt().isAfter(now)) {
-            return cached.data();
-        }
-        if (cached != null) {
-            cache.remove(normalized, cached);
+        return lookupMany(List.of(cve)).getFirst();
+    }
+
+    public synchronized List<NvdCveData> lookupMany(List<String> cves) {
+        if (cves == null || cves.isEmpty() || cves.size() > MAX_BATCH_SIZE) {
+            throw new IllegalArgumentException("NVD lookup accepts one to 25 CVE IDs.");
         }
 
-        try {
-            URI uri = UriComponentsBuilder.fromUriString(ENDPOINT)
-                    .queryParam("cveId", normalized)
-                    .build()
-                    .encode()
-                    .toUri();
-            RestClient.RequestHeadersSpec<?> request = client.get().uri(uri);
-            if (!apiKey.isBlank()) {
-                request.header("apiKey", apiKey);
+        LinkedHashSet<String> normalizedCves = new LinkedHashSet<>();
+        for (String suppliedCve : cves) {
+            if (suppliedCve == null || suppliedCve.isBlank()) {
+                throw new IllegalArgumentException("NVD lookup requires exact CVE IDs.");
             }
-            JsonNode root = request.retrieve().body(JsonNode.class);
-            NvdCveData result = parse(normalized, root, Instant.now());
-            if (!result.status().equals("UNAVAILABLE") && !result.status().equals("RATE_LIMITED")) {
-                cache.put(normalized, new CacheEntry(result, result.retrievedAt().plus(cacheDuration)));
-                evictOldestCacheEntries();
+            normalizedCves.add(suppliedCve.strip().toUpperCase(Locale.ROOT));
+        }
+
+        Map<String, NvdCveData> results = new LinkedHashMap<>();
+        List<String> uncached = new ArrayList<>();
+        Instant now = Instant.now();
+        for (String cve : normalizedCves) {
+            CacheEntry cached = cache.get(cve);
+            if (cached != null && cached.expiresAt().isAfter(now)) {
+                results.put(cve, cached.data());
+            } else {
+                if (cached != null) cache.remove(cve, cached);
+                uncached.add(cve);
             }
-            return result;
-        } catch (RestClientResponseException exception) {
-            String status = exception.getStatusCode().value() == 429 ? "RATE_LIMITED" : "UNAVAILABLE";
-            return unavailable(normalized, status, "NVD is temporarily unavailable. No automatic retry was attempted.");
-        } catch (RestClientException | IllegalArgumentException exception) {
-            return unavailable(normalized, "UNAVAILABLE", "NVD is temporarily unavailable or returned unusable data.");
+        }
+
+        if (!uncached.isEmpty()) {
+            try {
+                URI uri = UriComponentsBuilder.fromUriString(ENDPOINT)
+                        .queryParam("cveId", String.join(",", uncached))
+                        .build()
+                        .encode()
+                        .toUri();
+                RestClient.RequestHeadersSpec<?> request = client.get().uri(uri);
+                if (!apiKey.isBlank()) {
+                    request.header("apiKey", apiKey);
+                }
+                JsonNode root = request.retrieve().body(JsonNode.class);
+                Instant retrievedAt = Instant.now();
+                for (String cve : uncached) {
+                    NvdCveData result = parse(cve, root, retrievedAt);
+                    results.put(cve, result);
+                    cacheIfUsable(result);
+                }
+            } catch (RestClientResponseException exception) {
+                String status = exception.getStatusCode().value() == 429 ? "RATE_LIMITED" : "UNAVAILABLE";
+                for (String cve : uncached) {
+                    results.put(cve, unavailable(cve, status,
+                            "NVD is temporarily unavailable. No automatic retry was attempted."));
+                }
+            } catch (RestClientException | IllegalArgumentException exception) {
+                for (String cve : uncached) {
+                    results.put(cve, unavailable(cve, "UNAVAILABLE",
+                            "NVD is temporarily unavailable or returned unusable data."));
+                }
+            }
+        }
+
+        return normalizedCves.stream().map(results::get).toList();
+    }
+
+    private void cacheIfUsable(NvdCveData result) {
+        if (!result.status().equals("UNAVAILABLE") && !result.status().equals("RATE_LIMITED")) {
+            cache.put(result.cve(), new CacheEntry(result, result.retrievedAt().plus(cacheDuration)));
+            evictOldestCacheEntries();
         }
     }
 

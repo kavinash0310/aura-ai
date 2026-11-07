@@ -1,5 +1,6 @@
 import type {
   Credentials,
+  NvdBatchLookupResponse,
   NvdLookupResponse,
   ResearchDocument,
   ResearchDocumentSearchHit,
@@ -98,6 +99,13 @@ export function lookupNvd(credentials: Credentials, cve: string): Promise<NvdLoo
   return request<NvdLookupResponse>("/api/v1/cyber/vulnerabilities/nvd/lookup", credentials, {
     method: "POST",
     body: JSON.stringify({ cve }),
+  });
+}
+
+export function lookupNvdBatch(credentials: Credentials, cves: string[]): Promise<NvdBatchLookupResponse> {
+  return request<NvdBatchLookupResponse>("/api/v1/cyber/vulnerabilities/nvd/lookup/batch", credentials, {
+    method: "POST",
+    body: JSON.stringify({ cves }),
   });
 }
 

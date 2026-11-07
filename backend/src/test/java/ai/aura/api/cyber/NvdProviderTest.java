@@ -8,6 +8,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
@@ -68,6 +69,34 @@ class NvdProviderTest {
 
         assertThat(result.status()).isEqualTo("RATE_LIMITED");
         assertThat(result.note()).contains("No automatic retry");
+        server.verify();
+    }
+
+    @Test
+    void looksUpMultipleExactCvesInOneRequestAndCachesEachRecord() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        NvdProvider provider = new NvdProvider(builder.build(), Duration.ofHours(6), "");
+        List<String> ids = List.of("CVE-2026-12345", "CVE-2025-54321");
+
+        server.expect(requestTo(org.hamcrest.Matchers.startsWith("https://services.nvd.nist.gov/rest/json/cves/2.0?")))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(queryParam("cveId", "CVE-2026-12345,CVE-2025-54321"))
+                .andRespond(withSuccess("""
+                        {"totalResults":2,"vulnerabilities":[
+                          {"cve":{"id":"CVE-2026-12345","descriptions":[{"lang":"en","value":"First record."}]}},
+                          {"cve":{"id":"CVE-2025-54321","descriptions":[{"lang":"en","value":"Second record."}]}}
+                        ]}
+                        """, MediaType.APPLICATION_JSON));
+
+        List<NvdCveData> first = provider.lookupMany(ids);
+        List<NvdCveData> cached = provider.lookupMany(ids);
+
+        assertThat(first).extracting(NvdCveData::cve).containsExactlyElementsOf(ids);
+        assertThat(first).extracting(NvdCveData::description).containsExactly("First record.", "Second record.");
+        assertThat(first).extracting(NvdCveData::status).containsOnly("AVAILABLE");
+        assertThat(cached).extracting(NvdCveData::retrievedAt)
+                .containsExactly(first.get(0).retrievedAt(), first.get(1).retrievedAt());
         server.verify();
     }
 }

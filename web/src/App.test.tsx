@@ -216,6 +216,17 @@ describe("AURA research workspace", () => {
         }],
         intelligence: null,
         coverageNote: "Only CVEs declared in the SBOM are checked.",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requestedAt: "2026-11-07T00:00:01Z",
+        results: [{
+          requestedAt: "2026-11-07T00:00:01Z", cve: "CVE-2026-12345", status: "AVAILABLE",
+          retrievedAt: "2026-11-07T00:00:01Z", sourceUrl: "https://nvd.nist.gov/vuln/detail/CVE-2026-12345",
+          note: "NVD data is evidence, not proof that an asset is affected.", publishedAt: null, lastModifiedAt: null,
+          vulnerabilityStatus: "Analyzed", description: "Batch NVD vulnerability description.", cvssVersion: null,
+          cvssScore: null, cvssSeverity: null, cvssVector: null, cwes: [], applicability: [],
+          applicabilityTruncated: false, references: [], referencesTruncated: false,
+        }],
       }), { status: 200 }));
 
     render(<App />);
@@ -234,6 +245,11 @@ describe("AURA research workspace", () => {
     expect(options?.body).toBeInstanceOf(FormData);
     expect((options?.body as FormData).get("file")).toBeInstanceOf(File);
     expect(new Headers(options?.headers).has("Content-Type")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load NVD details for all 1 declared CVEs" }));
+    expect(await screen.findByText("Batch NVD vulnerability description.")).toBeInTheDocument();
+    expect(fetchMock.mock.calls[4]?.[0]).toBe("/api/v1/cyber/vulnerabilities/nvd/lookup/batch");
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ cves: ["CVE-2026-12345"] });
   });
 
   it("loads NVD details only after an explicit single-CVE request", async () => {

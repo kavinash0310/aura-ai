@@ -20,4 +20,9 @@ public class NvdLookupController {
     public NvdLookupResponse lookup(@Valid @RequestBody LookupNvdRequest request) {
         return service.lookup(request.cve());
     }
+
+    @PostMapping("/lookup/batch")
+    public NvdBatchLookupResponse lookupMany(@Valid @RequestBody LookupNvdBatchRequest request) {
+        return service.lookupMany(request.cves());
+    }
 }

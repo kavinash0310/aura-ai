@@ -7,6 +7,7 @@ import {
   deleteResearchJob,
   downloadExport,
   lookupSbom,
+  lookupNvdBatch,
   lookupNvd,
   lookupVulnerabilities,
   getDocument,
@@ -26,6 +27,7 @@ import type {
   ResearchMode,
   ResearchSource,
   ResultFilters,
+  NvdBatchLookupResponse,
   NvdLookupResponse,
   SbomLookupResponse,
   SearchResponse,
@@ -134,6 +136,7 @@ export default function App() {
   const [vulnerabilityBusy, setVulnerabilityBusy] = useState(false);
   const [nvdLookups, setNvdLookups] = useState<Record<string, NvdLookupResponse>>({});
   const [nvdBusyCve, setNvdBusyCve] = useState<string | null>(null);
+  const [nvdBatchBusy, setNvdBatchBusy] = useState(false);
   const [documents, setDocuments] = useState<ResearchDocument[]>([]);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentInputKey, setDocumentInputKey] = useState(0);
@@ -311,7 +314,7 @@ export default function App() {
   }
 
   async function loadNvd(cve: string) {
-    if (!connected || nvdBusyCve) return;
+    if (!connected || nvdBusyCve || nvdBatchBusy) return;
     const session = workspaceSession.current;
     setNvdBusyCve(cve);
     setError("");
@@ -324,6 +327,31 @@ export default function App() {
       if (session === workspaceSession.current) setError(errorMessage(caught));
     } finally {
       if (session === workspaceSession.current) setNvdBusyCve(null);
+    }
+  }
+
+  async function loadNvdBatch(cves: string[]) {
+    if (!connected || nvdBusyCve || nvdBatchBusy) return;
+    const ids = [...new Set(cves.map((cve) => cve.trim().toUpperCase()).filter(Boolean))];
+    if (ids.length === 0 || ids.length > 25) {
+      setError("Choose between one and 25 exact CVE IDs for an NVD lookup.");
+      return;
+    }
+    const session = workspaceSession.current;
+    setNvdBatchBusy(true);
+    setError("");
+    try {
+      const response: NvdBatchLookupResponse = await lookupNvdBatch(credentials, ids);
+      if (session === workspaceSession.current) {
+        setNvdLookups((current) => ({
+          ...current,
+          ...Object.fromEntries(response.results.map((result) => [result.cve, result])),
+        }));
+      }
+    } catch (caught) {
+      if (session === workspaceSession.current) setError(errorMessage(caught));
+    } finally {
+      if (session === workspaceSession.current) setNvdBatchBusy(false);
     }
   }
 
@@ -543,6 +571,7 @@ export default function App() {
     setSbomLookup(null);
     setNvdLookups({});
     setNvdBusyCve(null);
+    setNvdBatchBusy(false);
     setDocumentUploading(false);
     setDocumentSearching(false);
     setOpeningDocumentId(null);
@@ -832,6 +861,7 @@ export default function App() {
                 <div><div className="section-kicker">SOURCE STATUS</div><p className="cyber-source-status"><a href={vulnerabilityLookup.kev.sourceUrl} target="_blank" rel="noopener noreferrer">CISA KEV</a> {vulnerabilityLookup.kev.status}{vulnerabilityLookup.kev.dataAsOf ? ` · data ${vulnerabilityLookup.kev.dataAsOf}` : ""}{vulnerabilityLookup.kev.note ? ` · ${vulnerabilityLookup.kev.note}` : ""}</p>
                   <p className="cyber-source-status"><a href={vulnerabilityLookup.epss.sourceUrl} target="_blank" rel="noopener noreferrer">FIRST EPSS</a> {vulnerabilityLookup.epss.status}{vulnerabilityLookup.epss.dataAsOf ? ` · data ${vulnerabilityLookup.epss.dataAsOf}` : ""}{vulnerabilityLookup.epss.note ? ` · ${vulnerabilityLookup.epss.note}` : ""}</p>
                   <p className="cyber-retrieved">Checked {formatDate(vulnerabilityLookup.requestedAt)}</p>
+                  {vulnerabilityLookup.results.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy} onClick={() => void loadNvdBatch(vulnerabilityLookup.results.map((finding) => finding.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${vulnerabilityLookup.results.length} CVEs`}</button>}
                 </div>
                 <div className="export-actions" aria-label="Download vulnerability lookup">
                   <button type="button" onClick={() => downloadVulnerabilityLookup("csv")}>↓ CSV</button>
@@ -850,7 +880,7 @@ export default function App() {
                     <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>KEV added <strong>{finding.dateAdded || "—"}</strong></span><span>Due date <strong>{finding.dueDate || "—"}</strong></span><span>Known ransomware use <strong>{finding.knownRansomwareCampaignUse || "—"}</strong></span></div>
                     {finding.requiredAction && <p className="cyber-action">CISA action: {finding.requiredAction}</p>}
                     <div className="cyber-source-links"><a href={finding.cisaUrl} target="_blank" rel="noopener noreferrer">CISA catalog</a><a href={finding.epssUrl} target="_blank" rel="noopener noreferrer">EPSS record</a></div>
-                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null} onClick={() => void loadNvd(finding.cve)}>{nvdBusyCve === finding.cve ? "Loading NVD…" : nvdLookups[finding.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
+                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy} onClick={() => void loadNvd(finding.cve)}>{nvdBusyCve === finding.cve ? "Loading NVD…" : nvdLookups[finding.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
                     {nvdLookups[finding.cve] && <NvdDetails data={nvdLookups[finding.cve]} />}
                   </div>
                 </article>)}
@@ -877,7 +907,7 @@ export default function App() {
                   {sbomBusy ? <><span className="spinner" /> Reviewing SBOM</> : <>Review SBOM <span aria-hidden="true">↗</span></>}
                 </button>
               </div>
-              <p className="cyber-egress-note">AURA parses this file locally in memory and does not save it. Only CVE IDs already declared in the file are sent to FIRST EPSS; CISA KEV data is matched locally.</p>
+              <p className="cyber-egress-note">AURA parses this file locally in memory and does not save it. Only declared CVE IDs are sent to FIRST EPSS. NVD details are requested only after you click a per-CVE or batch lookup button.</p>
             </form>
 
             {sbomLookup && <div className="cyber-results" aria-live="polite">
@@ -893,6 +923,7 @@ export default function App() {
                 </div>
               </div>
               <p className="coverage-note"><span>ⓘ</span> {sbomLookup.coverageNote}</p>
+              {sbomLookup.vulnerabilities.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy} onClick={() => void loadNvdBatch(sbomLookup.vulnerabilities.map((vulnerability) => vulnerability.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${sbomLookup.vulnerabilities.length} declared CVEs`}</button>}
               {sbomLookup.vulnerabilities.length ? <div className="cyber-findings">
                 {sbomLookup.vulnerabilities.map((declared) => {
                   const finding = sbomLookup.intelligence?.results.find((result) => result.cve === declared.cve);
@@ -907,7 +938,7 @@ export default function App() {
                       {declared.affectedComponents.length > visibleComponents.length && <p className="sbom-component">Showing {visibleComponents.length} of {declared.affectedComponents.length} resolved components. Download the full JSON or CSV for the complete list.</p>}
                       {declared.affectedBomRefs.length > declared.affectedComponents.length && <p className="sbom-component">Some references did not resolve to a component in this file.</p>}
                       {finding && <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>Priority <strong>{finding.priorityRank}</strong></span></div>}
-                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null} onClick={() => void loadNvd(declared.cve)}>{nvdBusyCve === declared.cve ? "Loading NVD…" : nvdLookups[declared.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
+                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy} onClick={() => void loadNvd(declared.cve)}>{nvdBusyCve === declared.cve ? "Loading NVD…" : nvdLookups[declared.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
                       {nvdLookups[declared.cve] && <NvdDetails data={nvdLookups[declared.cve]} />}
                     </div>
                   </article>;

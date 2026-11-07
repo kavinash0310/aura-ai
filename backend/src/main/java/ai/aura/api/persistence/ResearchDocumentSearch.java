@@ -47,6 +47,7 @@ public class ResearchDocumentSearch {
         }
     }
 
+    @SuppressWarnings("unchecked")
     public List<ResearchDocument> searchExactPhrase(String phrase, Pageable pageable) {
         if (!postgresql || phrase.codePoints().noneMatch(Character::isLetterOrDigit)) {
             return repository.findByContentContainingIgnoreCaseOrderByUploadedAtDesc(phrase, pageable);

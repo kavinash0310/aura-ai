@@ -57,8 +57,8 @@ Add persisted steps, typed tools, retries/backoff, cancellation, approval, audit
 **Accept when:** provider failures recover or surface terminal state; policy denies out-of-scope operations.
 
 ### M7 — Cybersecurity intelligence
-**Delivered first slice:** authenticated, read-only lookup for up to 25 explicit CVE IDs against the CISA KEV catalog and FIRST EPSS lookup API. It reports source status and dates, caches KEV data for six hours, explains KEV-first/EPSS-second ordering, and downloads JSON or CSV. The UI also accepts CycloneDX JSON up to 2 MB, resolves only declared BOM references, and enriches only CVE IDs listed by the SBOM; uploads are not persisted. A user can request one bounded NVD CVE detail record at a time, with CVSS/CWE evidence and capped CPE applicability and references.
-**Still needed:** automated or multi-CVE NVD enrichment, SPDX and SARIF support, vendor advisories, inventory matching, and broader priority evaluations. No host scanning or exploit checks are included.
+**Delivered first slice:** authenticated, read-only lookup for up to 25 explicit CVE IDs against the CISA KEV catalog and FIRST EPSS lookup API. It reports source status and dates, caches KEV data for six hours, explains KEV-first/EPSS-second ordering, and downloads JSON or CSV. The UI also accepts CycloneDX JSON up to 2 MB, resolves only declared BOM references, and enriches only CVE IDs listed by the SBOM; uploads are not persisted. A user can request bounded NVD detail for one or up to 25 exact CVE IDs in a single explicit action, with CVSS/CWE evidence and capped CPE applicability and references.
+**Still needed:** SPDX and SARIF support, vendor advisories, inventory matching, and broader priority evaluations. No host scanning or exploit checks are included.
 **Accept when:** findings include timestamps, exact match evidence, confidence limits, and rationale; supported SBOM parsing has bounded size/type validation and fixtures; rankings are evaluated against documented remediation scenarios.
 
 ### M8 — Workspace and production readiness

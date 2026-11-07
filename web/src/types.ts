@@ -172,3 +172,8 @@ export interface NvdLookupResponse {
   references: NvdReference[];
   referencesTruncated: boolean;
 }
+
+export interface NvdBatchLookupResponse {
+  requestedAt: string;
+  results: NvdLookupResponse[];
+}

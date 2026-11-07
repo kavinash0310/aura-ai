@@ -5,7 +5,7 @@ Do not mark a skill complete because code was generated. The owner should explai
 ## Snapshot — 2026-11-07
 
 - Repository was empty; no previous implementation or conventions existed.
-- M1 Spring API is implemented and CI verified; M2 Python health service and M5 public search/UI are implemented; the first M3 private text/Markdown document library and M7 exact-CVE, bounded CycloneDX JSON review, and explicit single-CVE NVD details are implemented locally. On 2026-11-07, 31 Java tests, 8 UI tests, and the production UI build passed. Learning explanations remain unassessed.
+- M1 Spring API is implemented and CI verified; M2 Python health service and M5 public search/UI are implemented; the first M3 private text/Markdown document library and M7 exact-CVE, bounded CycloneDX JSON review, and explicit single/batch NVD details are implemented locally. On 2026-11-07, 33 Java tests passed and one PostgreSQL integration test was skipped because Docker is absent; 8 UI tests and the production UI build passed. Learning explanations remain unassessed.
 - Concepts completed: none assessed yet.
 - Skills demonstrated independently: none recorded.
 - Background assumption: Java/Spring experience; Python/AI/ML learning; Windows with 16 GB RAM.

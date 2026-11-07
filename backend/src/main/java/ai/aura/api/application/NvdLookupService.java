@@ -1,11 +1,14 @@
 package ai.aura.api.application;
 
 import ai.aura.api.api.NvdLookupResponse;
+import ai.aura.api.api.NvdBatchLookupResponse;
 import ai.aura.api.cyber.NvdCveData;
 import ai.aura.api.cyber.NvdProvider;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 
 @Service
@@ -20,6 +23,21 @@ public class NvdLookupService {
         String cve = suppliedCve.strip().toUpperCase(Locale.ROOT);
         Instant requestedAt = Instant.now();
         NvdCveData data = provider.lookup(cve);
+        return response(cve, data, requestedAt);
+    }
+
+    public NvdBatchLookupResponse lookupMany(List<String> suppliedCves) {
+        List<String> cves = new LinkedHashSet<>(suppliedCves.stream()
+                .map(cve -> cve.strip().toUpperCase(Locale.ROOT))
+                .toList()).stream().toList();
+        Instant requestedAt = Instant.now();
+        List<NvdLookupResponse> results = provider.lookupMany(cves).stream()
+                .map(data -> response(data.cve(), data, requestedAt))
+                .toList();
+        return new NvdBatchLookupResponse(requestedAt, results);
+    }
+
+    private static NvdLookupResponse response(String cve, NvdCveData data, Instant requestedAt) {
         return new NvdLookupResponse(
                 requestedAt,
                 data.cve(),
