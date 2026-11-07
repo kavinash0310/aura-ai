@@ -2,7 +2,7 @@
 
 ## MVP definition
 
-The first useful release is a local research workspace that accepts a subject, searches a small set of permitted public sources, keeps source metadata, returns a cited summary, and exports a report. The repository has the Spring foundation, an isolated Python health service, a first authenticated search slice, a local React workspace, and a first private document-library slice. The UI starts searches, reopens recent briefs, filters stored source metadata, downloads JSON/CSV/Markdown, deletes a brief with its source rows, and can import/search/preview/delete UTF-8 text and Markdown; page reading, cross-source analysis, and synthesized reports remain planned.
+The first useful release is a local research workspace that accepts a subject, searches permitted public sources, keeps source metadata, returns a bounded cited summary, and exports results. The repository has the Spring foundation, an isolated Python AI service, authenticated bounded public-source search, a local React workspace, and a private document-library slice. The UI starts searches, reopens recent briefs, filters stored source metadata, downloads JSON/CSV/Markdown, deletes a brief with its source rows, imports/searches/previews/deletes UTF-8 text and Markdown, and can create a cited report from selected search snippets using an explicitly configured local model. Page reading, cross-source claim comparison, and semantic citation verification remain planned.
 
 ## Feature priority
 
@@ -48,8 +48,8 @@ Add provider interface, local and optional hosted adapters, structured output, p
 
 ### M5 — Public research
 Add web/news adapters, query planning, normalization, deduplication, evidence, claim comparison, citations, filters, exports, coverage.
-**Delivered slice:** Brave returns bounded web/news/discussion results; GDELT returns bounded public news results. Automatic selection uses Brave when configured, otherwise GDELT; All configured sources queries every enabled provider. The API persists per-source provider provenance and timestamps, supports provider/type/text/host/date filters, and downloads the filtered JSON/CSV/Markdown set. Search is invoked explicitly and coverage limits are shown. If any provider fails in all mode, the job fails and saves no sources.
-**Still needed:** official direct social providers subject to their access and data-handling terms, additional search providers, carefully scoped page fetching, query planning, claim comparison, semantic citation checks, and broader evaluations.
+**Delivered slice:** Brave returns bounded web/news/discussion results; GDELT returns bounded public news results; Bluesky returns bounded public posts through its official public API. Automatic selection uses Brave when configured, otherwise GDELT and then Bluesky; All configured sources queries every enabled provider. The API persists per-source provider provenance and timestamps, supports provider/type/text/host/date filters, and downloads the filtered JSON/CSV/Markdown set. Search is invoked explicitly and coverage limits are shown. If any provider fails in all mode, the job fails and saves no sources. Bluesky does not apply country filters or connect to accounts/private feeds.
+**Still needed:** X/account connectors after provider-specific retention and deletion controls, additional search providers, carefully scoped page fetching, query planning, claim comparison, semantic citation checks, and broader evaluations.
 **Accept when:** curated queries are reproducible, citations resolve, conflicts persist, source and coverage limits show, and each provider's terms/rate limits are tested.
 
 ### M6 — Controlled workflow

@@ -63,7 +63,7 @@ public class ResearchSearchService {
         if (requestedProvider != null && !requestedProvider.isBlank()) {
             SearchProvider selected = providersByName.get(requestedProvider);
             if (selected == null) {
-                throw new InvalidResearchFilterException("Search provider must be brave, gdelt, or all.");
+                throw new InvalidResearchFilterException("Search provider must be brave, gdelt, bluesky, or all.");
             }
             return selected.isConfigured() ? List.of(selected) : List.of();
         }

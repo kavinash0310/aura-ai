@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-07
 
-> The one-provider-per-job behavior in this initial decision was extended by [ADR 0007](0007-explicit-multi-provider-search.md), which adds explicit all-configured search while preserving Automatic as single-provider selection.
+> The initial provider set and one-provider-per-job behavior were extended by [ADR 0007](0007-explicit-multi-provider-search.md) and [ADR 0009](0009-bluesky-public-post-search.md). Those records add explicit all-configured search and a bounded official Bluesky public-post connector.
 
 ## Context
 
@@ -37,11 +37,11 @@ Add a fixed-host GDELT DOC article-list adapter. The UI offers Automatic, Brave,
 - Advantage: Brave and GDELT have distinct visible coverage and source identity.
 - Disadvantage: GDELT returns news metadata and headlines, not article-body text, and indexes only part of the public news web.
 - Disadvantage: GDELT search is limited to the past three months; the UI's `py` time choice therefore maps to three months for that provider.
-- Disadvantage: provider selection is exclusive per job; merging, per-provider error audits, social connectors, and claim comparison are still future work.
+- Disadvantage: merging, per-provider error audits, X/account connectors, and claim comparison remain future work.
 
 ## Conditions to reconsider
 
-Review source terms, service availability, quotas, and data retention before enabling any additional provider. Add direct social connectors only when official APIs, user grants, safe retention/display rules, and a concrete use case are established. Do not replace the adapters with unrestricted crawling.
+Review source terms, service availability, quotas, and data retention before enabling any additional provider. For social connectors, use a documented official API and verify safe retention/display rules; require user grants only when accessing account-specific data. Keep X and account feeds deferred under ADR 0008. Do not replace the adapters with unrestricted crawling.
 
 ## Learning and interview prompts
 

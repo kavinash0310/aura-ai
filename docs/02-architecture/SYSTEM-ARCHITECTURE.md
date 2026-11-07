@@ -2,7 +2,7 @@
 
 ## Current repository state
 
-The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, a Python FastAPI AI service, a local React workspace served through Nginx, bounded Brave and GDELT public-search adapters, read-only vulnerability intelligence, and a private document library. Research queries can use one explicitly selected provider or every currently configured provider; each source retains its provider provenance. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV; users can separately request one or up to 25 exact-CVE NVD details. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. Selected UTF-8 text and Markdown files are stored in PostgreSQL and searched as exact phrases with character-offset citations. An explicit report action sends up to 20 selected search-result snippets to a configured local Ollama model and checks the returned source IDs. It does not fetch linked pages, connect directly to social accounts, include uploaded documents in inference, or probe systems.
+The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, a Python FastAPI AI service, a local React workspace served through Nginx, bounded Brave, GDELT, and Bluesky public-search adapters, read-only vulnerability intelligence, and a private document library. Research queries can use one explicitly selected provider or every currently configured provider; each source retains its provider provenance. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV; users can separately request one or up to 25 exact-CVE NVD details. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. Selected UTF-8 text and Markdown files are stored in PostgreSQL and searched as exact phrases with character-offset citations. An explicit report action sends up to 20 selected search-result snippets to a configured local Ollama model and checks the returned source IDs. It does not fetch linked pages, connect to social accounts or private feeds, include uploaded documents in inference, or probe systems.
 
 ## Target architecture
 
@@ -14,7 +14,7 @@ flowchart LR
   Web --> Api[Spring Boot application API]
   Api --> Pg[(PostgreSQL)]
   Api --> Search[Provider adapters]
-  Search --> Public[Public web, news, permitted social APIs]
+  Search --> Public[Public web, news, and Bluesky posts]
   Api --> Docs[Selected document parsers]
   Docs --> Pg
   Api --> Workflow[Bounded research workflow]
@@ -44,7 +44,7 @@ flowchart TB
   Web -->|same-origin HTTP Basic API requests| Spring[Spring Boot API]
   Spring -->|JDBC| PostgreSQL[(PostgreSQL)]
   Spring -->|Flyway migration at startup| PostgreSQL
-  Spring -->|explicit query, selected provider(s)| Search[Brave Search API or GDELT DOC API]
+  Spring -->|explicit query, selected provider(s)| Search[Brave, GDELT, or Bluesky public API]
   Spring -->|exact CVE IDs only after lookup| CISA[CISA KEV data mirror]
   Spring -->|small exact-ID lookup| FIRST[FIRST EPSS API]
   Spring -->|selected source metadata only, on explicit report| Python[FastAPI AI service]
@@ -52,7 +52,7 @@ flowchart TB
   Owner -->|loopback health only| Python
 ~~~
 
-Each search adapter uses a fixed HTTPS provider host, a short timeout, and an HTTP client that does not follow redirects. Brave applies strict SafeSearch and returns web/news/discussion results; GDELT returns only bounded public news metadata, and it has no API key. Both adapters keep only HTTP(S) result URLs, cap fields, strip URL fragments, and deduplicate URLs within that provider. AURA does not fetch returned URLs, so search does not turn provider result links into arbitrary server-side requests. Automatic selection prefers Brave when the owner configured a key, then falls back to GDELT. The UI also offers one provider or all configured providers; all mode records each source's actual provider and may preserve a URL returned by both providers twice.
+Each search adapter uses a fixed HTTPS provider host, a short timeout, and an HTTP client that does not follow redirects. Brave applies strict SafeSearch and returns web/news/discussion results; GDELT returns bounded public news metadata without a key; Bluesky searches bounded public posts through its unauthenticated public AppView API. Adapters cap fields, validate returned links, and deduplicate URLs within each provider. AURA does not fetch returned URLs, so search does not turn provider result links into arbitrary server-side requests. Automatic selection prefers Brave when the owner configured a key, then GDELT, then Bluesky if earlier providers are disabled. The UI also offers one provider or all configured providers; all mode records each source's actual provider and may preserve duplicate links from separate indexes. Bluesky does not support AURA's country filter.
 
 ## Local document import and retrieval
 
@@ -94,7 +94,7 @@ sequenceDiagram
   actor Owner
   participant API as Spring API
   participant Service as Search workflow
-  participant Provider as Selected Brave or GDELT API
+  participant Provider as Selected Brave, GDELT, or Bluesky API
   participant DB as PostgreSQL
   Owner->>API: POST job/{id}/search with filters
   API->>Service: authenticate, validate, check provider configuration
@@ -109,7 +109,7 @@ sequenceDiagram
   API-->>Owner: JSON, CSV, or Markdown download
 ~~~
 
-The owner invokes each search explicitly. If the selected provider is disabled or lacks a required key, the request fails before the job leaves `REQUESTED`; provider failures are recorded as a stable failure code. All mode calls enabled providers in sequence; if one fails, the job fails and no source rows are saved, though earlier providers may already have received the query. Source content is not treated as verified fact, and search coverage is explicitly partial. GDELT indexes public global news and has a maximum three-month horizon; its article-title metadata is not a direct social-feed search.
+The owner invokes each search explicitly. If the selected provider is disabled or lacks a required key, the request fails before the job leaves `REQUESTED`; provider failures are recorded as a stable failure code. All mode calls enabled providers in sequence; if one fails, the job fails and no source rows are saved, though earlier providers may already have received the query. Source content is not treated as verified fact, and search coverage is explicitly partial. GDELT indexes public global news and has a maximum three-month horizon. Bluesky returns bounded public posts; it does not connect to accounts or private feeds. Saved text remains until its brief is deleted and AURA does not sync remote post deletions.
 
 ## Local cited report flow
 

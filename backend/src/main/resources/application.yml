@@ -33,6 +33,9 @@ aura:
     gdelt:
       enabled: ${AURA_GDELT_ENABLED:true}
       timeout: 8s
+    bluesky:
+      enabled: ${AURA_BLUESKY_ENABLED:true}
+      timeout: 8s
   ai:
     service-url: ${AURA_AI_SERVICE_URL:http://ai:8000}
     internal-token: ${AURA_AI_INTERNAL_TOKEN:}

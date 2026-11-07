@@ -10,6 +10,7 @@ ADRs capture trade-offs, not feature completion.
 - 0006 Selected public search providers
 - 0007 Explicit multi-provider public search
 - 0008 Social-source compliance gate
+- 0009 Bluesky public-post search adapter
 
 ## Template
 

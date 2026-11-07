@@ -49,7 +49,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "aura.auth.username=test-owner",
         "aura.auth.password=this-is-a-test-password-with-enough-length",
         "aura.search.brave.api-key=",
-        "aura.search.gdelt.enabled=false"
+        "aura.search.gdelt.enabled=false",
+        "aura.search.bluesky.enabled=false"
 })
 class ResearchSearchApiTest {
 

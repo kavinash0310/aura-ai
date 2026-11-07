@@ -51,7 +51,7 @@ function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) return "Those API credentials were not accepted. Check your local .env values.";
     if (error.code === "SEARCH_PROVIDER_NOT_CONFIGURED") {
-      return "No selected search provider is enabled. Choose a configured provider, enable GDELT, or add your own Brave API key in .env.";
+      return "No selected search provider is enabled. Enable a public provider in .env or add your own Brave API key.";
     }
     if (error.code === "SEARCH_PROVIDER_RATE_LIMITED") return "The search provider rate limited this request. Wait a little and try again.";
     if (error.code === "AI_SERVICE_UNAVAILABLE") return "The local report model is disabled or unavailable. Configure Ollama and an installed model in .env, then retry.";
@@ -76,7 +76,7 @@ function kindLabel(kind: ResearchSource["kind"]): string {
 }
 
 function providerLabel(provider: string): string {
-  return provider === "brave" ? "Brave" : provider === "gdelt" ? "GDELT" : provider === "all" ? "All configured sources" : provider;
+  return provider === "brave" ? "Brave" : provider === "gdelt" ? "GDELT" : provider === "bluesky" ? "Bluesky" : provider === "all" ? "All configured sources" : provider;
 }
 
 function sourceInitial(domain: string): string {
@@ -783,12 +783,13 @@ export default function App() {
                         <option value="all">All configured sources · broader coverage</option>
                         <option value="brave">Brave · web and discussions</option>
                         <option value="gdelt">GDELT · global news</option>
+                        <option value="bluesky">Bluesky · public posts</option>
                       </select><span>⌄</span></div>
                     </div>
                     <div className="field-group">
                       <label className="field-label" htmlFor="freshness">Time window</label>
                       <div className="select-wrap"><select id="freshness" value={freshness} onChange={(event) => setFreshness(event.target.value)}>
-                        <option value="">Provider default (GDELT: 3 months)</option>
+                        <option value="">Provider default (varies by source)</option>
                         <option value="pd">Past 24 hours</option>
                         <option value="pw">Past week</option>
                         <option value="pm">Past month</option>
@@ -899,11 +900,11 @@ export default function App() {
 
               <section className="source-scope panel">
                 <div className="scope-head"><span className="scope-icon">◎</span><div><h2>Source scope</h2><p>What this search can reach</p></div></div>
-                <div className="scope-provider"><span className="provider-mark">{searchProvider === "gdelt" ? "G" : searchProvider === "brave" ? "B" : searchProvider === "all" ? "+" : "A"}</span><div><strong>{searchProvider === "gdelt" ? "GDELT News" : searchProvider === "brave" ? "Brave Search" : searchProvider === "all" ? "All configured sources" : "Automatic provider"}</strong><span>{searchProvider === "gdelt" ? "Public global news" : searchProvider === "brave" ? "Web · News · Discussions" : searchProvider === "all" ? "Brave when configured + GDELT when enabled" : "Brave when configured · otherwise GDELT"}</span></div><span className="scope-live"><i /> {connected ? "API LINKED" : "LOCAL API"}</span></div>
+                <div className="scope-provider"><span className="provider-mark">{searchProvider === "gdelt" ? "G" : searchProvider === "brave" ? "B" : searchProvider === "bluesky" ? "S" : searchProvider === "all" ? "+" : "A"}</span><div><strong>{searchProvider === "gdelt" ? "GDELT News" : searchProvider === "brave" ? "Brave Search" : searchProvider === "bluesky" ? "Bluesky Public Search" : searchProvider === "all" ? "All configured sources" : "Automatic provider"}</strong><span>{searchProvider === "gdelt" ? "Public global news" : searchProvider === "brave" ? "Web · News · Discussions" : searchProvider === "bluesky" ? "Public posts · no account connection" : searchProvider === "all" ? "Brave if keyed · GDELT + Bluesky if enabled" : "Brave when configured · otherwise GDELT"}</span></div><span className="scope-live"><i /> {connected ? "API LINKED" : "LOCAL API"}</span></div>
                 <div className="scope-divider" />
-                <p className="scope-copy">AURA searches selected public providers and saves each returned link. Choose All configured sources to query Brave when its key is set and GDELT when enabled. Brave covers web, news, and discussions; GDELT covers indexed global news from at most the past three months. Coverage is partial, not a crawl of the entire internet.</p>
-                <p className="scope-copy">Automatic uses Brave when its key is configured, then falls back to GDELT. GDELT is public and needs no key. Queries leave your computer only when you start a search.</p>
-                <div className="scope-foot"><span>⌁</span> No direct social-account access</div>
+                <p className="scope-copy">AURA searches selected public providers and saves each returned link. All configured sources queries Brave when its key is set, plus GDELT and Bluesky when enabled. Brave covers web, news, and discussions; GDELT covers indexed global news from at most the past three months; Bluesky returns bounded public posts. Country filters do not apply to Bluesky. Coverage is partial, not a crawl of the entire internet.</p>
+                <p className="scope-copy">Automatic uses Brave when its key is configured, then GDELT, then Bluesky if earlier providers are disabled. These public APIs need no account connection. Queries leave your computer only when you start a search.</p>
+                <div className="scope-foot"><span>⌁</span> Public Bluesky posts only · no private feeds or connected accounts</div>
               </section>
 
               <section className="responsible-card">

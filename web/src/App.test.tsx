@@ -72,6 +72,14 @@ describe("AURA research workspace", () => {
     expect(screen.getByRole("button", { name: /Start research/i })).toBeDisabled();
   });
 
+  it("explains the Bluesky provider without asking to connect a social account", () => {
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Search source"), { target: { value: "bluesky" } });
+    expect(screen.getByText("Bluesky Public Search")).toBeInTheDocument();
+    expect(screen.getByText("Public posts · no account connection")).toBeInTheDocument();
+    expect(screen.getByText(/Public Bluesky posts only · no private feeds or connected accounts/i)).toBeInTheDocument();
+  });
+
   it("creates a job, renders linked evidence, and applies server-side filters", async () => {
     const source = {
       id: "source-1",

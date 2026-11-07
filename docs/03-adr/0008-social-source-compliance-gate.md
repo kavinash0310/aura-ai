@@ -1,37 +1,35 @@
-# ADR 0008: Gate direct social-source connectors on compliance design
+# ADR 0008: Gate social connectors on provider-specific controls
 
 - Status: Accepted
 - Date: 2026-11-07
+- Scope: X and authenticated/account-based social access
 
 ## Context
 
-The product direction includes public social-media research. AURA currently stores provider result text and metadata in PostgreSQL until a brief is deleted. It has no provider-specific content-removal feed, deletion queue, expiry schedule, or social-content display rules.
+AURA's research goal includes publicly available social material. Social APIs differ in access rules, quotas, display requirements, content-removal behavior, and whether their data may be stored or sent to a model. AURA stores selected search text and metadata with a research brief until the owner deletes it and does not yet have a general provider deletion-event service.
 
-X documents a Recent Search endpoint limited to the past seven days and a full-archive endpoint available on pay-per-use or Enterprise access in its [Search Posts API overview](https://docs.x.com/x-api/posts/search/introduction). Its [Developer Guidelines](https://docs.x.com/developer-guidelines) require deletion of X Content within 24 hours when requested by X or a user, or when content is removed/suspended on X. The guidelines also prohibit scraping, surveillance/user tracking, sensitive-trait derivation, and AI/ML training on X data; they require attribution and restrictions on altering displayed content.
+X's [Search Posts API](https://docs.x.com/x-api/posts/search/introduction) and [Developer Guidelines](https://docs.x.com/developer-guidelines) describe product-specific access and data-handling requirements, including deletion obligations for X Content. The local AURA storage model does not currently provide a provider-specific removal event flow or a tested deletion deadline.
 
 ## Decision
 
-Do not add direct social-platform search or scraping in the current implementation. Keep provider adapters limited to official APIs with an explicit user-selected source. Before adding any direct social connector, design its provider-specific retention, deletion-event handling, content display, attribution, export, credential storage, rate-limit, and cost behavior. Do not use social data for surveillance, sensitive-trait inference, or model training. Keep X content out of AURA's model synthesis until the applicable provider terms are specifically reviewed.
-
-## Reasons
-
-- AURA's indefinite-until-user-deletion research storage cannot currently guarantee X's documented 24-hour content-removal deadlines.
-- AURA lacks a mechanism to detect a post removed after the search result was saved.
-- Official API access and retention obligations differ across social platforms and cannot be assumed from one adapter.
-- This keeps public-interest topic research possible without enabling personal tracking or intrusive profiling.
+- Do not implement X, authenticated account feeds, private feeds, direct messages, or account/profile monitoring in the current milestone.
+- Do not scrape social websites, bypass access controls, or use social data for surveillance, sensitive-trait inference, or model training.
+- Allow a narrowly bounded public post-search adapter only after checking its official API, access model, data fields, query limits, and user-facing scope. The current Bluesky adapter is recorded separately in ADR 0009.
+- Before adding X, design and test its provider-specific attribution, display, retention, removal notifications, deletion deadlines, export behavior, credential storage, rate-limit, and cost controls. Keep X content out of report synthesis until those obligations have been separately reviewed.
 
 ## Consequences
 
-- Current search covers Brave web/news/discussions and GDELT indexed news; neither is presented as direct X access.
-- A direct X connector remains deferred until data lifecycle and account terms can be met and tested.
-- A connector must be explicit and separately selectable; `All configured sources` means only providers that are implemented and enabled.
+- AURA supports explicit, topic-query-driven public Bluesky post search through its unauthenticated public AppView API; it does not connect to a user's Bluesky account or read private feeds.
+- AURA still has no X connector, social profile-search mode, follow-list monitor, private-account access, or background social collection.
+- Saved results are local snapshots until the owner deletes the research brief. AURA does not currently poll for post changes or propagate provider-side removals to saved/exported copies. This limitation must remain visible and should be addressed before adding providers with stricter removal deadlines.
+- `All configured sources` sends the query to Bluesky when the provider is enabled. The UI states this scope; the owner can disable the connector with `AURA_BLUESKY_ENABLED=false`.
 
 ## Conditions to reconsider
 
-Reconsider when an official provider account and token are available, access costs and limits are known, the provider's current terms are reviewed, and AURA implements removal-event ingestion plus a tested deletion process meeting the provider's deadline. Keep a connector disabled when compliance notifications cannot be received or processed.
+Reconsider X only after an official provider account, current terms review, known access costs, and a tested compliance flow are in place. Reconsider profile/account access only if the use case and privacy boundaries are explicitly scoped, and it cannot become bulk tracking or personal profiling.
 
 ## Learning prompts
 
-- Explain why an API token alone is not enough to safely persist third-party social content.
-- Design a deletion event flow that removes post text and exports within the required window.
-- Explain why topic-level public-interest analysis differs from monitoring an individual account.
+- Why does a public API still need provider-specific retention and removal design?
+- How does topic-level public-interest research differ from monitoring a person's account?
+- What information does AURA disclose when the user chooses all configured providers?

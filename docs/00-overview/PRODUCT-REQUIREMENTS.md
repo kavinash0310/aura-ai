@@ -2,7 +2,7 @@
 
 ## Product summary
 
-AURA AI is a personal research and intelligence workspace. It searches configured public web and news sources, with direct social sources added only through permitted official APIs; organizes user-selected documents and evidence; answers questions with traceable citations; and provides a defensive cybersecurity intelligence workflow. Search coverage is always bounded by each provider's index and access rules, not a promise to search every internet page or post.
+AURA AI is a personal research and intelligence workspace. It searches configured public web, news, and Bluesky post sources through official APIs; organizes user-selected documents and evidence; answers questions with traceable citations; and provides a defensive cybersecurity intelligence workflow. Search coverage is always bounded by each provider's index and access rules, not a promise to search every internet page or post.
 
 AURA is not a chatbot that treats generated text as evidence. It separates the user's request, retrieved source evidence, model interpretation, findings, uncertainty, and recommendations.
 
@@ -21,7 +21,7 @@ Initial user: one authorized owner operating the app locally. Future multi-user 
 ### Research intelligence
 
 - Accept a subject and optional date, source, language, region, and keyword filters.
-- Search one configured provider or all enabled public providers available through permitted interfaces. Direct social connectors require a separate official-API and data-lifecycle review.
+- Search one configured provider or all enabled public providers available through permitted interfaces. Current providers include Brave, GDELT, and bounded public Bluesky post search. Any additional social connector requires a separate official-API and data-lifecycle review.
 - Display providers queried, query time, result counts, date range, and coverage limitations.
 - Fetch selected public pages with destination, redirect, size, and time limits.
 - Preserve canonical URL, publisher/author metadata where permitted, published time, retrieval time, and content hash.

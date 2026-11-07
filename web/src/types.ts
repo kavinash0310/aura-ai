@@ -1,6 +1,6 @@
 export type ResearchMode = "GENERAL" | "CYBERSECURITY";
 export type SourceKind = "WEB" | "NEWS" | "DISCUSSION";
-export type SearchProviderChoice = "" | "brave" | "gdelt" | "all";
+export type SearchProviderChoice = "" | "brave" | "gdelt" | "bluesky" | "all";
 
 export interface Credentials {
   username: string;
