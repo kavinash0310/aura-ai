@@ -7,7 +7,6 @@ from pydantic import ValidationError
 from aura_ai_service.config import Settings
 from aura_ai_service.main import create_app
 
-
 TOKEN = "unit-test-internal-token-0123456789"
 SOURCE_ID = "8d81d665-02a0-4a7d-98aa-4f41c2f6cabe"
 
@@ -38,13 +37,15 @@ def test_report_requires_internal_service_token() -> None:
             "/api/v1/research/report",
             json={
                 "query": "passkeys",
-                "sources": [{
-                    "id": SOURCE_ID,
-                    "title": "A",
-                    "url": "https://a.example",
-                    "domain": "a.example",
-                    "kind": "WEB",
-                }],
+                "sources": [
+                    {
+                        "id": SOURCE_ID,
+                        "title": "A",
+                        "url": "https://a.example",
+                        "domain": "a.example",
+                        "kind": "WEB",
+                    }
+                ],
             },
         )
 
@@ -115,13 +116,15 @@ def test_report_rejects_model_citations_outside_selected_source_set(monkeypatch)
             headers={"Authorization": f"Bearer {TOKEN}"},
             json={
                 "query": "passkeys",
-                "sources": [{
-                    "id": SOURCE_ID,
-                    "title": "A",
-                    "url": "https://a.example",
-                    "domain": "a.example",
-                    "kind": "WEB",
-                }],
+                "sources": [
+                    {
+                        "id": SOURCE_ID,
+                        "title": "A",
+                        "url": "https://a.example",
+                        "domain": "a.example",
+                        "kind": "WEB",
+                    }
+                ],
             },
         )
 

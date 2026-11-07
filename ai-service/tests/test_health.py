@@ -32,5 +32,3 @@ def test_health_response_uses_configured_identity() -> None:
 def test_invalid_log_level_is_rejected() -> None:
     with pytest.raises(ValidationError):
         Settings(log_level="TRACE")
-
-
