@@ -28,6 +28,7 @@ M1 stores research requests through the authenticated Spring API and PostgreSQL.
 See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and [MVP backlog](docs/00-overview/MVP-AND-BACKLOG.md).
 
 Bluesky connector details and its current limits are documented in [BLUESKY-SEARCH.md](docs/05-backend/BLUESKY-SEARCH.md).
+Provider outcome persistence and partial-result behavior are explained in [PROVIDER-OUTCOME-AUDIT.md](docs/05-backend/PROVIDER-OUTCOME-AUDIT.md).
 
 ## Local development
 
@@ -38,7 +39,7 @@ Requirements: JDK 21, Docker Desktop with Compose, Git, Maven 3.9+ for local Jav
 3. Start the stack with docker compose up --build.
 4. Open the local research workspace at http://127.0.0.1:3000.
 5. Enter the API username and password from `.env`. Credentials stay in page memory and clear on disconnect or reload.
-6. Search with Automatic, All configured sources, Brave, GDELT, or Bluesky. Automatic uses one configured provider; All configured sources queries Brave when keyed and GDELT and Bluesky when enabled. Providers receive the query only after you start the search. If any selected provider fails in All configured sources mode, the job is marked failed and no source rows are saved. GDELT searches public news from at most the past three months. Bluesky searches bounded public posts; it does not apply country filters.
+6. Search with Automatic, All configured sources, Brave, GDELT, or Bluesky. Automatic uses one configured provider; All configured sources queries Brave when keyed and GDELT and Bluesky when enabled. Providers receive the query only after you start the search. If some providers fail, AURA keeps successful results and labels the job Partial; if all fail, it saves the provider outcomes and reports the error. GDELT searches public news from at most the past three months. Bluesky searches bounded public posts; it does not apply country filters.
 7. Spring health: http://127.0.0.1:8080/api/v1/health; AI-service health: http://127.0.0.1:8001/api/v1/health.
 8. Direct API: create a `GENERAL` research job, explicitly run its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See [API contracts](docs/02-architecture/API-CONTRACTS.md) for request shapes and limits.
 9. In Documents, upload UTF-8 `.txt` or `.md` files up to 1 MB, search for exact phrases, inspect the returned character-offset citation, preview or download the text, and delete it when no longer needed. Files are stored in the local PostgreSQL database; they are not sent to search providers or models.
@@ -56,6 +57,7 @@ All host ports bind to loopback. The Python health endpoint is public and return
 - [Context and decisions](AURA-CONTEXT-AND-DECISIONS.md)
 - [System architecture](docs/02-architecture/SYSTEM-ARCHITECTURE.md)
 - [Bluesky public-post search](docs/05-backend/BLUESKY-SEARCH.md)
+- [Provider outcome audit](docs/05-backend/PROVIDER-OUTCOME-AUDIT.md)
 - [Bounded local report design](docs/05-backend/RESEARCH-REPORT-GENERATION.md)
 - [Multi-provider search design](docs/05-backend/MULTI-PROVIDER-SEARCH.md)
 - [Technology decisions](docs/02-architecture/TECHNOLOGY-DECISIONS.md)

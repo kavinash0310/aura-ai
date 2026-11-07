@@ -103,16 +103,24 @@ describe("AURA research workspace", () => {
         createdAt: "2026-11-07T00:00:00Z", searchProvider: null, searchResultCount: 0,
       }), { status: 201 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        jobId: "job-1", query: "passkeys", status: "COMPLETED", provider: "all",
+        jobId: "job-1", query: "passkeys", status: "PARTIAL", provider: "all",
         country: null, language: null, freshness: null, requestedLimit: 10,
         providerResultCount: 1, searchedAt: "2026-11-07T00:00:00Z", results: [source],
-        coverageNote: "Partial provider coverage.",
+        providerRuns: [
+          { provider: "gdelt", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-07T00:00:00Z", completedAt: "2026-11-07T00:00:01Z" },
+          { provider: "bluesky", status: "FAILED", resultCount: 0, failureCode: "SEARCH_PROVIDER_RATE_LIMITED", startedAt: "2026-11-07T00:00:01Z", completedAt: "2026-11-07T00:00:02Z" },
+        ],
+        coverageNote: "Partial coverage: some providers did not return results.",
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        jobId: "job-1", query: "passkeys", status: "COMPLETED", provider: "all",
+        jobId: "job-1", query: "passkeys", status: "PARTIAL", provider: "all",
         country: null, language: null, freshness: null, requestedLimit: 10,
         providerResultCount: 1, searchedAt: "2026-11-07T00:00:00Z", results: [source],
-        coverageNote: "Partial provider coverage.",
+        providerRuns: [
+          { provider: "gdelt", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-07T00:00:00Z", completedAt: "2026-11-07T00:00:01Z" },
+          { provider: "bluesky", status: "FAILED", resultCount: 0, failureCode: "SEARCH_PROVIDER_RATE_LIMITED", startedAt: "2026-11-07T00:00:01Z", completedAt: "2026-11-07T00:00:02Z" },
+        ],
+        coverageNote: "Partial coverage: some providers did not return results.",
       }), { status: 200 }));
 
     render(<App />);
@@ -128,6 +136,8 @@ describe("AURA research workspace", () => {
     expect(resultLink).toHaveAttribute("href", "https://example.com/passkeys");
     expect(resultLink).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getAllByText("GDELT").length).toBeGreaterThan(0);
+    expect(screen.getByText("Partial results")).toBeInTheDocument();
+    expect(screen.getByText(/Bluesky failed · 0 results · SEARCH_PROVIDER_RATE_LIMITED/)).toBeInTheDocument();
     const searchRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/api/v1/research-jobs/job-1/search"));
     expect(JSON.parse(String(searchRequest?.[1]?.body))).toMatchObject({ provider: "all" });
 
@@ -161,6 +171,7 @@ describe("AURA research workspace", () => {
         jobId: savedJob.id, query: savedJob.subject, status: "COMPLETED", provider: "brave",
         country: null, language: null, freshness: null, requestedLimit: 10,
         providerResultCount: 1, searchedAt: "2026-11-06T00:00:00Z", results: [savedSource],
+        providerRuns: [{ provider: "brave", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-06T00:00:00Z", completedAt: "2026-11-06T00:00:01Z" }],
         coverageNote: "Partial provider coverage.",
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
@@ -335,7 +346,9 @@ describe("AURA research workspace", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({
         jobId: "job-report", query: "passkey adoption", status: "COMPLETED", provider: "brave",
         country: null, language: null, freshness: null, requestedLimit: 10, providerResultCount: 1,
-        searchedAt: "2026-11-07T00:00:00Z", results: [source], coverageNote: "Partial provider coverage.",
+        searchedAt: "2026-11-07T00:00:00Z", results: [source],
+        providerRuns: [{ provider: "brave", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-07T00:00:00Z", completedAt: "2026-11-07T00:00:01Z" }],
+        coverageNote: "Partial provider coverage.",
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         generatedAt: "2026-11-07T00:01:00Z", provider: "ollama", model: "test-model",

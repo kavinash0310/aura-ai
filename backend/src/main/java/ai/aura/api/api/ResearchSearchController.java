@@ -68,7 +68,7 @@ public class ResearchSearchController {
     ) {
         ResearchJob job = jobService.get(id);
         List<ResearchSourceResponse> results = filtered(id, kind, provider, q, host, publishedFrom, publishedTo);
-        return ResearchSearchResponse.from(job, results);
+        return ResearchSearchResponse.from(job, results, jobService.listProviderRuns(id));
     }
 
     @GetMapping("/{id}/export")
@@ -85,7 +85,8 @@ public class ResearchSearchController {
         ResearchJob job = jobService.get(id);
         ResearchSearchResponse response = ResearchSearchResponse.from(
                 job,
-                filtered(id, kind, provider, q, host, publishedFrom, publishedTo)
+                filtered(id, kind, provider, q, host, publishedFrom, publishedTo),
+                jobService.listProviderRuns(id)
         );
 
         String normalizedFormat = format.strip().toLowerCase(Locale.ROOT);
@@ -145,12 +146,16 @@ public class ResearchSearchController {
             LocalDate from,
             LocalDate to
     ) {
-        return ResearchSearchResponse.from(job, filtered(job.getId(), kind, null, q, host, from, to));
+        return ResearchSearchResponse.from(
+                job,
+                filtered(job.getId(), kind, null, q, host, from, to),
+                jobService.listProviderRuns(job.getId())
+        );
     }
 
     private static String csv(ResearchSearchResponse response) {
         StringBuilder out = new StringBuilder();
-        out.append("provider,rank,kind,title,url,domain,publisher,publishedAt,retrievedAt,description\r\n");
+        out.append("provider,rank,kind,title,url,domain,publisher,publishedAt,retrievedAt,description,jobStatus,coverageNote,providerRunStatus,providerRunResultCount,failureCode,recordType\r\n");
         for (ResearchSourceResponse source : response.results()) {
             out.append(cell(source.provider())).append(',')
                     .append(source.rank()).append(',')
@@ -162,6 +167,21 @@ public class ResearchSearchController {
                     .append(cell(source.publishedAt() == null ? "" : source.publishedAt().toString())).append(',')
                     .append(cell(source.retrievedAt().toString())).append(',')
                     .append(cell(source.description()))
+                    .append(',').append(cell(response.status().name()))
+                    .append(',').append(cell(response.coverageNote()))
+                    .append(",,,")
+                    .append(cell("SOURCE"))
+                    .append("\r\n");
+        }
+        for (ProviderRunResponse run : response.providerRuns()) {
+            out.append(cell(run.provider())).append(",,,,,,,,")
+                    .append(cell(run.completedAt() == null ? "" : run.completedAt().toString()))
+                    .append(",,").append(cell(response.status().name()))
+                    .append(',').append(cell(response.coverageNote()))
+                    .append(',').append(cell(run.status().name()))
+                    .append(',').append(run.resultCount())
+                    .append(',').append(cell(run.failureCode()))
+                    .append(',').append(cell("PROVIDER_RUN"))
                     .append("\r\n");
         }
         return out.toString();
@@ -185,6 +205,19 @@ public class ResearchSearchController {
                 .append("Provider: ").append(markdownValue(response.provider())).append("  \n")
                 .append("Searched at: ").append(markdownValue(response.searchedAt() == null ? "" : response.searchedAt().toString())).append("  \n")
                 .append("Coverage: ").append(markdownValue(response.coverageNote())).append("\n\n");
+        if (!response.providerRuns().isEmpty()) {
+            out.append("## Provider outcomes\n\n")
+                    .append("| Provider | Status | Results | Failure code |\n")
+                    .append("|---|---|---:|---|\n");
+            for (ProviderRunResponse run : response.providerRuns()) {
+                out.append("| ").append(markdownValue(run.provider()))
+                        .append(" | ").append(markdownValue(run.status().name()))
+                        .append(" | ").append(run.resultCount())
+                        .append(" | ").append(markdownValue(run.failureCode()))
+                        .append(" |\n");
+            }
+            out.append("\n");
+        }
         for (ResearchSourceResponse source : response.results()) {
             out.append("## ").append(source.rank()).append(". ").append(markdownValue(source.title())).append("\n\n")
                     .append("- Provider: ").append(markdownValue(source.provider())).append("\n")

@@ -31,7 +31,7 @@ Official references: [API Hosts and Auth](https://bsky.network/docs/api-director
 - The query is disclosed to Bluesky when `bluesky` or `all` is selected and the search is started.
 - Country is not an API filter for this provider. Results are bounded, recent-sorted, and subject to the provider's index, moderation, availability, and changing rate limits.
 - AURA stores returned text and metadata locally until the owner deletes the brief. It does not currently sync remote edits/deletions or enforce a Bluesky-specific retention window. The saved snapshot is a limitation; users should open the public link for current content.
-- In all mode, a provider failure fails the overall job and no result rows are stored, even though earlier providers may already have received the query.
+- In all mode, provider outcomes are recorded separately. Successful results remain saved when another provider fails; the overall job is `PARTIAL`. If every provider fails, the overall job is `FAILED`. See [ADR 0007](0007-explicit-multi-provider-search.md).
 - Source text may be inaccurate, misleading, or harmful; it remains untrusted and must not be treated as verified fact. Person-focused research remains limited to public-interest material under the product boundary.
 
 ## Conditions to reconsider

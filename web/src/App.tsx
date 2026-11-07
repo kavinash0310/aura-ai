@@ -196,11 +196,13 @@ export default function App() {
     setResearchReport(null);
     setDraftFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
+    let requestedJobId: string | null = null;
     try {
       const pendingJob = canRetry && job?.subject === subject.trim() && job.mode === mode ? job : null;
       if (!pendingJob) setJob(null);
       setCanRetry(false);
       const currentJob = pendingJob ?? await createResearchJob(credentials, subject.trim(), mode);
+      requestedJobId = currentJob.id;
       setJob(currentJob);
       setJobs((current) => [currentJob, ...current.filter((item) => item.id !== currentJob.id)].slice(0, 25));
       const response = await runResearch(credentials, currentJob.id, {
@@ -217,6 +219,7 @@ export default function App() {
         status: response.status,
         searchProvider: response.provider,
         searchResultCount: response.providerResultCount,
+        providerRuns: response.providerRuns,
       };
       setJob(completedJob);
       setJobs((current) => current.map((item) => item.id === completedJob.id ? completedJob : item));
@@ -225,6 +228,14 @@ export default function App() {
       const apiError = caught instanceof ApiError ? caught : null;
       setCanRetry(apiError?.code === "SEARCH_PROVIDER_NOT_CONFIGURED");
       setError(errorMessage(caught));
+      try {
+        const updatedJobs = await listResearchJobs(credentials);
+        setJobs(updatedJobs);
+        const updatedJob = updatedJobs.find((item) => item.id === requestedJobId);
+        if (updatedJob) setJob(updatedJob);
+      } catch {
+        // Preserve the original search error if refreshing history also fails.
+      }
     } finally {
       setSearching(false);
     }
@@ -243,7 +254,7 @@ export default function App() {
     setAppliedFilters(emptyFilters);
     setCanRetry(item.status === "REQUESTED");
     try {
-      if (item.status === "COMPLETED") {
+      if (item.status === "COMPLETED" || item.status === "PARTIAL") {
         const response = await listSources(credentials, item.id, emptyFilters);
         setSearch(response);
         setSources(response.results);
@@ -839,6 +850,7 @@ export default function App() {
                     <span className="meta-divider" />
                     <span className="meta-item"><i className="status-dot" /> {provider ? providerLabel(provider) : "Provider pending"}</span>
                     <span className="meta-item">Updated {formatDate(search.searchedAt)}</span>
+                    <span className="meta-item">{search.status === "PARTIAL" ? "Partial results" : "Complete"}</span>
                   </div>
                   <form className="filter-bar" onSubmit={applyFilters}>
                     <label className="filter-search"><span aria-hidden="true">⌕</span><input aria-label="Search within results" placeholder="Search results" value={draftFilters.q} onChange={(event) => setDraftFilters({ ...draftFilters, q: event.target.value })} /></label>
@@ -849,6 +861,7 @@ export default function App() {
                     <button className="filter-button" type="submit" disabled={filtering}>{filtering ? "…" : "Apply"}</button>
                   </form>
                   {search.coverageNote && <p className="coverage-note"><span>ⓘ</span> {search.coverageNote}</p>}
+                  {search.providerRuns?.length > 0 && <p className="report-scope-note">Provider outcomes: {search.providerRuns.map((run) => `${providerLabel(run.provider)} ${run.status.toLowerCase()} · ${run.resultCount} results${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>}
                   <p className="report-scope-note">A report uses up to 20 visible results after filtering. Their metadata and snippets go to your configured local model; AURA does not fetch the pages.</p>
                   {researchReport && <section className="research-report" aria-label="Generated cited report">
                     <div className="report-heading">
@@ -880,7 +893,7 @@ export default function App() {
                     <span className="source-rank">{String(source.rank).padStart(2, "0")}</span>
                   </article>)}</div> : <div className="empty-results"><span>⌕</span><strong>No sources match these filters</strong><p>Try clearing a filter or widening the date range.</p></div>}
                 </>}
-                {!search && job && <div className="empty-results welcome-results"><span>{job.status === "FAILED" ? "!" : "◷"}</span><strong>{job.status === "FAILED" ? "This search did not finish" : job.status === "SEARCHING" ? "This search is still running" : "This brief has not been searched yet"}</strong><p>{job.status === "FAILED" ? `The saved failure code is ${job.failureCode ?? "unavailable"}. Start a new brief to try again.` : job.status === "SEARCHING" ? "Reload this brief in a moment to see whether the provider returned." : "If the provider key was just configured, press Start research to retry this saved brief."}</p></div>}
+                {!search && job && <div className="empty-results welcome-results"><span>{job.status === "FAILED" ? "!" : "◷"}</span><strong>{job.status === "FAILED" ? "This search did not finish" : job.status === "SEARCHING" ? "This search is still running" : "This brief has not been searched yet"}</strong><p>{job.status === "FAILED" ? `The saved failure code is ${job.failureCode ?? "unavailable"}. Start a new brief to try again.` : job.status === "SEARCHING" ? "Reload this brief in a moment to see whether the provider returned." : "If the provider key was just configured, press Start research to retry this saved brief."}</p>{job.providerRuns && job.providerRuns.length > 0 && <p>Provider outcomes: {job.providerRuns.map((run) => `${providerLabel(run.provider)} ${run.status.toLowerCase()}${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>}</div>}
                 {!search && !job && <div className="empty-results welcome-results"><span>✳</span><strong>Your sources will appear here</strong><p>Start a research brief to gather public links, filter them, and download your findings.</p></div>}
               </section>
             </div>

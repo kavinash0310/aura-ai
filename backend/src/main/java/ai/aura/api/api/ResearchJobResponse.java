@@ -3,8 +3,10 @@ package ai.aura.api.api;
 import ai.aura.api.domain.ResearchJob;
 import ai.aura.api.domain.ResearchJobStatus;
 import ai.aura.api.domain.ResearchMode;
+import ai.aura.api.domain.ResearchProviderRun;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record ResearchJobResponse(
@@ -21,9 +23,10 @@ public record ResearchJobResponse(
         Instant searchStartedAt,
         Instant searchCompletedAt,
         int searchResultCount,
-        String failureCode
+        String failureCode,
+        List<ProviderRunResponse> providerRuns
 ) {
-    public static ResearchJobResponse from(ResearchJob job) {
+    public static ResearchJobResponse from(ResearchJob job, List<ResearchProviderRun> providerRuns) {
         return new ResearchJobResponse(
                 job.getId(),
                 job.getSubject(),
@@ -38,7 +41,8 @@ public record ResearchJobResponse(
                 job.getSearchStartedAt(),
                 job.getSearchCompletedAt(),
                 job.getSearchResultCount(),
-                job.getFailureCode()
+                job.getFailureCode(),
+                providerRuns.stream().map(ProviderRunResponse::from).toList()
         );
     }
 }

@@ -11,11 +11,21 @@ export interface ResearchJob {
   id: string;
   subject: string;
   mode: ResearchMode;
-  status: "REQUESTED" | "SEARCHING" | "COMPLETED" | "FAILED";
+  status: "REQUESTED" | "SEARCHING" | "COMPLETED" | "PARTIAL" | "FAILED";
   createdAt: string;
   searchProvider: string | null;
   searchResultCount: number;
   failureCode?: string;
+  providerRuns?: ProviderRun[];
+}
+
+export interface ProviderRun {
+  provider: string;
+  status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED";
+  resultCount: number;
+  failureCode: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
 }
 
 export interface ResearchSource {
@@ -67,6 +77,7 @@ export interface SearchResponse {
   providerResultCount: number;
   searchedAt: string | null;
   results: ResearchSource[];
+  providerRuns: ProviderRun[];
   coverageNote: string;
 }
 

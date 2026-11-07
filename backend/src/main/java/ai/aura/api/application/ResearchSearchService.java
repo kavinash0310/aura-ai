@@ -39,21 +39,44 @@ public class ResearchSearchService {
         String selectedProvider = isAllProviders(requestedProvider)
                 ? "all"
                 : selectedProviders.getFirst().name();
-        ResearchJob job = jobs.beginSearch(jobId, filters, selectedProvider);
+        ResearchJob job = jobs.beginSearch(
+                jobId,
+                filters,
+                selectedProvider,
+                selectedProviders.stream().map(SearchProvider::name).toList()
+        );
         List<ProviderSearchResult> results = new ArrayList<>();
-        try {
-            for (SearchProvider provider : selectedProviders) {
+        SearchProviderException firstFailure = null;
+        for (SearchProvider provider : selectedProviders) {
+            jobs.startProviderRun(jobId, provider.name());
+            try {
                 List<ProviderSource> providerResults = provider.search(job.getSubject(), filters);
                 results.add(new ProviderSearchResult(provider.name(), providerResults));
+                jobs.completeProviderRun(jobId, provider.name(), providerResults.size());
+            } catch (SearchProviderException exception) {
+                jobs.failProviderRun(jobId, provider.name(), exception.getCode());
+                if (firstFailure == null) {
+                    firstFailure = exception;
+                }
+            } catch (RuntimeException exception) {
+                SearchProviderException failure = new SearchProviderException("SEARCH_PROVIDER_FAILURE", false);
+                jobs.failProviderRun(jobId, provider.name(), failure.getCode());
+                if (firstFailure == null) {
+                    firstFailure = failure;
+                }
             }
-        } catch (SearchProviderException exception) {
-            jobs.failSearch(jobId, exception.getCode());
-            throw exception;
-        } catch (RuntimeException exception) {
-            jobs.failSearch(jobId, "SEARCH_PROVIDER_FAILURE");
-            throw new SearchProviderException("SEARCH_PROVIDER_FAILURE", false);
         }
-        return jobs.completeSearch(jobId, results);
+        ResearchJob completed = jobs.completeSearch(
+                jobId,
+                results,
+                firstFailure == null ? null : firstFailure.getCode()
+        );
+        if (completed.getStatus() == ai.aura.api.domain.ResearchJobStatus.FAILED) {
+            throw firstFailure == null
+                    ? new SearchProviderException("SEARCH_PROVIDER_FAILURE", false)
+                    : firstFailure;
+        }
+        return completed;
     }
 
     private List<SearchProvider> resolveProviders(String requestedProvider) {

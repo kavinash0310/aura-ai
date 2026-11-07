@@ -2,6 +2,7 @@ package ai.aura.api.api;
 
 import ai.aura.api.domain.ResearchJob;
 import ai.aura.api.domain.ResearchJobStatus;
+import ai.aura.api.domain.ResearchProviderRun;
 
 import java.time.Instant;
 import java.util.List;
@@ -19,9 +20,17 @@ public record ResearchSearchResponse(
         int providerResultCount,
         Instant searchedAt,
         List<ResearchSourceResponse> results,
+        List<ProviderRunResponse> providerRuns,
         String coverageNote
 ) {
-    public static ResearchSearchResponse from(ResearchJob job, List<ResearchSourceResponse> results) {
+    public static ResearchSearchResponse from(
+            ResearchJob job,
+            List<ResearchSourceResponse> results,
+            List<ResearchProviderRun> providerRuns
+    ) {
+        List<ProviderRunResponse> runResponses = providerRuns.stream()
+                .map(ProviderRunResponse::from)
+                .toList();
         return new ResearchSearchResponse(
                 job.getId(),
                 job.getSubject(),
@@ -34,13 +43,27 @@ public record ResearchSearchResponse(
                 job.getSearchResultCount(),
                 job.getSearchCompletedAt(),
                 List.copyOf(results),
-                coverageNote(job.getSearchProvider())
+                runResponses,
+                coverageNote(job.getSearchProvider(), job.getStatus(), runResponses)
         );
     }
 
-    private static String coverageNote(String provider) {
+    private static String coverageNote(
+            String provider,
+            ResearchJobStatus status,
+            List<ProviderRunResponse> providerRuns
+    ) {
+        if (status == ResearchJobStatus.PARTIAL) {
+            String failedProviders = providerRuns.stream()
+                    .filter(run -> run.status() == ai.aura.api.domain.ResearchProviderRunStatus.FAILED)
+                    .map(ProviderRunResponse::provider)
+                    .collect(java.util.stream.Collectors.joining(", "));
+            return "Partial coverage: successful providers' results are saved; " + failedProviders
+                    + " did not return results. Provider outcome and failure codes are listed below. "
+                    + "Coverage remains partial, not a crawl of the internet.";
+        }
         if ("all".equals(provider)) {
-            return "AURA queried every currently configured public search provider. Sources show which provider returned each result; duplicate links may appear under more than one provider. Coverage remains partial, and any provider failure marks the full search as failed. GDELT covers indexed news from at most the past three months. Bluesky covers bounded public-post search and does not apply country filters; it does not connect to an account or private feed.";
+            return "AURA queried every currently configured public search provider. Sources show which provider returned each result; duplicate links may appear under more than one provider. Provider outcomes are listed below. Coverage remains partial, not a crawl of the internet. GDELT covers indexed news from at most the past three months. Bluesky covers bounded public-post search and does not apply country filters; it does not connect to an account or private feed.";
         }
         if ("gdelt".equals(provider)) {
             return "GDELT indexes a subset of public global news and searches at most the past three months. It does not search social posts or the entire internet.";

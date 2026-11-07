@@ -140,6 +140,9 @@ class ResearchSearchApiTest {
                 .andExpect(jsonPath("$.provider").value("all"))
                 .andExpect(jsonPath("$.providerResultCount").value(4))
                 .andExpect(jsonPath("$.results.length()").value(4))
+                .andExpect(jsonPath("$.providerRuns.length()").value(2))
+                .andExpect(jsonPath("$.providerRuns[0].provider").value("test"))
+                .andExpect(jsonPath("$.providerRuns[0].status").value("SUCCEEDED"))
                 .andExpect(jsonPath("$.coverageNote").value(org.hamcrest.Matchers.containsString("every currently configured public search provider")));
 
         org.assertj.core.api.Assertions.assertThat(sources.findByResearchJobIdOrderByRankAsc(id))
@@ -163,8 +166,40 @@ class ResearchSearchApiTest {
     }
 
     @Test
-    void allModeSavesNoPartialResultsWhenAProviderFails() throws Exception {
+    void allModeKeepsSuccessfulResultsAndAuditsTheFailedProvider() throws Exception {
         UUID id = createJob("multi-source-fails");
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"provider\":\"all\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PARTIAL"))
+                .andExpect(jsonPath("$.providerResultCount").value(3))
+                .andExpect(jsonPath("$.providerRuns.length()").value(2))
+                .andExpect(jsonPath("$.providerRuns[0].provider").value("test"))
+                .andExpect(jsonPath("$.providerRuns[0].status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.providerRuns[1].provider").value("secondary"))
+                .andExpect(jsonPath("$.providerRuns[1].status").value("FAILED"))
+                .andExpect(jsonPath("$.providerRuns[1].failureCode").value("SEARCH_PROVIDER_RATE_LIMITED"))
+                .andExpect(jsonPath("$.coverageNote").value(org.hamcrest.Matchers.containsString("Partial coverage")));
+
+        mockMvc.perform(get("/api/v1/research-jobs/" + id).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PARTIAL"))
+                .andExpect(jsonPath("$.failureCode").value("SEARCH_PROVIDER_RATE_LIMITED"));
+        org.assertj.core.api.Assertions.assertThat(sources.countByResearchJobId(id)).isEqualTo(3);
+
+        mockMvc.perform(get("/api/v1/research-jobs/" + id + "/sources")
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.results.length()").value(3))
+                .andExpect(jsonPath("$.providerRuns[1].status").value("FAILED"));
+    }
+
+    @Test
+    void allModeRetainsAllFailedProviderOutcomesWhenNoProviderSucceeds() throws Exception {
+        UUID id = createJob("all-providers-fail");
 
         mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
                         .with(httpBasic(USERNAME, PASSWORD))
@@ -176,7 +211,9 @@ class ResearchSearchApiTest {
         mockMvc.perform(get("/api/v1/research-jobs/" + id).with(httpBasic(USERNAME, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FAILED"))
-                .andExpect(jsonPath("$.failureCode").value("SEARCH_PROVIDER_RATE_LIMITED"));
+                .andExpect(jsonPath("$.providerRuns.length()").value(2))
+                .andExpect(jsonPath("$.providerRuns[0].status").value("FAILED"))
+                .andExpect(jsonPath("$.providerRuns[1].status").value("FAILED"));
         org.assertj.core.api.Assertions.assertThat(sources.countByResearchJobId(id)).isZero();
     }
 
@@ -193,6 +230,8 @@ class ResearchSearchApiTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("text/csv")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("provider,rank,kind")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("\"test\",1,\"WEB\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("PROVIDER_RUN")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("SUCCEEDED")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("'=SUM(1,1)")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(",\"\",\"\",\"")));
     }
@@ -207,6 +246,7 @@ class ResearchSearchApiTest {
                         .param("format", "md"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("text/markdown")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("## Provider outcomes")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("&lt;img src=x onerror=alert(1)&gt;")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("<img"))));
     }
@@ -290,7 +330,9 @@ class ResearchSearchApiTest {
         mockMvc.perform(get("/api/v1/research-jobs/" + id).with(httpBasic(USERNAME, PASSWORD)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("FAILED"))
-                .andExpect(jsonPath("$.failureCode").value("SEARCH_PROVIDER_RATE_LIMITED"));
+                .andExpect(jsonPath("$.failureCode").value("SEARCH_PROVIDER_RATE_LIMITED"))
+                .andExpect(jsonPath("$.providerRuns[0].provider").value("test"))
+                .andExpect(jsonPath("$.providerRuns[0].status").value("FAILED"));
     }
 
     @Test
@@ -339,7 +381,7 @@ class ResearchSearchApiTest {
 
                 @Override
                 public List<ProviderSource> search(String query, ResearchFilters filters) {
-                    if (query.equals("provider-fails")) {
+                    if (query.equals("provider-fails") || query.equals("all-providers-fail")) {
                         throw new SearchProviderException("SEARCH_PROVIDER_RATE_LIMITED", true);
                     }
                     return List.of(
@@ -390,7 +432,7 @@ class ResearchSearchApiTest {
 
                 @Override
                 public List<ProviderSource> search(String query, ResearchFilters filters) {
-                    if (query.equals("multi-source-fails")) {
+                    if (query.equals("multi-source-fails") || query.equals("all-providers-fail")) {
                         throw new SearchProviderException("SEARCH_PROVIDER_RATE_LIMITED", true);
                     }
                     return List.of(new ProviderSource(

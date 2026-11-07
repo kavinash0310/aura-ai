@@ -30,7 +30,8 @@ public class ResearchReportService {
 
     public ResearchReportResponse generate(UUID jobId, List<UUID> sourceIds) {
         ResearchJob job = jobs.get(jobId);
-        if (job.getStatus() != ResearchJobStatus.COMPLETED) {
+        if (job.getStatus() != ResearchJobStatus.COMPLETED
+                && job.getStatus() != ResearchJobStatus.PARTIAL) {
             throw new ResearchJobConflictException();
         }
         if (sourceIds == null || sourceIds.isEmpty() || sourceIds.size() > 20
@@ -61,7 +62,32 @@ public class ResearchReportService {
                         source.getPublishedAt()
                 ))
                 .toList();
-        return aiReportClient.generate(new AiResearchReportRequest(job.getSubject(), reportSources));
+        ResearchReportResponse generated = aiReportClient.generate(
+                new AiResearchReportRequest(job.getSubject(), reportSources)
+        );
+        if (job.getStatus() != ResearchJobStatus.PARTIAL) {
+            return generated;
+        }
+
+        String failedProviders = jobs.listProviderRuns(jobId).stream()
+                .filter(run -> run.getStatus() == ai.aura.api.domain.ResearchProviderRunStatus.FAILED)
+                .map(run -> run.getProvider() + " (" + run.getFailureCode() + ")")
+                .collect(java.util.stream.Collectors.joining(", "));
+        String coverageNote = "Partial search: " + failedProviders
+                + " did not return results. This report summarizes only the selected saved sources and may omit evidence from failed providers. "
+                + generated.coverageNote();
+        return new ResearchReportResponse(
+                generated.generatedAt(),
+                generated.provider(),
+                generated.model(),
+                generated.title(),
+                generated.summary(),
+                generated.summarySourceIds(),
+                generated.findings(),
+                generated.limitations(),
+                generated.citations(),
+                coverageNote
+        );
     }
 
     private static String truncate(String value, int maxLength) {

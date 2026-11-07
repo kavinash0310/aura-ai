@@ -100,6 +100,13 @@ public class ResearchJob {
         this.failureCode = null;
     }
 
+    public void completePartialSearch(int resultCount, String code, Instant completedAt) {
+        this.status = ResearchJobStatus.PARTIAL;
+        this.searchResultCount = resultCount;
+        this.searchCompletedAt = completedAt;
+        this.failureCode = code;
+    }
+
     public void failSearch(String code, Instant completedAt) {
         this.status = ResearchJobStatus.FAILED;
         this.searchCompletedAt = completedAt;

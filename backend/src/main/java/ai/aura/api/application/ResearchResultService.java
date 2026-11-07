@@ -34,7 +34,8 @@ public class ResearchResultService {
             LocalDate publishedTo
     ) {
         ResearchJob job = jobs.get(jobId);
-        if (job.getStatus() != ResearchJobStatus.COMPLETED) {
+        if (job.getStatus() != ResearchJobStatus.COMPLETED
+                && job.getStatus() != ResearchJobStatus.PARTIAL) {
             throw new ResearchJobConflictException();
         }
 
