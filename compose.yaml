@@ -1,0 +1,56 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: ${AURA_DB_NAME:?Set AURA_DB_NAME in .env}
+      POSTGRES_USER: ${AURA_DB_USER:?Set AURA_DB_USER in .env}
+      POSTGRES_PASSWORD: ${AURA_DB_PASSWORD:?Set AURA_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - aura-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      AURA_SERVER_ADDRESS: 0.0.0.0
+      AURA_DB_URL: jdbc:postgresql://db:5432/${AURA_DB_NAME:?Set AURA_DB_NAME in .env}
+      AURA_DB_USER: ${AURA_DB_USER:?Set AURA_DB_USER in .env}
+      AURA_DB_PASSWORD: ${AURA_DB_PASSWORD:?Set AURA_DB_PASSWORD in .env}
+      AURA_AUTH_USERNAME: ${AURA_AUTH_USERNAME:?Set AURA_AUTH_USERNAME in .env}
+      AURA_AUTH_PASSWORD: ${AURA_AUTH_PASSWORD:?Set AURA_AUTH_PASSWORD in .env}
+      AURA_BRAVE_API_KEY: ${AURA_BRAVE_API_KEY:-}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ai:
+    build:
+      context: ./ai-service
+    environment:
+      AURA_AI_LOG_LEVEL: ${AURA_AI_LOG_LEVEL:-INFO}
+    ports:
+      - "127.0.0.1:8001:8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+    ports:
+      - "127.0.0.1:3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  aura-postgres-data:
