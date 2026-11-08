@@ -36,3 +36,10 @@ SET search_query = (
 
 ALTER TABLE research_sources
     ALTER COLUMN search_query SET NOT NULL;
+
+ALTER TABLE research_sources
+    DROP CONSTRAINT uq_research_sources_job_provider_url;
+
+ALTER TABLE research_sources
+    ADD CONSTRAINT uq_research_sources_job_provider_url_query
+    UNIQUE (research_job_id, provider, url, search_query);

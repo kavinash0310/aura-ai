@@ -283,7 +283,7 @@ class ResearchSearchApiTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition", "attachment; filename=\"aura-research-" + id + ".csv\""))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("text/csv")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("provider,rank,kind")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("provider,searchQuery,rank,kind")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("\"test\",1,\"WEB\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("PROVIDER_RUN")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("SUCCEEDED")))

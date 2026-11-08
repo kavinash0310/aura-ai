@@ -16,7 +16,7 @@ The plan applies the same country, language, freshness, and result limit to each
 
 V8 adds `query_order` and `query_text` to `research_provider_runs`. A run is unique per job, provider, and query order; `run_order` still records the overall sequential execution order. `research_sources.search_query` records the query used for each source. V8 backfills the old job topic for existing run and source rows before requiring query text.
 
-Search responses, saved-job detail, filtered source responses, JSON/CSV/Markdown exports, and the result cards expose this query provenance. Query text and provider outcomes remain in the saved brief until the owner deletes that brief. The exact query is sent to each selected third-party public search provider; use only query terms appropriate to share with that provider.
+Search responses, saved-job detail, filtered source responses, JSON/CSV/Markdown exports, and the result cards expose this query provenance. The source uniqueness key includes query text, so one public link may appear once for each distinct query/provider origin. Query text and provider outcomes remain in the saved brief until the owner deletes that brief. The exact query is sent to each selected third-party public search provider; use only query terms appropriate to share with that provider.
 
 Each successful provider/query batch and its `SUCCEEDED` audit row commit together. Failed attempts keep a stable error code. Interruption recovery marks an active run failed and runs not yet called skipped; it does not retry. A job is `PARTIAL` if any run succeeds and another fails or is skipped.
 
