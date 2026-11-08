@@ -13,6 +13,7 @@ import type {
   SearchProviderChoice,
   ResearchSource,
   ResearchReportResponse,
+  ResearchQueryPlanResponse,
   ClaimComparisonResponse,
   ResultFilters,
   SearchResponse,
@@ -220,6 +221,16 @@ export function generateResearchReport(
   return request<ResearchReportResponse>(`${jobPath(id)}/report`, credentials, {
     method: "POST",
     body: JSON.stringify({ sourceIds }),
+  });
+}
+
+export function suggestResearchQueries(
+  credentials: Credentials,
+  topic: string,
+): Promise<ResearchQueryPlanResponse> {
+  return request<ResearchQueryPlanResponse>("/api/v1/research/query-plan", credentials, {
+    method: "POST",
+    body: JSON.stringify({ topic }),
   });
 }
 

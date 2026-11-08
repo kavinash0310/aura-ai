@@ -10,7 +10,7 @@ Public liveness response: `{ "status": "UP", "service": "aura-api" }`.
 
 ### GET `/api/v1/health` (Python AI service, port 8001 on loopback)
 
-Public response: `{ "status": "UP", "service": "aura-ai-service", "version": "0.1.0" }`. OpenAPI and interactive docs are disabled. The service has no database or research-provider route. Its report route is separate, requires the internal bearer token, and is disabled unless local Ollama is explicitly configured.
+Public response: `{ "status": "UP", "service": "aura-ai-service", "version": "0.1.0" }`. OpenAPI and interactive docs are disabled. The service has no database or public-search route. Its report, claim-comparison, and query-plan routes require the internal bearer token and are disabled unless local Ollama is explicitly configured.
 
 ### GET `/api/v1/session`
 
@@ -65,6 +65,10 @@ Requires the local owner Basic Auth account and a `COMPLETED` or `PARTIAL` job. 
 
 The response includes a title, summary, findings, model-generated limitations, the Ollama model name, generated time, prompt version, optional generation duration/token counts, cited source IDs, and source links. The Python service rejects citations that are not among the supplied sources, but this verifies ID membership only; it does not prove that a source supports a claim. A fixed coverage note says that reports use provider snippets only; even if a page was explicitly read elsewhere in the UI, its text is not included or independently verified by the report. After filtering, the UI checks the first 20 visible sources by default and lets the owner change the checked set before generation. Reports are not persisted by AURA. The owner may download Markdown or an explicit JSON snapshot containing the query/job metadata, the candidate-source metadata supplied to the model, and the structured response. It excludes explicitly read page text; it preserves the evidence snapshot but does not guarantee identical regeneration.
 
+### POST `/api/v1/research/query-plan`
+
+Requires local-owner Basic Auth. Request: `{ "topic": "Example public topic" }`; topic is required and at most 300 characters. Spring sends the topic to the internal Python service using the shared bearer token. If local Ollama is enabled, it returns at most two distinct suggestions and model-run metadata. It makes no public search request and does not create or persist a job. The UI displays drafts with an explicit **Add** action; the owner can edit them and must still click **Start research** before selected public providers receive any query. If local AI is disabled or unavailable, the request returns `503 AI_SERVICE_UNAVAILABLE`; manual query entry remains available.
+
 The Java-to-Python call uses `AURA_AI_INTERNAL_TOKEN`, which must be a separate random secret. Python accepts only Ollama at `localhost`, `host.docker.internal`, `ollama`, or a private IP on port 11434. `AURA_AI_MODEL_PROVIDER` defaults to `disabled`. Local model configuration is described in the local development guide.
 
 ### POST `/api/v1/research-jobs/{id}/compare`
@@ -73,7 +77,7 @@ Requires the local owner Basic Auth account and a `COMPLETED` or `PARTIAL` job. 
 
 The local model returns an assessment (`SUPPORTED`, `CHALLENGED`, `MIXED`, or `INSUFFICIENT`), a short explanation, and up to eight evidence items labeled `SUPPORTS`, `CHALLENGES`, `CONTEXT`, or `UNCLEAR`. The model may only cite supplied IDs. Python checks the structure, stance consistency, and citation membership; Spring independently checks job/source ownership. The result is explicitly an AI assessment of selected snippets, not a fact-check or proof. Missing snippets are not evidence that a statement is false. The model receives no page snapshots, private documents, connected-account data, or outside search results. The result is not persisted; Markdown and JSON are available as explicit local downloads. See the [claim comparison design](../05-backend/CLAIM-COMPARISON.md).
 
-Both model-backed endpoints return prompt version and optional Ollama duration/token counters. The AI service logs the same operational metadata without logging user input or generated content. See the [local report model-run metadata](../05-backend/RESEARCH-REPORT-GENERATION.md).
+All model-backed endpoints return prompt version and optional Ollama duration/token counters. The AI service logs the same operational metadata without logging user input or generated content. See the [local report model-run metadata](../05-backend/RESEARCH-REPORT-GENERATION.md).
 
 ### GET `/api/v1/research-jobs/{id}/sources`
 

@@ -22,6 +22,7 @@ import {
   listSources,
   searchDocuments,
   runResearch,
+  suggestResearchQueries,
   uploadDocument,
   validateConnection,
 } from "./api";
@@ -218,6 +219,7 @@ function GitHubAdvisoryDetails({ data }: { data: GitHubAdvisoryLookupResponse })
 export default function App() {
   const workspaceSession = useRef(0);
   const pageHistoryRequest = useRef(0);
+  const queryPlanGeneration = useRef(0);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [connected, setConnected] = useState(false);
@@ -225,6 +227,8 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [subject, setSubject] = useState("");
   const [additionalQueries, setAdditionalQueries] = useState<string[]>([]);
+  const [suggestedQueries, setSuggestedQueries] = useState<string[]>([]);
+  const [queryPlanBusy, setQueryPlanBusy] = useState(false);
   const [mode, setMode] = useState<ResearchMode>("GENERAL");
   const [searchProvider, setSearchProvider] = useState<SearchProviderChoice>("");
   const [country, setCountry] = useState("");
@@ -320,6 +324,9 @@ export default function App() {
   async function startSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!connected || !subject.trim()) return;
+    queryPlanGeneration.current += 1;
+    setQueryPlanBusy(false);
+    setSuggestedQueries([]);
     setSearching(true);
     setError("");
     setSearch(null);
@@ -377,12 +384,44 @@ export default function App() {
     }
   }
 
+  async function suggestSearchAngles() {
+    if (!connected || !subject.trim() || queryPlanBusy) return;
+    const generation = ++queryPlanGeneration.current;
+    const requestedTopic = subject.trim();
+    setQueryPlanBusy(true);
+    setError("");
+    try {
+      const plan = await suggestResearchQueries(credentials, requestedTopic);
+      if (generation !== queryPlanGeneration.current) return;
+      setSuggestedQueries(plan.suggestions);
+      if (plan.suggestions.length === 0) setError("The local model did not return a useful search angle. You can enter one yourself.");
+    } catch (caught) {
+      if (generation === queryPlanGeneration.current) setError(errorMessage(caught));
+    } finally {
+      if (generation === queryPlanGeneration.current) setQueryPlanBusy(false);
+    }
+  }
+
+  function addSuggestedQuery(query: string) {
+    if (additionalQueries.length >= 2) return;
+    const normalized = query.trim().toLowerCase();
+    if (plannedQueries.some((planned) => planned.toLowerCase() === normalized)) {
+      setSuggestedQueries((current) => current.filter((item) => item !== query));
+      return;
+    }
+    setAdditionalQueries((current) => current.length < 2 ? [...current, query] : current);
+    setSuggestedQueries((current) => current.filter((item) => item !== query));
+  }
+
   async function openHistoryItem(item: ResearchJob) {
+    queryPlanGeneration.current += 1;
+    setQueryPlanBusy(false);
     setOpeningJobId(item.id);
     setError("");
     setJob(item);
     setSubject(item.subject);
     setAdditionalQueries([]);
+    setSuggestedQueries([]);
     setMode(item.mode);
     setSearch(null);
     setSources([]);
@@ -1223,12 +1262,24 @@ export default function App() {
                   <label className="field-label" htmlFor="research-subject">Research question or topic</label>
                   <div className="query-box">
                     <span className="query-icon" aria-hidden="true">⌕</span>
-                    <input id="research-subject" maxLength={300} value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="e.g. recent developments in passkey adoption" required />
+                    <input id="research-subject" maxLength={300} value={subject} onChange={(event) => {
+                      queryPlanGeneration.current += 1;
+                      setQueryPlanBusy(false);
+                      setSuggestedQueries([]);
+                      setSubject(event.target.value);
+                    }} placeholder="e.g. recent developments in passkey adoption" required />
                     <span className="character-count">{subject.length}/300</span>
                   </div>
 
                   <div className="query-planner">
                     <div className="query-planner-heading"><div><strong>Search angles</strong><span>Add up to two focused versions of the topic.</span></div><span>{plannedQueries.length}/3 queries</span></div>
+                    <button className="add-query-button" type="button" onClick={() => void suggestSearchAngles()} disabled={!connected || !subject.trim() || queryPlanBusy}>
+                      {queryPlanBusy ? "Asking local model…" : "Suggest with local AI"}
+                    </button>
+                    <p className="query-plan-disclosure">Uses only the configured local Ollama model. Suggestions are drafts; review or edit them before Start research. This step does not contact search providers.</p>
+                    {suggestedQueries.length > 0 && <ul className="suggested-query-list" aria-label="Suggested search angles">
+                      {suggestedQueries.map((query) => <li key={query}><span>{query}</span><button type="button" aria-label={`Add suggestion: ${query}`} disabled={additionalQueries.length >= 2} onClick={() => addSuggestedQuery(query)}>Add</button></li>)}
+                    </ul>}
                     {additionalQueries.map((query, index) => <div className="planned-query-input" key={index}>
                       <label className="sr-only" htmlFor={`planned-query-${index}`}>Additional search query {index + 1}</label>
                       <input id={`planned-query-${index}`} maxLength={300} value={query} onChange={(event) => setAdditionalQueries((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder="e.g. official response, timeline, analysis" />

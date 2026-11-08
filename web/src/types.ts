@@ -131,6 +131,15 @@ export interface ModelRunTelemetry {
   outputTokenCount: number | null;
 }
 
+export interface ResearchQueryPlanResponse {
+  generatedAt: string;
+  provider: "ollama";
+  model: string;
+  suggestions: string[];
+  modelRun: ModelRunTelemetry;
+  note: string;
+}
+
 export interface ResearchReportResponse {
   generatedAt: string;
   provider: "ollama";

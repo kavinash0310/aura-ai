@@ -36,7 +36,7 @@ Why: Java matches the owner's backend strengths; Python concentrates AI librarie
 
 ## Current container and search flow
 
-Spring, Python, and PostgreSQL services are implemented. The Spring API calls fixed research/vulnerability providers and, only for an explicit report request, makes an internal authenticated call to Python. Python calls only an explicitly configured local Ollama endpoint. The AI service has no database or research-provider access.
+Spring, Python, and PostgreSQL services are implemented. The Spring API calls fixed research/vulnerability providers and makes internal authenticated calls to Python only after explicit report, claim-comparison, or query-plan actions. Python calls only an explicitly configured local Ollama endpoint. The AI service has no database or public search-provider access.
 
 ~~~mermaid
 flowchart TB
@@ -50,7 +50,8 @@ flowchart TB
   Page -->|static HTML text only| Spring
   Spring -->|exact CVE IDs only after lookup| CISA[CISA KEV data mirror]
   Spring -->|small exact-ID lookup| FIRST[FIRST EPSS API]
-  Spring -->|selected source metadata only, on explicit report| Python[FastAPI AI service]
+  Spring -->|selected source metadata on explicit report/compare| Python[FastAPI AI service]
+  Spring -->|topic only on explicit query-plan request| Python
   Python -->|local endpoint, when enabled| Ollama[Local Ollama model]
   Owner -->|loopback health only| Python
 ~~~
@@ -158,4 +159,4 @@ Future flow only. Parsing, chunking, indexing, retrieval, and synthesis remain s
 
 ## Deployment target
 
-Docker Compose runs PostgreSQL, the Spring API, the AI service, and the Nginx-served React UI, with host ports bound to loopback. Brave's API key is optional and must be supplied by the owner; GDELT public news search is enabled by default and may be disabled. Only an explicit search call sends a query to the selected provider(s). The Python report route requires the internal service token and has no configured model by default; if enabled, it calls only the local/private Ollama address validated by settings. Remote access requires separate auth, TLS, retention, and abuse review.
+Docker Compose runs PostgreSQL, the Spring API, the AI service, and the Nginx-served React UI, with host ports bound to loopback. Brave's API key is optional and must be supplied by the owner; GDELT public news search is enabled by default and may be disabled. Only an explicit search call sends a query to the selected provider(s). Python report, claim-comparison, and query-plan routes require the internal service token and have no configured model by default; if enabled, they call only the local/private Ollama address validated by settings. Query planning sends only the topic to the model and returns suggestions that the owner must review before any separate search action. Remote access requires separate auth, TLS, retention, and abuse review.

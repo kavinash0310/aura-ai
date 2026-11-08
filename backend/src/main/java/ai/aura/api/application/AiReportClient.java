@@ -1,7 +1,8 @@
 package ai.aura.api.application;
 
-import ai.aura.api.api.ResearchReportResponse;
 import ai.aura.api.api.ResearchClaimComparisonResponse;
+import ai.aura.api.api.ResearchQueryPlanResponse;
+import ai.aura.api.api.ResearchReportResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -45,6 +46,26 @@ public class AiReportClient {
                     .body(request)
                     .retrieve()
                     .body(ResearchReportResponse.class);
+            if (response == null) {
+                throw new AiServiceUnavailableException();
+            }
+            return response;
+        } catch (RestClientException exception) {
+            throw new AiServiceUnavailableException();
+        }
+    }
+
+    public ResearchQueryPlanResponse suggestQueries(AiResearchQueryPlanRequest request) {
+        if (internalToken.isBlank()) {
+            throw new AiServiceUnavailableException();
+        }
+        try {
+            ResearchQueryPlanResponse response = client.post()
+                    .uri("/api/v1/research/query-plan")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + internalToken)
+                    .body(request)
+                    .retrieve()
+                    .body(ResearchQueryPlanResponse.class);
             if (response == null) {
                 throw new AiServiceUnavailableException();
             }

@@ -1,8 +1,10 @@
 package ai.aura.api;
 
 import ai.aura.api.application.AiReportClient;
+import ai.aura.api.application.AiResearchQueryPlanRequest;
 import ai.aura.api.application.AiResearchReportRequest;
 import ai.aura.api.api.ResearchReportResponse;
+import ai.aura.api.api.ResearchQueryPlanResponse;
 import ai.aura.api.domain.ResearchFilters;
 import ai.aura.api.domain.ResearchJobStatus;
 import ai.aura.api.domain.ResearchProviderRunStatus;
@@ -352,6 +354,44 @@ class ResearchSearchApiTest {
         org.assertj.core.api.Assertions.assertThat(request.getValue().sources())
                 .extracting(AiResearchReportRequest.Source::id)
                 .containsExactly(selectedSource.getId().toString());
+    }
+
+    @Test
+    void queryPlanRequiresAuthenticationAndReturnsLocalDraftSuggestions() throws Exception {
+        var response = new ResearchQueryPlanResponse(
+                Instant.parse("2026-11-08T12:00:00Z"),
+                "ollama",
+                "test-model",
+                List.of("official public response", "independent timeline"),
+                new ResearchQueryPlanResponse.ModelRun("research-query-plan-v1", 120L, 10L, 8L),
+                "Draft only; no search providers contacted."
+        );
+        when(aiReportClient.suggestQueries(any())).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/research/query-plan")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"topic\":\"public policy\"}"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/v1/research/query-plan")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"topic\":\"   \"}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/research/query-plan")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"topic\":\"public policy\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.suggestions.length()").value(2))
+                .andExpect(jsonPath("$.suggestions[0]").value("official public response"))
+                .andExpect(jsonPath("$.modelRun.promptVersion").value("research-query-plan-v1"));
+
+        ArgumentCaptor<AiResearchQueryPlanRequest> request =
+                ArgumentCaptor.forClass(AiResearchQueryPlanRequest.class);
+        verify(aiReportClient).suggestQueries(request.capture());
+        org.assertj.core.api.Assertions.assertThat(request.getValue().topic()).isEqualTo("public policy");
     }
 
     @Test

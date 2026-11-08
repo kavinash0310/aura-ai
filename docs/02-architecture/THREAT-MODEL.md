@@ -14,6 +14,7 @@ Research queries and reports; selected documents and source excerpts; account to
 6. Owner-selected documents to document library: text can contain private information or misleading instructions; only authenticated uploads are accepted and the content is not sent to external providers or models. PDF parsing is bounded by upload size, page count, extracted-text size, and serialized parser access.
 7. Future local agent to assets: only exact scoped jobs from authenticated server are accepted.
 8. API to a selected public source page: only an authenticated request for a source already saved in the requested brief can trigger one page read. The source page is untrusted public input; its response text is returned to the browser but is not persisted or included in model reports.
+9. UI to the local query planner: an authenticated owner may explicitly send one topic to the configured local Ollama endpoint to draft up to two public search angles. Suggestions are not sent to public search providers unless the owner adds/reviews them and separately starts a search.
 
 ## Threats and controls
 
@@ -39,6 +40,7 @@ Research queries and reports; selected documents and source excerpts; account to
 | Model misinformation | Unsupported claim sounds confident | The report displays citations and fixed coverage limits; ID membership is checked, but semantic support is not yet evaluated; owner reviews report before use |
 | AI service impersonation | A local process calls the Python report endpoint | Separate Java-to-Python bearer token; constant-time token comparison; disabled provider fails closed |
 | Model egress | Private text is sent to a remote model by configuration | Only loopback/private Ollama endpoints are accepted; no hosted fallback; report sends public provider snippets only, and excludes uploaded library documents |
+| Unreviewed model-generated query | A model suggestion is sent to a public provider without the owner's review | Query planning calls local Ollama only; suggestions stay drafts until the owner adds them, can edit them, and clicks the existing Start research action; no automatic search or provider calls |
 | Unsafe agent action | Model suggests broad scan | Fixed typed tools, explicit grant, target validation, approval, budgets, cancellation |
 | Replay or duplicate work | Retry repeats a check | Idempotency key, job hash, expiry, single-use approval |
 | Resource exhaustion | Huge results consume unbounded tokens | Input/result/token/time quotas, step limits, cancellation |
@@ -55,7 +57,7 @@ Research queries and reports; selected documents and source excerpts; account to
 
 ## Current implementation scope
 
-The Python service exposes a public health endpoint and a bearer-token-protected report route. Report generation is disabled unless a local Ollama model is configured. The authorized Java workflow sends at most 20 sources from one completed job, including only provider metadata and descriptions; uploaded documents and explicitly read page snapshots are excluded. Python has no database, search provider, tools, or arbitrary command execution. It validates structured output and rejects unknown source IDs, but citation membership does not establish that the source semantically supports the text. The UI does not persist Basic Auth credentials in browser storage. Search does not automatically fetch links; a separate explicit action reads only one selected saved source using the public-page limits above.
+The Python service exposes a public health endpoint and bearer-token-protected report, claim-comparison, and query-plan routes. Model-backed actions are disabled unless a local Ollama model is configured. The authorized Java workflow sends at most 20 sources from one completed job for report/claim analysis, including only provider metadata and descriptions; uploaded documents and explicitly read page snapshots are excluded. Query planning sends only the topic and returns draft suggestions without searching. Python has no database, public search provider, tools, or arbitrary command execution. It validates structured output and rejects unknown source IDs, but citation membership does not establish that a source semantically supports the text. The UI does not persist Basic Auth credentials in browser storage. Search does not automatically fetch links; a separate explicit action reads only one selected saved source using the public-page limits above.
 
 ## Permission levels
 

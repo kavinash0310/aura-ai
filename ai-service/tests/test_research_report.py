@@ -52,6 +52,77 @@ def test_report_requires_internal_service_token() -> None:
     assert response.status_code == 401
 
 
+def test_query_plan_suggests_distinct_angles_and_returns_model_telemetry(monkeypatch) -> None:
+    from aura_ai_service import main
+
+    captured: dict[str, object] = {}
+
+    def fake_call(_base_url, payload, _timeout):
+        captured["payload"] = json.loads(payload)
+        return main.OllamaCallResult(
+            content=json.dumps(
+                {
+                    "suggestions": [
+                        "  passkeys   adoption  ",
+                        "public agency statement",
+                    ]
+                }
+            ),
+            total_duration_ns=1_200_000_000,
+            prompt_eval_count=321,
+            eval_count=42,
+        )
+
+    monkeypatch.setattr(main, "_call_ollama", fake_call)
+    app = create_app(
+        Settings(
+            internal_token=TOKEN,
+            model_provider="ollama",
+            ollama_base_url="http://localhost:11434",
+            ollama_model="test-model",
+        )
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/research/query-plan",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            json={"topic": "passkeys adoption"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["suggestions"] == ["public agency statement"]
+    assert response.json()["modelRun"] == {
+        "promptVersion": "research-query-plan-v1",
+        "durationMs": 1200,
+        "promptTokenCount": 321,
+        "outputTokenCount": 42,
+    }
+    assert "search providers" in response.json()["note"]
+    messages = captured["payload"]["messages"]
+    assert "user will review and edit every suggestion" in messages[0]["content"]
+
+
+def test_query_plan_requires_internal_token_and_local_model() -> None:
+    app = create_app(
+        Settings(
+            internal_token=TOKEN,
+            model_provider="disabled",
+            ollama_base_url="",
+            ollama_model="",
+        )
+    )
+    with TestClient(app) as client:
+        unauthorized = client.post("/api/v1/research/query-plan", json={"topic": "topic"})
+        disabled = client.post(
+            "/api/v1/research/query-plan",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            json={"topic": "topic"},
+        )
+
+    assert unauthorized.status_code == 401
+    assert disabled.status_code == 503
+
+
 def test_report_returns_only_validated_source_citations(monkeypatch) -> None:
     from aura_ai_service import main
 
