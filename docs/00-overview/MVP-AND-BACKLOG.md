@@ -2,7 +2,7 @@
 
 ## MVP definition
 
-The first useful release is a local research workspace that accepts a subject, searches permitted public sources, keeps source metadata, returns a bounded cited summary, and exports results. The repository has the Spring foundation, an isolated Python AI service, authenticated bounded public-source search, a local React workspace, and a private document-library slice. The UI starts searches, reopens recent briefs, filters stored source metadata, downloads JSON/CSV/Markdown, deletes a brief with its source rows, imports/searches/previews/deletes UTF-8 text and Markdown, and can create a cited report from selected search snippets using an explicitly configured local model. Page reading, cross-source claim comparison, and semantic citation verification remain planned.
+The first useful release is a local research workspace that accepts a subject, searches permitted public sources, keeps source metadata, returns a bounded cited summary, and exports results. The repository has the Spring foundation, an isolated Python AI service, authenticated bounded public-source search, a local React workspace, and a private document-library slice. The UI starts searches, reopens recent briefs, filters stored source metadata, downloads JSON/CSV/Markdown, deletes a brief with its source rows, imports/searches/previews/deletes UTF-8 text and Markdown, and can create a cited report from selected search snippets using an explicitly configured local model. Bounded explicit page reading, local exact-phrase filtering, and matching-excerpt downloads are delivered; cross-source claim comparison and semantic citation verification remain planned.
 
 The document library also accepts text-based PDFs with bounded extraction, page-aware citations, and clearly labeled extracted-text downloads; it does not retain the uploaded PDF bytes or perform OCR.
 
@@ -19,7 +19,7 @@ The document library also accepts text-based PDFs with bounded extraction, page-
 | Deterministic workflow and recovery | CORE / CAREER | Reliable multi-step research |
 | NVD/KEV/EPSS and SBOM analysis | CORE | Defensive specialist capability |
 | pgvector, OCR, reranker | OPTIONAL | Add only after measured retrieval gaps |
-| React workspace | CORE / FIRST UI SLICE DELIVERED | Local UI is wired to the current API; bounded history and deletion are delivered, reports follow later |
+| React workspace | CORE / FIRST UI SLICE DELIVERED | Local UI is wired to the current API; bounded history, deletion, and Markdown/JSON report export are delivered |
 | Kafka, Kubernetes, dedicated vector DB | DEFERRED | No initial scale need |
 | Multi-agent orchestration | DEFERRED | Bounded workflow is simpler and auditable |
 | Exploit execution, unrestricted scanning, dark-web collection | REMOVE | Outside initial defensive scope |
@@ -51,7 +51,8 @@ Add provider interface, local and optional hosted adapters, structured output, p
 ### M5 — Public research
 Add web/news adapters, query planning, normalization, deduplication, evidence, claim comparison, citations, filters, exports, coverage.
 **Delivered slice:** Brave returns bounded web/news/discussion results; GDELT returns bounded public news results; Bluesky returns bounded public posts through its official public API. Automatic selection uses Brave when configured, otherwise GDELT and then Bluesky; All configured sources queries every enabled provider. The API persists per-source provider provenance and provider-run status/counts/failure codes, supports provider/type/text/host/date filters, and downloads the filtered JSON/CSV/Markdown set. Search is invoked explicitly and coverage limits are shown. Mixed provider outcomes preserve successful results in a `PARTIAL` job; an all-failed run stays `FAILED` with its provider audit. Bluesky does not apply country filters or connect to accounts/private feeds.
-**Delivered next slice:** An owner can explicitly read one selected source already saved in a brief. The endpoint checks source ownership and applies public-HTTPS/DNS/redirect/size/time/concurrency limits. It extracts static HTML as text and keeps it transient in the UI; it is not included in model reports.
+**Delivered next slice:** An owner can explicitly read one selected source already saved in a brief. The endpoint checks source ownership and applies public-HTTPS/DNS/redirect/size/time/concurrency limits. It extracts static HTML as text and keeps it transient in the UI; it is not included in model reports. Exact phrases can be matched locally and excerpts downloaded. A durable metadata-only audit tracks status, timestamps, hash/count/truncation, and stable failure codes; restart recovery marks interrupted reads.
+**Report export:** Reports remain transient in the UI, with explicit Markdown and JSON snapshot downloads. The JSON carries candidate source metadata/snippets and model response, but not page text or enough runtime state to guarantee identical model replay.
 **Still needed:** X/account connectors after provider-specific retention and deletion controls, additional search providers, query planning, claim comparison, semantic citation checks, and broader evaluations. No multi-page crawling or JavaScript rendering is planned for this slice.
 **Accept when:** curated queries are reproducible, citations resolve, conflicts persist, source and coverage limits show, and each provider's terms/rate limits are tested.
 

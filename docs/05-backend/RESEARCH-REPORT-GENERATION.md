@@ -2,7 +2,7 @@
 
 ## What this adds
 
-An owner can ask AURA to draft a report from sources already saved in a completed research brief. The UI uses the first 20 results currently visible after filters are applied. The report is generated only on click, appears in the current UI session, and can be downloaded as Markdown.
+An owner can ask AURA to draft a report from sources already saved in a completed research brief. The UI uses the first 20 results currently visible after filters are applied. The report is generated only on click, appears in the current UI session, and can be downloaded as Markdown or as a structured JSON snapshot.
 
 This is a first model integration slice. It uses selected provider snippets only; it does not include page snapshots explicitly read through the separate page-reading action, include the private document library, persist model prose, or establish that a linked page supports every generated claim.
 
@@ -25,7 +25,7 @@ sequenceDiagram
   AI->>AI: Validate shape and source-ID membership
   AI-->>API: Report, source links, fixed coverage note
   API-->>UI: JSON response
-  UI-->>Owner: Render linked report; optional Markdown download
+  UI-->>Owner: Render linked report; download Markdown or JSON snapshot
 ~~~
 
 Java remains the authority for user authentication, job state, and source ownership. Python has no database or search credentials. A separate random `AURA_AI_INTERNAL_TOKEN` protects the internal route. The Python service's model provider defaults to `disabled`; no hosted fallback is implemented.
@@ -38,7 +38,8 @@ Java remains the authority for user authentication, job state, and source owners
 - Model output: bounded title, summary, 12 findings maximum, six limitations maximum, and exact source ID lists.
 - Model response: Ollama's `/api/chat` endpoint with non-streaming JSON Schema output. See [Ollama chat API](https://docs.ollama.com/api/chat).
 - Model endpoint: `http://localhost:11434`, `http://host.docker.internal:11434`, `http://ollama:11434`, or a private IP at port 11434. No redirect is followed.
-- Report storage: none. The backend returns the result; the current browser page holds it in component state until navigation/reload or download.
+- Report storage: none. The backend returns the result; the current browser page holds it in component state until navigation or reload; a download creates a separate user-controlled copy. The explicit JSON download includes job/query/provider/timing metadata, the candidate source metadata and snippets provided to the model, and the structured report response. It does not include page text.
+- Export limitation: the JSON preserves the exact evidence snapshot and generated response, but not model weights, prompt/runtime configuration, or a guarantee of identical replay.
 
 The Python service rejects source IDs not present in its request. That confirms referential integrity only, not that text is entailed by the cited page. The UI therefore calls the links candidate sources and displays a fixed warning that reports use provider snippets only; page snapshots read elsewhere in the UI are not included or independently verified.
 
@@ -53,7 +54,7 @@ The Python service rejects source IDs not present in its request. That confirms 
 
 ## Code map
 
-- `web/src/App.tsx`: explicit action, report display, and Markdown download.
+- `web/src/App.tsx`: explicit action, report display, Markdown rendering, and structured JSON snapshot download.
 - `web/src/api.ts`, `web/src/types.ts`: typed client contract.
 - `backend/.../ResearchReportController.java`: authenticated route.
 - `backend/.../ResearchReportService.java`: completed-job check, source ownership, field truncation, input construction.
@@ -63,7 +64,7 @@ The Python service rejects source IDs not present in its request. That confirms 
 
 ## Testing and next evaluation
 
-The backend API tests should cover authentication, source ownership, 20-source bounds, and the Java/Python request payload. Python tests cover internal-token rejection, disabled/unavailable model behavior, valid response construction, and invented-source rejection. UI tests cover explicit invocation, sent IDs, linked citations, and download behavior.
+The backend API tests should cover authentication, source ownership, 20-source bounds, and the Java/Python request payload. Python tests cover internal-token rejection, disabled/unavailable model behavior, valid response construction, and invented-source rejection. UI tests cover explicit invocation, sent IDs, linked citations, Markdown/JSON download behavior, and JSON evidence metadata without page text.
 
 The next AI quality work is a curated fixture set of source snippets with expected claims and source IDs. Measure citation membership and semantic support separately: membership is deterministic; semantic entailment needs human-reviewed examples and should not be presented as proven solely by another model's score.
 

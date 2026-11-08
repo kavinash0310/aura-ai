@@ -483,6 +483,49 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
+  function downloadResearchReportJson() {
+    if (!researchReport || !job) return;
+    const evidence = researchReport.citations.map((citation) => {
+      const source = sources.find((item) => item.id === citation.id);
+      return {
+        sourceId: citation.id,
+        title: citation.title,
+        url: citation.url,
+        domain: citation.domain,
+        kind: citation.kind,
+        provider: source?.provider ?? null,
+        publisher: source?.publisher ?? null,
+        publishedAt: source?.publishedAt ?? null,
+        retrievedAt: source?.retrievedAt ?? null,
+        description: source?.description ?? null,
+      };
+    });
+    const snapshot = {
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      research: {
+        jobId: job.id,
+        query: search?.query ?? job.subject,
+        mode: job.mode,
+        status: search?.status ?? job.status,
+        provider: search?.provider ?? job.searchProvider,
+        searchedAt: search?.searchedAt ?? null,
+      },
+      evidence,
+      report: researchReport,
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], {
+      type: "application/json;charset=utf-8",
+    }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aura-report-${job.id}.json`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   async function searchVulnerabilities(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!connected) return;
@@ -965,7 +1008,7 @@ export default function App() {
                   {researchReport && <section className="research-report" aria-label="Generated cited report">
                     <div className="report-heading">
                       <div><div className="section-kicker">LOCAL AI REPORT</div><h3>{researchReport.title}</h3><p>{researchReport.provider} · {researchReport.model} · {formatDate(researchReport.generatedAt)}</p></div>
-                      <button className="nvd-lookup-button" type="button" onClick={downloadResearchReport}>↓ Download Markdown</button>
+                      <div className="report-download-actions"><button className="nvd-lookup-button" type="button" onClick={downloadResearchReport}>↓ Download Markdown</button><button className="nvd-lookup-button" type="button" onClick={downloadResearchReportJson}>↓ Download JSON</button></div>
                     </div>
                     <p className="report-summary">{researchReport.summary}{researchReport.summarySourceIds.map((id) => {
                       const citation = researchReport.citations.find((item) => item.id === id);

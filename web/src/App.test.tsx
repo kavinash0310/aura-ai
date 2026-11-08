@@ -6,6 +6,7 @@ describe("AURA research workspace", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("validates local API credentials without storing them", async () => {
@@ -376,7 +377,13 @@ describe("AURA research workspace", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ cve: "CVE-2026-12345" });
   });
 
-  it("generates a report only from the visible source IDs and shows linked citations", async () => {
+  it("generates a report from visible source IDs and downloads a source-linked JSON snapshot", async () => {
+    const reportBlobs: Blob[] = [];
+    vi.stubGlobal("URL", {
+      createObjectURL: (blob: Blob) => { reportBlobs.push(blob); return "blob:aura-report"; },
+      revokeObjectURL: vi.fn(),
+    });
+    const clickAnchor = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     const source = {
       id: "source-report-1", provider: "brave", kind: "NEWS", rank: 1,
       title: "Passkey adoption report", url: "https://example.com/passkeys", domain: "example.com",
@@ -420,5 +427,27 @@ describe("AURA research workspace", () => {
     expect(await screen.findByRole("heading", { name: "Passkey adoption" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "[1] Passkey adoption report · example.com" })).toHaveAttribute("href", source.url);
     expect(JSON.parse(String(fetchMock.mock.calls[5]?.[1]?.body))).toEqual({ sourceIds: [source.id] });
+
+    vi.spyOn(window, "setTimeout").mockImplementation(() => 1);
+    fireEvent.click(screen.getByRole("button", { name: "↓ Download JSON" }));
+    expect(clickAnchor).toHaveBeenCalledOnce();
+    const downloadedBlob = reportBlobs[0]!;
+    expect(downloadedBlob).toBeInstanceOf(Blob);
+    expect(downloadedBlob.type).toBe("application/json;charset=utf-8");
+    const downloadedText = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(downloadedBlob);
+    });
+    const downloaded = JSON.parse(downloadedText);
+    expect(downloaded).toMatchObject({
+      schemaVersion: 1,
+      research: { jobId: "job-report", query: "passkey adoption", provider: "brave" },
+      evidence: [{ sourceId: source.id, provider: "brave", description: source.description }],
+      report: { model: "test-model", summarySourceIds: [source.id] },
+    });
+    expect(downloaded.report).not.toHaveProperty("pageText");
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 });
