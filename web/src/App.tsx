@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   ApiError,
+  compareResearchClaim,
   createResearchJob,
   deleteDocument,
   deleteResearchJob,
@@ -33,6 +34,7 @@ import type {
   SearchProviderChoice,
   ResearchSource,
   ResearchReportResponse,
+  ClaimComparisonResponse,
   ResultFilters,
   NvdBatchLookupResponse,
   NvdLookupResponse,
@@ -59,7 +61,7 @@ function errorMessage(error: unknown): string {
       return "No selected search provider is enabled. Enable a public provider in .env or add your own Brave API key.";
     }
     if (error.code === "SEARCH_PROVIDER_RATE_LIMITED") return "The search provider rate limited this request. Wait a little and try again.";
-    if (error.code === "AI_SERVICE_UNAVAILABLE") return "The local report model is disabled or unavailable. Configure Ollama and an installed model in .env, then retry.";
+    if (error.code === "AI_SERVICE_UNAVAILABLE") return "The local AI model is disabled or unavailable. Configure Ollama and an installed model in .env, then retry.";
     if (error.code === "VALIDATION_FAILED") return "Enter one to 25 CVE IDs, such as CVE-2024-12345.";
     if (error.code === "INVALID_SBOM" || error.code === "SBOM_TOO_LARGE" || error.code === "INVALID_DOCUMENT" || error.code === "UPLOAD_TOO_LARGE") return error.message;
     if (error.status === 0) return error.message;
@@ -82,6 +84,20 @@ function kindLabel(kind: ResearchSource["kind"]): string {
 
 function providerLabel(provider: string): string {
   return provider === "brave" ? "Brave" : provider === "gdelt" ? "GDELT" : provider === "bluesky" ? "Bluesky" : provider === "all" ? "All configured sources" : provider;
+}
+
+function assessmentLabel(assessment: ClaimComparisonResponse["assessment"]): string {
+  return assessment === "SUPPORTED" ? "Selected evidence supports the claim"
+    : assessment === "CHALLENGED" ? "Selected evidence challenges the claim"
+      : assessment === "MIXED" ? "Selected evidence is mixed"
+        : "Not enough evidence in these snippets";
+}
+
+function stanceLabel(stance: ClaimComparisonResponse["evidence"][number]["stance"]): string {
+  return stance === "SUPPORTS" ? "Supports"
+    : stance === "CHALLENGES" ? "Challenges"
+      : stance === "CONTEXT" ? "Context"
+        : "Unclear";
 }
 
 function sourceInitial(domain: string): string {
@@ -141,6 +157,8 @@ export default function App() {
   const [search, setSearch] = useState<SearchResponse | null>(null);
   const [sources, setSources] = useState<ResearchSource[]>([]);
   const [researchReport, setResearchReport] = useState<ResearchReportResponse | null>(null);
+  const [claimDraft, setClaimDraft] = useState("");
+  const [claimComparison, setClaimComparison] = useState<ClaimComparisonResponse | null>(null);
   const [researchPage, setResearchPage] = useState<ResearchPageResponse | null>(null);
   const [pageReadHistory, setPageReadHistory] = useState<ResearchPageReadAudit[] | null>(null);
   const [pageReadHistorySourceId, setPageReadHistorySourceId] = useState<string | null>(null);
@@ -148,6 +166,7 @@ export default function App() {
   const [readingSourceId, setReadingSourceId] = useState<string | null>(null);
   const [loadingPageHistorySourceId, setLoadingPageHistorySourceId] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
+  const [claimBusy, setClaimBusy] = useState(false);
   const [draftFilters, setDraftFilters] = useState<ResultFilters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<ResultFilters>(emptyFilters);
   const [searching, setSearching] = useState(false);
@@ -221,6 +240,8 @@ export default function App() {
     setSearch(null);
     setSources([]);
     setResearchReport(null);
+    setClaimComparison(null);
+    setClaimDraft("");
     setDraftFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
     let requestedJobId: string | null = null;
@@ -279,6 +300,7 @@ export default function App() {
     setSearch(null);
     setSources([]);
     setResearchReport(null);
+    setClaimComparison(null);
     setDraftFilters(emptyFilters);
     setAppliedFilters(emptyFilters);
     setCanRetry(item.status === "REQUESTED");
@@ -306,6 +328,7 @@ export default function App() {
         setSearch(null);
         setSources([]);
         setResearchReport(null);
+        setClaimComparison(null);
         setCanRetry(false);
       }
     } catch (caught) {
@@ -323,6 +346,7 @@ export default function App() {
       setAppliedFilters({ ...draftFilters });
       setSources(response.results);
       setResearchReport(null);
+      setClaimComparison(null);
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -368,6 +392,27 @@ export default function App() {
       setError(errorMessage(caught));
     } finally {
       setReportBusy(false);
+    }
+  }
+
+  async function compareClaim() {
+    if (!job || sources.length === 0 || !claimDraft.trim()) return;
+    const selectedSources = sources.slice(0, 20);
+    setClaimBusy(true);
+    setClaimComparison(null);
+    setError("");
+    try {
+      const response = await compareResearchClaim(
+        credentials,
+        job.id,
+        claimDraft.trim(),
+        selectedSources.map((source) => source.id),
+      );
+      setClaimComparison(response);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setClaimBusy(false);
     }
   }
 
@@ -688,6 +733,70 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
+  function downloadClaimComparison(format: "json" | "md") {
+    if (!claimComparison || !job) return;
+    const evidenceSnapshot = claimComparison.citations.map((citation) => {
+      const source = sources.find((item) => item.id === citation.id);
+      return {
+        sourceId: citation.id,
+        title: citation.title,
+        url: citation.url,
+        domain: citation.domain,
+        kind: citation.kind,
+        provider: source?.provider ?? null,
+        publishedAt: source?.publishedAt ?? null,
+        snippet: source?.description ?? null,
+      };
+    });
+    const snapshot = {
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      research: { jobId: job.id, query: search?.query ?? job.subject, mode: job.mode },
+      evidence: evidenceSnapshot,
+      comparison: claimComparison,
+    };
+    let blob: Blob;
+    if (format === "json") {
+      blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json;charset=utf-8" });
+    } else {
+      const citationById = new Map(claimComparison.citations.map((citation) => [citation.id, citation]));
+      const escape = (value: string) => value.replace(/[\r\n]+/g, " ").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("`", "\\`").replaceAll("*", "\\*").replaceAll("_", "\\_");
+      const cite = (ids: string[]) => ids.map((id) => {
+        const citation = citationById.get(id);
+        const number = claimComparison.citations.findIndex((item) => item.id === id) + 1;
+        return citation ? ` [${number}](<${citation.url}>)` : "";
+      }).join("");
+      const lines = [
+        "# Claim comparison",
+        "",
+        `Claim: ${escape(claimComparison.claim)}`,
+        `Assessment: ${assessmentLabel(claimComparison.assessment)}`,
+        `Generated: ${formatDate(claimComparison.generatedAt)} · Model: ${escape(claimComparison.model)}`,
+        "",
+        escape(claimComparison.explanation),
+        "",
+        "## Evidence from selected snippets",
+        "",
+        ...claimComparison.evidence.map((item) => `- **${stanceLabel(item.stance)}:** ${escape(item.text)}${cite(item.sourceIds)}`),
+        "",
+        "## Limitations",
+        "",
+        ...claimComparison.limitations.map((item) => `- ${escape(item)}`),
+        `- ${escape(claimComparison.coverageNote)}`,
+        "",
+      ];
+      blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    }
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aura-claim-comparison-${job.id}.${format}`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function downloadVulnerabilityLookup(format: "json" | "csv") {
     if (!vulnerabilityLookup) return;
     let content: string;
@@ -816,6 +925,8 @@ export default function App() {
     setSearch(null);
     setSources([]);
     setResearchReport(null);
+    setClaimComparison(null);
+    setClaimDraft("");
     setSbomFile(null);
     setSbomLookup(null);
     setNvdLookups({});
@@ -1004,7 +1115,7 @@ export default function App() {
                 <div className="results-heading">
                   <div><div className="section-kicker">YOUR EVIDENCE</div><h2>Research results{search ? <span className="result-total">{sources.length}</span> : null}</h2></div>
                   {search && <div className="export-actions" aria-label="Research actions and downloads">
-                    <button type="button" onClick={() => void createResearchReport()} disabled={!connected || reportBusy || sources.length === 0}>{reportBusy ? "Generating…" : `✳ Report (${Math.min(sources.length, 20)})`}</button>
+                    <button type="button" onClick={() => void createResearchReport()} disabled={!connected || reportBusy || claimBusy || sources.length === 0}>{reportBusy ? "Generating…" : `✳ Report (${Math.min(sources.length, 20)})`}</button>
                     <button type="button" onClick={() => void exportResults("csv")} disabled={Boolean(exporting)}>{exporting === "csv" ? "Preparing…" : "↓ CSV"}</button>
                     <button type="button" onClick={() => void exportResults("json")} disabled={Boolean(exporting)}>{exporting === "json" ? "Preparing…" : "↓ JSON"}</button>
                     <button type="button" onClick={() => void exportResults("md")} disabled={Boolean(exporting)}>{exporting === "md" ? "Preparing…" : "↓ MD"}</button>
@@ -1029,7 +1140,25 @@ export default function App() {
                   </form>
                   {search.coverageNote && <p className="coverage-note"><span>ⓘ</span> {search.coverageNote}</p>}
                   {search.providerRuns?.length > 0 && <p className="report-scope-note">Provider outcomes: {search.providerRuns.map((run) => `“${run.query}” → ${providerLabel(run.provider)} ${run.status.toLowerCase()} · ${run.resultCount} results${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>}
-                  <p className="report-scope-note">A report uses up to 20 visible results after filtering. Their metadata and snippets go to your configured local model. AURA never fetches pages automatically; Read page sends one unauthenticated HTTPS request after you choose it. Fetched text stays in browser memory and is excluded from reports.</p>
+                  <p className="report-scope-note">A report or claim comparison uses up to 20 visible results after filtering. Their metadata and snippets go to your configured local model only after you choose an action. AURA never fetches pages automatically; Read page sends one unauthenticated HTTPS request after you choose it. Fetched text stays in browser memory and is excluded from reports and comparisons.</p>
+                  <section className="claim-comparison-panel" aria-label="Compare a claim against selected sources">
+                    <div className="claim-comparison-intro"><div className="section-kicker">EVIDENCE TOOL</div><h3>Compare a claim</h3><p>Enter one statement to compare with up to 20 visible source snippets. This is an AI assessment of those excerpts, not a fact-check.</p></div>
+                    <label className="sr-only" htmlFor="claim-to-compare">Claim to compare</label>
+                    <textarea id="claim-to-compare" maxLength={500} rows={2} value={claimDraft} onChange={(event) => setClaimDraft(event.target.value)} placeholder="Type a specific claim to assess against the sources above" disabled={!connected || claimBusy || reportBusy} />
+                    <div className="claim-comparison-actions"><span>{claimDraft.length}/500 · first {Math.min(sources.length, 20)} visible sources</span><button type="button" onClick={() => void compareClaim()} disabled={!connected || claimBusy || reportBusy || sources.length === 0 || !claimDraft.trim()}>{claimBusy ? "Comparing…" : "Compare claim"}</button></div>
+                  </section>
+                  {claimComparison && <section className="research-report claim-comparison-result" aria-label="AI claim comparison result">
+                    <div className="report-heading"><div><div className="section-kicker">LOCAL AI ASSESSMENT · {claimComparison.assessment}</div><h3>{assessmentLabel(claimComparison.assessment)}</h3><p>{claimComparison.provider} · {claimComparison.model} · {formatDate(claimComparison.generatedAt)}</p></div><div className="report-download-actions"><button className="nvd-lookup-button" type="button" onClick={() => downloadClaimComparison("md")}>↓ Markdown</button><button className="nvd-lookup-button" type="button" onClick={() => downloadClaimComparison("json")}>↓ JSON</button></div></div>
+                    <p className="claim-comparison-explanation"><strong>Claim:</strong> {claimComparison.claim}<br />{claimComparison.explanation}</p>
+                    {claimComparison.evidence.length > 0 && <div className="report-findings"><strong>Evidence from selected snippets</strong>{claimComparison.evidence.map((item, index) => <p key={`${index}-${item.text}`}><span className={`claim-stance stance-${item.stance.toLowerCase()}`}>{stanceLabel(item.stance)}</span> {item.text}{item.sourceIds.map((id) => {
+                      const citation = claimComparison.citations.find((source) => source.id === id);
+                      const citationNumber = claimComparison.citations.findIndex((source) => source.id === id) + 1;
+                      return citation ? <a key={id} href={citation.url} target="_blank" rel="noopener noreferrer" title={citation.title}> [{citationNumber}]</a> : null;
+                    })}</p>)}</div>}
+                    {claimComparison.limitations.length > 0 && <div className="report-findings"><strong>Limitations</strong>{claimComparison.limitations.map((item, index) => <p key={`${index}-${item}`}>{item}</p>)}</div>}
+                    <div className="report-citations"><strong>Candidate sources</strong>{claimComparison.citations.map((citation, index) => <a key={citation.id} href={citation.url} target="_blank" rel="noopener noreferrer">[{index + 1}] {citation.title} · {citation.domain}</a>)}</div>
+                    <p className="coverage-note"><span>ⓘ</span> {claimComparison.coverageNote}</p>
+                  </section>}
                   {researchReport && <section className="research-report" aria-label="Generated cited report">
                     <div className="report-heading">
                       <div><div className="section-kicker">LOCAL AI REPORT</div><h3>{researchReport.title}</h3><p>{researchReport.provider} · {researchReport.model} · {formatDate(researchReport.generatedAt)}</p></div>

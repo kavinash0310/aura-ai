@@ -11,6 +11,7 @@ import type {
   SearchProviderChoice,
   ResearchSource,
   ResearchReportResponse,
+  ClaimComparisonResponse,
   ResultFilters,
   SearchResponse,
   SbomLookupResponse,
@@ -203,6 +204,18 @@ export function generateResearchReport(
   return request<ResearchReportResponse>(`${jobPath(id)}/report`, credentials, {
     method: "POST",
     body: JSON.stringify({ sourceIds }),
+  });
+}
+
+export function compareResearchClaim(
+  credentials: Credentials,
+  id: string,
+  claim: string,
+  sourceIds: string[],
+): Promise<ClaimComparisonResponse> {
+  return request<ClaimComparisonResponse>(`${jobPath(id)}/compare`, credentials, {
+    method: "POST",
+    body: JSON.stringify({ claim, sourceIds }),
   });
 }
 

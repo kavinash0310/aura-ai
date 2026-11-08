@@ -1,6 +1,7 @@
 package ai.aura.api.application;
 
 import ai.aura.api.api.ResearchReportResponse;
+import ai.aura.api.api.ResearchClaimComparisonResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -44,6 +45,26 @@ public class AiReportClient {
                     .body(request)
                     .retrieve()
                     .body(ResearchReportResponse.class);
+            if (response == null) {
+                throw new AiServiceUnavailableException();
+            }
+            return response;
+        } catch (RestClientException exception) {
+            throw new AiServiceUnavailableException();
+        }
+    }
+
+    public ResearchClaimComparisonResponse compare(AiClaimComparisonRequest request) {
+        if (internalToken.isBlank()) {
+            throw new AiServiceUnavailableException();
+        }
+        try {
+            ResearchClaimComparisonResponse response = client.post()
+                    .uri("/api/v1/research/compare")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + internalToken)
+                    .body(request)
+                    .retrieve()
+                    .body(ResearchClaimComparisonResponse.class);
             if (response == null) {
                 throw new AiServiceUnavailableException();
             }

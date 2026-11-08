@@ -67,6 +67,12 @@ The response includes a title, summary, findings, model-generated limitations, t
 
 The Java-to-Python call uses `AURA_AI_INTERNAL_TOKEN`, which must be a separate random secret. Python accepts only Ollama at `localhost`, `host.docker.internal`, `ollama`, or a private IP on port 11434. `AURA_AI_MODEL_PROVIDER` defaults to `disabled`. Local model configuration is described in the local development guide.
 
+### POST `/api/v1/research-jobs/{id}/compare`
+
+Requires the local owner Basic Auth account and a `COMPLETED` or `PARTIAL` job. Request `{ "claim": "A specific statement", "sourceIds": ["<source UUID>"] }`; the claim must be nonblank and at most 500 characters, and the list must contain one to 20 distinct IDs from this job. The UI sends the first 20 currently visible results after filters are applied, only after the owner clicks Compare claim.
+
+The local model returns an assessment (`SUPPORTED`, `CHALLENGED`, `MIXED`, or `INSUFFICIENT`), a short explanation, and up to eight evidence items labeled `SUPPORTS`, `CHALLENGES`, `CONTEXT`, or `UNCLEAR`. The model may only cite supplied IDs. Python checks the structure, stance consistency, and citation membership; Spring independently checks job/source ownership. The result is explicitly an AI assessment of selected snippets, not a fact-check or proof. Missing snippets are not evidence that a statement is false. The model receives no page snapshots, private documents, connected-account data, or outside search results. The result is not persisted; Markdown and JSON are available as explicit local downloads. See the [claim comparison design](../05-backend/CLAIM-COMPARISON.md).
+
 ### GET `/api/v1/research-jobs/{id}/sources`
 
 Lists saved results for a completed or partially completed job. Optional filters:
