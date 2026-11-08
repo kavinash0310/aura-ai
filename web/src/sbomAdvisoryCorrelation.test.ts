@@ -92,6 +92,31 @@ describe("correlateOsvPackages", () => {
       .toBe("NO_MATCH_IN_RETURNED_OSV_VERSION_DATA");
   });
 
+  it("uses exact OSV version lists for non-npm ecosystems without applying their ranges", () => {
+    const packageInfo = advisory("pkg:pypi/demo", { ecosystem: "PyPI", affectedVersions: ["1.2.3", "1.2.5"] });
+    const exact = component("listed", "pkg:pypi/demo@1.2.3", "1.2.3");
+    const absent = component("absent", "pkg:pypi/demo@1.2.4", "1.2.4");
+
+    expect(assessOsvPackageVersion(packageInfo, exact).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(packageInfo, absent).status).toBe("NO_MATCH_IN_RETURNED_OSV_VERSION_DATA");
+    expect(assessOsvPackageVersion(advisory("pkg:pypi/demo", {
+      ecosystem: "PyPI",
+      affectedVersions: ["1.2.3"],
+      versionRangeDetails: [semverRange(event("introduced", "1.0.0"))],
+    }), component("range", "pkg:pypi/demo@1.2.4", "1.2.4")).status).toBe("NOT_ASSESSED");
+  });
+
+  it("does not infer exact-list negatives from absent or incomplete evidence", () => {
+    const item = component("item", "pkg:pypi/demo@1.2.4", "1.2.4");
+    expect(assessOsvPackageVersion(advisory("pkg:pypi/demo", { ecosystem: "PyPI" }), item).status)
+      .toBe("NOT_ASSESSED");
+    expect(assessOsvPackageVersion(advisory("pkg:pypi/demo", {
+      ecosystem: "PyPI",
+      affectedVersions: ["1.2.3"],
+      affectedVersionsTruncated: true,
+    }), item).status).toBe("NOT_ASSESSED");
+  });
+
   it("leaves unsupported ecosystems, range types, malformed evidence, and truncated data not assessed", () => {
     const inventory = component("item", "pkg:npm/demo@1.2.0", "1.2.0");
     const ecosystemRange = { ...semverRange(event("introduced", "1.0.0"), event("fixed", "2.0.0")), type: "ECOSYSTEM" };

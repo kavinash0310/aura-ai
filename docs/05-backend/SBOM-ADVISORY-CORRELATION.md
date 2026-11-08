@@ -2,7 +2,7 @@
 
 ## Goal
 
-After the owner explicitly loads OSV details for a CVE declared in an SBOM, AURA can correlate OSV affected-package records with the local components already linked to that CVE. The browser compares PURL identity and, for a narrow supported case, evaluates returned npm SemVer 2 evidence against the local component version. Package inventory is never sent to OSV.
+After the owner explicitly loads OSV details for a CVE declared in an SBOM, AURA can correlate OSV affected-package records with the local components already linked to that CVE. The browser compares PURL identity, literal affected-version entries for any ecosystem, and (for npm only) complete SemVer 2 range evidence against the local component version. Package inventory is never sent to OSV.
 
 ## Data flow
 
@@ -23,7 +23,8 @@ sequenceDiagram
     API->>API: Cap and preserve structured source evidence
     API-->>UI: Bounded advisory response
     UI->>UI: Compare PURL identities locally
-    UI->>UI: Assess supported npm SemVer evidence
+    UI->>UI: Compare exact version strings for any ecosystem
+    UI->>UI: Assess supported npm SemVer ranges
     UI-->>Owner: Show identity and version-assessment status
 ```
 
@@ -35,19 +36,19 @@ The helper in `web/src/sbomAdvisoryCorrelation.ts` compares bounded PURLs of a m
 
 ## Version-assessment rule
 
-Version comparison runs only when all of these are true:
+Version assessment runs only when all of these are true:
 
 - OSV returned an available, non-withdrawn advisory for the exact requested CVE.
 - The local component and OSV package share the exact PURL identity above.
-- OSV's package ecosystem is exactly `npm` and the SBOM component has a version.
-- For range comparison, OSV supplied complete `SEMVER` range events in the supported event shape, and both range boundaries and local version are strict SemVer 2.
-- Or, for a positive exact-version result, the local version exactly equals an OSV `affected[].versions` entry.
+- The SBOM component has a version.
+- For an exact-version result, the local version exactly equals an OSV `affected[].versions` entry. Literal equality does not interpret or normalize ecosystem versions.
+- For range comparison, OSV's package ecosystem is exactly `npm`; OSV supplied complete `SEMVER` range events in the supported event shape; and both range boundaries and local version are strict SemVer 2.
 
-The client uses `semver` 7.8.5 in strict mode. It handles `introduced` including the OSV sentinel `0`, exclusive `fixed`, inclusive `last_affected`, and `limit` events. It requires valid, alternating introduction/end boundaries and refuses ambiguous or malformed event sequences. SemVer 2 ranges have SemVer ordering; OSV `ECOSYSTEM` ranges use ecosystem-specific ordering and are intentionally not compared. OSV's schema distinguishes exact listed versions, `SEMVER`, `ECOSYSTEM`, and `GIT` ranges; see the [OSV schema](https://ossf.github.io/osv-schema/). The [npm SemVer library](https://www.npmjs.com/package/semver) provides strict parsing and comparison.
+The client uses `semver` 7.8.5 in strict mode for npm ranges. It handles `introduced` including the OSV sentinel `0`, exclusive `fixed`, inclusive `last_affected`, and `limit` events. It requires valid, alternating introduction/end boundaries and refuses ambiguous or malformed event sequences. SemVer 2 ranges have SemVer ordering; OSV `ECOSYSTEM` ranges use ecosystem-specific ordering and are intentionally not compared. OSV's schema distinguishes exact listed versions, `SEMVER`, `ECOSYSTEM`, and `GIT` ranges; see the [OSV schema](https://ossf.github.io/osv-schema/). The [npm SemVer library](https://www.npmjs.com/package/semver) provides strict parsing and comparison.
 
 Each local component gets one of these results:
 
-- `AFFECTED`: exact version-list evidence or a supported range matches.
+- `AFFECTED`: an exact version-list entry matches in any ecosystem, or a supported npm range matches.
 - `NO_MATCH_IN_RETURNED_OSV_VERSION_DATA`: the complete returned version evidence was supported and no match was found. This is not proof that software is safe outside this OSV record or its stated coverage.
 - `NOT_ASSESSED`: missing version/evidence, withdrawn record, non-npm ecosystem, unsupported range type, malformed SemVer/event sequence, or truncated evidence.
 
@@ -59,7 +60,7 @@ The fixed OSV provider response remains capped at 256 KiB, 20 affected packages,
 
 ## Exports
 
-SBOM JSON exports include the exact PURL match basis, assessment policy `NPM_OSV_SEMVER_2_ONLY`, per-component version-assessment statuses, supporting evidence, and coverage limitation. CSV exports include the policy, each matched component's assessment status, exact identity match count, and local component labels. OSV responses and correlation are not written to the database.
+SBOM JSON exports include the exact PURL match basis, assessment policy `EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_SEMVER_2_RANGES`, per-component version-assessment statuses, supporting evidence, and coverage limitation. CSV exports include the policy, each matched component's assessment status, exact identity match count, and local component labels. OSV responses and correlation are not written to the database.
 
 ## Testing
 
