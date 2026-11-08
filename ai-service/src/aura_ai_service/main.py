@@ -238,9 +238,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             citations=list(citation_by_id.values()),
             coverage_note=(
                 "AI-generated from only the selected search-result metadata and provider snippets. "
-                "Page snapshots explicitly read in the UI are not included. Citation links identify "
-                "candidate sources; AURA has not independently verified that those pages support "
-                "each statement. Coverage is partial."
+                "Page snapshots explicitly read in the UI are not included. "
+                "Citation links identify candidate sources; AURA has not independently verified "
+                "that those pages support each statement. Coverage is partial."
             ),
         )
 

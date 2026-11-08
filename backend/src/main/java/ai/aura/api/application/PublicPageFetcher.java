@@ -19,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PreDestroy;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.IDN;
@@ -206,7 +207,12 @@ public class PublicPageFetcher {
     }
 
     static ExtractedHtml extractHtml(byte[] html, String baseUri) {
-        Document page = Jsoup.parse(html, null, baseUri);
+        Document page;
+        try (InputStream input = new ByteArrayInputStream(html)) {
+            page = Jsoup.parse(input, null, baseUri);
+        } catch (IOException exception) {
+            throw unavailable();
+        }
         page.select("script,style,noscript,template,svg,iframe,object,embed").remove();
         String text = page.body().text().replaceAll("\\s+", " ").strip();
         if (text.isBlank()) throw unavailable();
