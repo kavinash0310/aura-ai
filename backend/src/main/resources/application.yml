@@ -44,4 +44,7 @@ aura:
       api-key: ${AURA_NVD_API_KEY:}
       timeout: 8s
       cache-duration: 6h
+    github-advisories:
+      timeout: 8s
+      cache-duration: 6h
 

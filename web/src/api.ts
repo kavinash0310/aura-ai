@@ -3,6 +3,7 @@ import type {
   NvdBatchLookupResponse,
   NvdLookupResponse,
   OsvLookupResponse,
+  GitHubAdvisoryLookupResponse,
   ResearchDocument,
   ResearchDocumentSearchHit,
   ResearchJob,
@@ -110,6 +111,13 @@ export function lookupNvd(credentials: Credentials, cve: string): Promise<NvdLoo
 
 export function lookupOsv(credentials: Credentials, cve: string): Promise<OsvLookupResponse> {
   return request<OsvLookupResponse>("/api/v1/cyber/vulnerabilities/osv/lookup", credentials, {
+    method: "POST",
+    body: JSON.stringify({ cve }),
+  });
+}
+
+export function lookupGitHubAdvisories(credentials: Credentials, cve: string): Promise<GitHubAdvisoryLookupResponse> {
+  return request<GitHubAdvisoryLookupResponse>("/api/v1/cyber/vulnerabilities/github-advisories/lookup", credentials, {
     method: "POST",
     body: JSON.stringify({ cve }),
   });

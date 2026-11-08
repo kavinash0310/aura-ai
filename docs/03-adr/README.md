@@ -13,6 +13,7 @@ ADRs capture trade-offs, not feature completion.
 - 0009 Bluesky public-post search adapter
 - 0010 Bounded PDF text import
 - 0011 Explicit, bounded public-page reading
+- 0012 Explicit GitHub Advisory Database lookup
 
 ## Template
 

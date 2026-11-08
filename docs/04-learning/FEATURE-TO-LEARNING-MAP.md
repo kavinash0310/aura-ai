@@ -15,7 +15,7 @@ CORE means needed for AURA; CAREER means high value for the target role; OPTIONA
 | Research sources | Query planning, quotas, source terms, provider aggregation, per-source provenance, retries, normalization, dedupe | Provider-neutral adapters | HTTP, pagination | CORE |
 | Evidence/reports | Provenance, claim/evidence distinction, contradictions, reproducibility | PostgreSQL, Markdown/PDF | Domain modeling | CORE |
 | Controlled workflows | Tool permission, state, audit, approval, recovery | Java state machine, optional LangGraph | Workflow fundamentals | CORE / CAREER |
-| Cyber intelligence | CVE/CPE/SBOM, KEV, EPSS, CVSS, explainable scoring | NVD/CISA/FIRST adapters | Normalization, probability | CORE |
+| Cyber intelligence | CVE/CPE/SBOM, KEV, EPSS, CVSS v3/v4, advisory provenance, bounded public APIs | NVD/CISA/FIRST/OSV/GitHub Advisory adapters | Normalization, probability, source trust, HTTP limits and caching | CORE |
 | UI | Component/state model, accessibility, API types | React, TypeScript, Vite | HTML/CSS/JS, APIs | CORE / CAREER |
 | Operations | Containers, CI, logs, metrics, backup/restore | Docker Compose, GitHub Actions | CLI, Linux | CAREER |
 | Safety | Auth, prompt injection, SSRF, privacy, audit | Spring Security, policy | Web security | CORE / CAREER |
