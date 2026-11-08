@@ -60,6 +60,7 @@ export interface ResearchDocumentSearchHit {
   contentHash: string;
   uploadedAt: string;
   snippet: string;
+  page: number | null;
   startOffset: number;
   endOffset: number;
   citation: string;

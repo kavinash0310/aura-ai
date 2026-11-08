@@ -118,7 +118,7 @@ All document routes require the local owner Basic Auth account. Document upload 
 
 ### POST `/api/v1/documents`
 
-Send one `file` part and an optional `title` part as `multipart/form-data`. Only `.txt` and `.md` files with valid UTF-8 are accepted. Files are limited to 1 MB and the local library is capped at 100 documents; filenames are reduced to a basename, line endings are normalized to LF, empty/binary/control-heavy content is rejected, and SHA-256 is calculated over the normalized UTF-8 text. The response is `201 Created`, includes metadata and a `Location` header, and does not include content. Repeated uploads create separate document records; version history is not implemented.
+Send one `file` part and an optional `title` part as `multipart/form-data`. `.txt` and `.md` files must use valid UTF-8. Text-based `.pdf` files are parsed with PDFBox; they must have a PDF signature, contain no more than 100 pages, and yield no more than 250,000 extracted characters. Scanned PDFs with no text layer and encrypted PDFs are unsupported; OCR is not enabled. Every upload is limited to 1 MB and the local library is capped at 100 documents. Filenames are reduced to a basename, text line endings are normalized to LF, empty/binary/control-heavy text is rejected, and SHA-256 is calculated over normalized or extracted UTF-8 text. PDF bytes are not retained: the response `mediaType` remains `application/pdf` to indicate the source format, while stored `content` is extracted text with form-feed page separators. The response is `201 Created`, includes metadata and a `Location` header, and does not include content. Repeated uploads create separate document records; version history is not implemented.
 
 ### GET `/api/v1/documents`
 
@@ -126,17 +126,17 @@ Returns up to the 100 newest documents as metadata only. There is no pagination 
 
 ### GET `/api/v1/documents/{id}`
 
-Returns metadata and full stored text for one document. The local UI previews at most 20,000 characters and offers a download of the complete normalized text.
+Returns metadata and full stored text for one document. The local UI previews at most 20,000 characters. Text/Markdown downloads retain their text filename; a PDF download is named `{originalFilename}.extracted.txt` because original PDF bytes are not stored.
 
 ### GET `/api/v1/documents/search?q=...`
 
-Searches up to 10 documents for a case-insensitive exact phrase. `q` must be 2–100 letters, numbers, spaces, periods, commas, underscores, or hyphens. PostgreSQL uses an indexed full-text query to find and rank candidates, then checks the literal phrase before returning a result. Its `simple` text-search configuration does not stem words; H2 uses the portable phrase-match fallback. Results include a bounded snippet, offsets into normalized document text, content hash, and a stable `aura-doc://{id}#chars={start}-{end}` citation. Chunking and semantic retrieval remain future work.
+Searches up to 10 documents for a case-insensitive exact phrase. `q` must be 2–100 letters, numbers, spaces, periods, commas, underscores, or hyphens. PostgreSQL uses an indexed full-text query to find and rank candidates, then checks the literal phrase before returning a result. Its `simple` text-search configuration does not stem words; H2 uses the portable phrase-match fallback. Results include a bounded snippet, offsets into normalized/extracted document text, content hash, and a stable `aura-doc://{id}#chars={start}-{end}` citation. PDF hits also include the 1-based page and use `aura-doc://{id}#page={page}&chars={start}-{end}`; offsets include form-feed page separators. Chunking and semantic retrieval remain future work.
 
 ### DELETE `/api/v1/documents/{id}`
 
 Deletes the document and its stored text. Returns `204 No Content`; an unknown ID returns `404 RESEARCH_DOCUMENT_NOT_FOUND`.
 
-Invalid content returns `400 INVALID_DOCUMENT`; requests exceeding the global multipart cap return `413 UPLOAD_TOO_LARGE`. No uploaded file is executed or parsed as an archive, HTML page, PDF, or office document.
+Invalid content returns `400 INVALID_DOCUMENT`; requests exceeding the global multipart cap return `413 UPLOAD_TOO_LARGE`. Uploaded files are never executed. PDFs are parsed in-process with strict byte, page, and extracted-text limits; other formats are not parsed as HTML, archives, or office documents.
 
 
 ## Provider errors

@@ -48,7 +48,7 @@ describe("AURA research workspace", () => {
     await screen.findByText("Connected securely");
 
     const file = new File(["AURA notes for citation testing."], "notes.md", { type: "text/markdown" });
-    fireEvent.change(screen.getByLabelText("Choose a .txt or .md file"), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText("Choose a .txt, .md, or .pdf file"), { target: { files: [file] } });
     fireEvent.change(screen.getByLabelText("Title (optional)"), { target: { value: "Local notes" } });
     fireEvent.click(screen.getByRole("button", { name: /Import document/ }));
     await screen.findByText(/notes\.md · 32 characters/);

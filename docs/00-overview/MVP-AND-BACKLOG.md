@@ -4,6 +4,8 @@
 
 The first useful release is a local research workspace that accepts a subject, searches permitted public sources, keeps source metadata, returns a bounded cited summary, and exports results. The repository has the Spring foundation, an isolated Python AI service, authenticated bounded public-source search, a local React workspace, and a private document-library slice. The UI starts searches, reopens recent briefs, filters stored source metadata, downloads JSON/CSV/Markdown, deletes a brief with its source rows, imports/searches/previews/deletes UTF-8 text and Markdown, and can create a cited report from selected search snippets using an explicitly configured local model. Page reading, cross-source claim comparison, and semantic citation verification remain planned.
 
+The document library also accepts text-based PDFs with bounded extraction, page-aware citations, and clearly labeled extracted-text downloads; it does not retain the uploaded PDF bytes or perform OCR.
+
 ## Feature priority
 
 | Feature | Priority | Reason |
@@ -38,8 +40,8 @@ Deliver Python packaging, FastAPI health, settings, Pydantic schemas, logging/er
 
 ### M3 — Document lifecycle
 Deliver explicit uploads, type/size validation, parser adapters, metadata, content hashes, versioning, PostgreSQL FTS, retrieval, citations, tests.
-**Delivered first slice:** authenticated `.txt` and `.md` uploads with strict UTF-8 validation, a 1 MB limit, normalized line endings, SHA-256 metadata, local PostgreSQL storage, indexed token candidate search with an exact-phrase guard, relevance ordering, character-offset citations, preview/download, and explicit deletion. PostgreSQL uses a generated `simple` text-search vector and GIN index; H2 tests retain the portable phrase-match fallback.
-**Still needed:** document version history, PDF/HTML/CSV/JSON parsers, chunking, and access-scoped retrieval beyond the current single local owner. Search currently has no stemming or semantic retrieval.
+**Delivered first slice:** authenticated `.txt` and `.md` uploads with strict UTF-8 validation, plus text-based PDF uploads through PDFBox. Uploads are limited to 1 MB; PDFs are limited to 100 pages and 250,000 extracted characters. Normalized/extracted text is stored locally with SHA-256 metadata, indexed candidate search with an exact-phrase guard, relevance ordering, character citations, PDF page citations, preview/download, and explicit deletion. PDF source bytes are not retained; scanned PDFs need OCR, which is not enabled. PostgreSQL uses a generated `simple` text-search vector and GIN index; H2 tests retain the portable phrase-match fallback.
+**Still needed:** document version history, HTML/CSV/JSON parsers, chunking, OCR evaluation, and access-scoped retrieval beyond the current single local owner. Search currently has no stemming or semantic retrieval.
 **Accept when:** imported content is searchable with stable source/page/chunk references.
 
 ### M4 — LLM integration

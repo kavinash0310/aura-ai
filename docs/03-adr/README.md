@@ -11,6 +11,7 @@ ADRs capture trade-offs, not feature completion.
 - 0007 Explicit multi-provider public search
 - 0008 Social-source compliance gate
 - 0009 Bluesky public-post search adapter
+- 0010 Bounded PDF text import
 
 ## Template
 

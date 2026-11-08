@@ -12,6 +12,7 @@ public record ResearchDocumentSearchHit(
         String contentHash,
         Instant uploadedAt,
         String snippet,
+        Integer page,
         int startOffset,
         int endOffset,
         String citation
@@ -21,12 +22,22 @@ public record ResearchDocumentSearchHit(
         int match = indexOfIgnoreCase(content, query);
         int start = Math.max(0, match - 120);
         int end = Math.min(content.length(), Math.max(match + query.length(), match) + 240);
-        String snippet = (start > 0 ? "…" : "") + content.substring(start, end) + (end < content.length() ? "…" : "");
+        String snippet = ((start > 0 ? "…" : "") + content.substring(start, end)
+                + (end < content.length() ? "…" : "")).replace("\f", "\n[page break]\n");
         int citationStart = Math.max(0, match);
         int citationEnd = Math.min(content.length(), citationStart + query.length());
+        Integer page = null;
+        String citation = "aura-doc://" + document.getId() + "#chars=" + citationStart + "-" + citationEnd;
+        if ("application/pdf".equals(document.getMediaType())) {
+            page = 1;
+            for (int index = 0; index < citationStart; index++) {
+                if (content.charAt(index) == '\f') page++;
+            }
+            citation = "aura-doc://" + document.getId() + "#page=" + page
+                    + "&chars=" + citationStart + "-" + citationEnd;
+        }
         return new ResearchDocumentSearchHit(document.getId(), document.getTitle(), document.getOriginalFilename(),
-                document.getContentHash(), document.getUploadedAt(), snippet, citationStart, citationEnd,
-                "aura-doc://" + document.getId() + "#chars=" + citationStart + "-" + citationEnd);
+                document.getContentHash(), document.getUploadedAt(), snippet, page, citationStart, citationEnd, citation);
     }
 
     private static int indexOfIgnoreCase(String content, String query) {

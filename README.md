@@ -27,6 +27,8 @@ M1 stores research requests through the authenticated Spring API and PostgreSQL.
 
 See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and [MVP backlog](docs/00-overview/MVP-AND-BACKLOG.md).
 
+The document library extracts text from PDFs (up to 100 pages and 250,000 characters); it does not retain original PDF bytes or run OCR. See the [document API contract](docs/02-architecture/API-CONTRACTS.md#personal-document-library).
+
 Bluesky connector details and its current limits are documented in [BLUESKY-SEARCH.md](docs/05-backend/BLUESKY-SEARCH.md).
 Provider outcome persistence and partial-result behavior are explained in [PROVIDER-OUTCOME-AUDIT.md](docs/05-backend/PROVIDER-OUTCOME-AUDIT.md).
 
@@ -42,7 +44,7 @@ Requirements: JDK 21, Docker Desktop with Compose, Git, Maven 3.9+ for local Jav
 6. Search with Automatic, All configured sources, Brave, GDELT, or Bluesky. Automatic uses one configured provider; All configured sources queries Brave when keyed and GDELT and Bluesky when enabled. Providers receive the query only after you start the search. If some providers fail, AURA keeps successful results and labels the job Partial; if all fail, it saves the provider outcomes and reports the error. GDELT searches public news from at most the past three months. Bluesky searches bounded public posts; it does not apply country filters.
 7. Spring health: http://127.0.0.1:8080/api/v1/health; AI-service health: http://127.0.0.1:8001/api/v1/health.
 8. Direct API: create a `GENERAL` research job, explicitly run its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See [API contracts](docs/02-architecture/API-CONTRACTS.md) for request shapes and limits.
-9. In Documents, upload UTF-8 `.txt` or `.md` files up to 1 MB, search for exact phrases, inspect the returned character-offset citation, preview or download the text, and delete it when no longer needed. Files are stored in the local PostgreSQL database; they are not sent to search providers or models.
+9. In Documents, upload UTF-8 `.txt` or `.md` files, or text-based `.pdf` files, up to 1 MB. PDFs are limited to 100 pages and 250,000 extracted characters; scanned PDFs need OCR, which is not enabled. Search exact phrases, inspect character/page citations, preview extracted text, download PDF text as `.pdf.extracted.txt`, and delete it when no longer needed. Only normalized/extracted text is stored in PostgreSQL; source PDF bytes are not retained, and documents are not sent to search providers or models.
 10. In Cyber intelligence, submit exact CVE IDs or upload a CycloneDX JSON SBOM of 2 MB or less. AURA parses the file in memory and checks only CVEs declared in it; it does not identify package vulnerabilities or scan systems. Use “Load NVD details” on an individual CVE to request its NVD record, CVSS, and CPE applicability data.
 11. Optional: to create a cited report, install Ollama and a local model. Set `AURA_AI_INTERNAL_TOKEN` to a separate random secret, `AURA_AI_MODEL_PROVIDER=ollama`, and `AURA_AI_OLLAMA_MODEL` to the installed model name. The Compose AI container calls the local Ollama endpoint at `AURA_AI_OLLAMA_BASE_URL`; keep Ollama reachable only on a trusted local interface. No model call occurs until you click Report, and only the first 20 currently visible source snippets and metadata are sent. Uploaded library documents are not included.
 12. Verify Java with `mvn -f backend/pom.xml verify`. For frontend development, use Node 22 in `web` and run `npm ci`, `npm test`, then `npm run build`.

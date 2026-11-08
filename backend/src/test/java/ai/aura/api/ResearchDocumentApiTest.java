@@ -1,5 +1,10 @@
 package ai.aura.api;
 
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -8,6 +13,8 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
@@ -86,5 +93,75 @@ class ResearchDocumentApiTest {
                         .with(httpBasic(USERNAME, PASSWORD)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Documents must use valid UTF-8 encoding."));
+    }
+
+    @Test
+    void importsPdfTextAndReturnsPageCitations() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "research.pdf", "application/pdf",
+                pdfWithPages("AURA source on the first page.", "Evidence about AURA on the second page."));
+
+        String location = mockMvc.perform(multipart("/api/v1/documents").file(file)
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.mediaType").value("application/pdf"))
+                .andReturn().getResponse().getHeader("Location");
+
+        mockMvc.perform(get("/api/v1/documents/search").param("q", "second page")
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].page").value(2))
+                .andExpect(jsonPath("$[0].citation").value(org.hamcrest.Matchers.matchesRegex(
+                        "aura-doc://[0-9a-f-]+#page=2&chars=\\d+-\\d+")));
+
+        mockMvc.perform(get(location).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value(org.hamcrest.Matchers.containsString("\f")))
+                .andExpect(jsonPath("$.content").value(org.hamcrest.Matchers.containsString("second page")));
+    }
+
+    @Test
+    void rejectsScannedStyleAndOutOfBoundsPdfs() throws Exception {
+        MockMultipartFile scannedStyle = new MockMultipartFile("file", "scan.pdf", "application/pdf",
+                pdfWithPages((String) null));
+        mockMvc.perform(multipart("/api/v1/documents").file(scannedStyle)
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(
+                        "The PDF has no extractable text. Scanned PDFs need OCR, which is not enabled."));
+
+        String[] tooManyPages = new String[101];
+        MockMultipartFile tooManyPagesPdf = new MockMultipartFile("file", "many-pages.pdf", "application/pdf",
+                pdfWithPages(tooManyPages));
+        mockMvc.perform(multipart("/api/v1/documents").file(tooManyPagesPdf)
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("PDF files may contain up to 100 pages."));
+
+        MockMultipartFile tooMuchText = new MockMultipartFile("file", "large-text.pdf", "application/pdf",
+                pdfWithPages("A".repeat(250_001)));
+        mockMvc.perform(multipart("/api/v1/documents").file(tooMuchText)
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("PDF extracted text must be 250,000 characters or less."));
+    }
+
+    private static byte[] pdfWithPages(String... pageTexts) throws IOException {
+        try (PDDocument document = new PDDocument(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            for (String pageText : pageTexts) {
+                PDPage page = new PDPage();
+                document.addPage(page);
+                if (pageText != null && !pageText.isEmpty()) {
+                    try (PDPageContentStream content = new PDPageContentStream(document, page)) {
+                        content.beginText();
+                        content.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
+                        content.newLineAtOffset(50, 700);
+                        content.showText(pageText);
+                        content.endText();
+                    }
+                }
+            }
+            document.save(output);
+            return output.toByteArray();
+        }
     }
 }

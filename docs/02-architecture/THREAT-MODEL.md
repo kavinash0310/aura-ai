@@ -11,7 +11,7 @@ Research queries and reports; selected documents and source excerpts; account to
 3. API to search provider: the query and search options leave the local machine only after an authenticated, explicit search request; the selected Brave, GDELT, or Bluesky endpoint is fixed in code, and returned metadata is untrusted.
 4. API to vulnerability data providers: the CISA KEV catalog is downloaded on an authenticated lookup, CVE identifiers are sent to FIRST EPSS, and exact CVE IDs are sent to NVD only after an explicit per-item or bounded batch request; data can be stale or incomplete.
 5. API to Python/model provider: send minimized evidence; model output is untrusted.
-6. Owner-selected text files to document library: text can contain private information or misleading instructions; only authenticated uploads are accepted and the content is not sent to external providers or models.
+6. Owner-selected documents to document library: text can contain private information or misleading instructions; only authenticated uploads are accepted and the content is not sent to external providers or models. PDF parsing is bounded by upload size, page count, extracted-text size, and serialized parser access.
 7. Future local agent to assets: only exact scoped jobs from authenticated server are accepted.
 
 ## Threats and controls
@@ -31,7 +31,7 @@ Research queries and reports; selected documents and source excerpts; account to
 | Provider quota/cost | Repeated broad searches consume an account allowance | No background search or automatic retries; result limit is capped; provider timeout is bounded; provider billing is controlled by the owner's account |
 | Private-person harm | Results aggregate home address or sensitive traits | Public-interest scope; exclude sensitive fields/profiling; identity disambiguation |
 | Secret leakage | Token appears in prompt/report/log | Secret store, redaction, structured logging |
-| Parser exploit | Malformed PDF exploits parser | Type/size caps, isolated process for risky parsers, archive path validation, no execution |
+| Parser exploit | Malformed PDF exploits parser | Type/size/page/output caps and serialized PDF parsing; consider process isolation before remote deployment; validate archive paths and never execute uploaded content |
 | Cross-owner leak | Search returns another user's chunk | Current database is a single local-owner workspace; add owner scoping before multi-user or remote deployment |
 | Model misinformation | Unsupported claim sounds confident | The report displays citations and fixed coverage limits; ID membership is checked, but semantic support is not yet evaluated; owner reviews report before use |
 | AI service impersonation | A local process calls the Python report endpoint | Separate Java-to-Python bearer token; constant-time token comparison; disabled provider fails closed |
@@ -44,8 +44,8 @@ Research queries and reports; selected documents and source excerpts; account to
 | Malicious or oversized SBOM | Crafted JSON, excess nesting/components, or an unexpectedly large upload exhausts the API | Authenticated CycloneDX JSON only; 2 MB file cap; component, vulnerability, CVE, and affected-reference caps; strict JSON parsing; local in-memory parsing; no archive extraction or code execution |
 | SBOM data disclosure | An inventory file contains private package names or versions | Do not persist or send the SBOM file to providers; only its already-declared CVE IDs go to FIRST EPSS after explicit owner submission; match CISA KEV locally |
 | NVD query disclosure or key exposure | A CVE lookup or optional provider key is sent outside the machine | Make one exact-CVE request only after an authenticated per-item action; use the fixed HTTPS NVD endpoint; send the optional key only in a header; do not log the key; bound response time, response fields, and cache size; do not retry automatically |
-| Document data exposure | Imported notes contain private or confidential text | Require local owner authentication; limit uploads to 1 MB UTF-8 text/Markdown; store only in the local database; do not send document text to public providers or models; support explicit deletion; keep host ports bound to loopback |
-| Malicious document content | Uploaded Markdown contains active markup or binary data disguised as text | Validate UTF-8 and extension, reject NUL and empty content, render previews as escaped text, never execute content or interpret it as HTML, and do not extract archives |
+| Document data exposure | Imported notes contain private or confidential text | Require local owner authentication; limit uploads to 1 MB; store only normalized text or extracted PDF text in the local database; do not send document text to public providers or models; support explicit deletion; keep host ports bound to loopback |
+| Malicious document content | Uploaded Markdown contains active markup, or a malformed PDF targets the parser | Validate UTF-8 and extension, reject NUL and empty content, render previews as escaped text, never execute content or interpret it as HTML, and do not extract archives; PDFBox parsing is restricted to 100 pages and 250,000 extracted characters and serialized to reduce concurrent memory pressure |
 
 ## Current implementation scope
 
