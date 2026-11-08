@@ -85,6 +85,15 @@ public class ResearchProviderRun {
         completedAt = at;
     }
 
+    public void skip(String code, Instant at) {
+        if (status != ResearchProviderRunStatus.PENDING) {
+            throw new IllegalStateException("Only a pending provider run can be skipped.");
+        }
+        status = ResearchProviderRunStatus.SKIPPED;
+        failureCode = code;
+        completedAt = at;
+    }
+
     public UUID getId() { return id; }
     public UUID getResearchJobId() { return researchJobId; }
     public String getProvider() { return provider; }

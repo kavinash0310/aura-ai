@@ -38,7 +38,8 @@ Review coverage definition, contradiction retention, and why search cannot prove
 
 ## Phase 6 — Controlled workflow
 Learn state machines, leases, idempotency, backoff, audit, approval, typed tools.
-Implement persisted steps, tools, cancellation, approval, error recovery.
+Implemented first slice: public search commits each successful provider's source rows and audit outcome atomically. A single-backend startup recovery marks interrupted calls failed, uncalled providers skipped, and derives the job's terminal status without repeating requests.
+Still needed: persisted workflow steps, leases/heartbeats for multi-instance execution, retries/backoff, cancellation, approval, and broader error recovery.
 Review replay, retries, terminal failures, and policy boundary.
 
 ## Phase 7 — Cyber intelligence and operations

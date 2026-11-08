@@ -4,11 +4,11 @@ import ai.aura.api.domain.ResearchFilters;
 import ai.aura.api.domain.ResearchJob;
 import ai.aura.api.domain.ResearchJobStatus;
 import ai.aura.api.domain.ResearchProviderRun;
+import ai.aura.api.domain.ResearchProviderRunStatus;
 import ai.aura.api.domain.ResearchSource;
 import ai.aura.api.persistence.ResearchJobRepository;
 import ai.aura.api.persistence.ResearchProviderRunRepository;
 import ai.aura.api.persistence.ResearchSourceRepository;
-import ai.aura.api.search.ProviderSearchResult;
 import ai.aura.api.search.ProviderSource;
 import ai.aura.api.domain.ResearchMode;
 import org.springframework.stereotype.Service;
@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -79,6 +80,9 @@ public class ResearchJobService {
     public void delete(UUID id) {
         ResearchJob job = repository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResearchJobNotFoundException(id));
+        if (job.getStatus() == ResearchJobStatus.SEARCHING) {
+            throw new ResearchJobConflictException();
+        }
         repository.delete(job);
     }
 
@@ -100,62 +104,155 @@ public class ResearchJobService {
 
     @Transactional
     public void startProviderRun(UUID jobId, String provider) {
+        ResearchJob job = repository.findByIdForUpdate(jobId)
+                .orElseThrow(() -> new ResearchJobNotFoundException(jobId));
+        if (job.getStatus() != ResearchJobStatus.SEARCHING) {
+            throw new ResearchJobConflictException();
+        }
         ResearchProviderRun run = providerRuns.findByResearchJobIdAndProvider(jobId, provider)
                 .orElseThrow(ResearchJobConflictException::new);
         run.start(Instant.now());
     }
 
     @Transactional
-    public void completeProviderRun(UUID jobId, String provider, int resultCount) {
+    public void completeProviderRun(UUID jobId, String provider, List<ProviderSource> providerResults) {
+        ResearchJob job = repository.findByIdForUpdate(jobId)
+                .orElseThrow(() -> new ResearchJobNotFoundException(jobId));
+        if (job.getStatus() != ResearchJobStatus.SEARCHING) {
+            throw new ResearchJobConflictException();
+        }
         ResearchProviderRun run = providerRuns.findByResearchJobIdAndProvider(jobId, provider)
                 .orElseThrow(ResearchJobConflictException::new);
-        run.succeed(resultCount, Instant.now());
+        int precedingResultCount = providerRuns.findByResearchJobIdOrderByRunOrderAsc(jobId).stream()
+                .filter(previous -> previous.getRunOrder() < run.getRunOrder())
+                .filter(previous -> previous.getStatus() == ResearchProviderRunStatus.SUCCEEDED)
+                .mapToInt(ResearchProviderRun::getResultCount)
+                .sum();
+        Instant retrievedAt = Instant.now();
+        List<ResearchSource> entities = new ArrayList<>();
+        for (int index = 0; index < providerResults.size(); index++) {
+            entities.add(ResearchSource.from(
+                    jobId,
+                    provider,
+                    precedingResultCount + index + 1,
+                    providerResults.get(index),
+                    retrievedAt
+            ));
+        }
+        sources.saveAll(entities);
+        run.succeed(providerResults.size(), retrievedAt);
     }
 
     @Transactional
     public void failProviderRun(UUID jobId, String provider, String code) {
+        ResearchJob job = repository.findByIdForUpdate(jobId)
+                .orElseThrow(() -> new ResearchJobNotFoundException(jobId));
+        if (job.getStatus() != ResearchJobStatus.SEARCHING) {
+            throw new ResearchJobConflictException();
+        }
         ResearchProviderRun run = providerRuns.findByResearchJobIdAndProvider(jobId, provider)
                 .orElseThrow(ResearchJobConflictException::new);
         run.fail(code, Instant.now());
     }
 
     @Transactional
-    public ResearchJob completeSearch(
-            UUID id,
-            List<ProviderSearchResult> providerResults,
-            String firstFailureCode
-    ) {
+    public ResearchJob completeSearch(UUID id, String firstFailureCode) {
         ResearchJob job = repository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResearchJobNotFoundException(id));
         if (job.getStatus() != ResearchJobStatus.SEARCHING) {
             throw new ResearchJobConflictException();
         }
 
-        Instant retrievedAt = Instant.now();
-        List<ResearchSource> entities = new ArrayList<>();
-        int rank = 1;
-        for (ProviderSearchResult providerResult : providerResults) {
-            for (ProviderSource result : providerResult.sources()) {
-                entities.add(ResearchSource.from(id, providerResult.provider(), rank++, result, retrievedAt));
-            }
+        List<ResearchProviderRun> runs = providerRuns.findByResearchJobIdOrderByRunOrderAsc(id);
+        boolean stillRunning = runs.stream().anyMatch(run ->
+                run.getStatus() == ResearchProviderRunStatus.PENDING
+                        || run.getStatus() == ResearchProviderRunStatus.RUNNING
+        );
+        if (stillRunning) {
+            throw new ResearchJobConflictException();
         }
-        sources.saveAll(entities);
-        if (firstFailureCode != null && providerResults.isEmpty()) {
-            job.failSearch(firstFailureCode, retrievedAt);
-        } else if (firstFailureCode != null) {
-            job.completePartialSearch(entities.size(), firstFailureCode, retrievedAt);
+
+        Instant completedAt = Instant.now();
+        boolean anySucceeded = runs.stream().anyMatch(run -> run.getStatus() == ResearchProviderRunStatus.SUCCEEDED);
+        boolean anyIncomplete = runs.stream().anyMatch(run ->
+                run.getStatus() == ResearchProviderRunStatus.FAILED
+                        || run.getStatus() == ResearchProviderRunStatus.SKIPPED
+        );
+        String failureCode = firstFailureCode != null ? firstFailureCode : runs.stream()
+                .filter(run -> run.getStatus() == ResearchProviderRunStatus.FAILED
+                        || run.getStatus() == ResearchProviderRunStatus.SKIPPED)
+                .map(ResearchProviderRun::getFailureCode)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        int resultCount = Math.toIntExact(sources.countByResearchJobId(id));
+        long reportedSuccessCount = runs.stream()
+                .filter(run -> run.getStatus() == ResearchProviderRunStatus.SUCCEEDED)
+                .mapToLong(ResearchProviderRun::getResultCount)
+                .sum();
+        if (reportedSuccessCount != resultCount) {
+            job.failSearch("SEARCH_RESULT_COUNT_MISMATCH", completedAt);
+            return job;
+        }
+        if (anySucceeded && anyIncomplete) {
+            job.completePartialSearch(resultCount, failureCode, completedAt);
+        } else if (anySucceeded) {
+            job.completeSearch(resultCount, completedAt);
         } else {
-            job.completeSearch(entities.size(), retrievedAt);
+            job.failSearch(failureCode == null ? "SEARCH_PROVIDER_FAILURE" : failureCode, completedAt);
         }
         return job;
     }
 
     @Transactional
-    public void failSearch(UUID id, String code) {
-        ResearchJob job = repository.findByIdForUpdate(id)
-                .orElseThrow(() -> new ResearchJobNotFoundException(id));
-        if (job.getStatus() == ResearchJobStatus.SEARCHING) {
-            job.failSearch(code, Instant.now());
+    public void recoverInterruptedSearches() {
+        List<ResearchJob> interruptedJobs = repository.findByStatusOrderBySearchStartedAtAsc(
+                ResearchJobStatus.SEARCHING
+        );
+        for (ResearchJob candidate : interruptedJobs) {
+            ResearchJob job = repository.findByIdForUpdate(candidate.getId())
+                    .orElseThrow(() -> new ResearchJobNotFoundException(candidate.getId()));
+            if (job.getStatus() != ResearchJobStatus.SEARCHING) {
+                continue;
+            }
+
+            Instant recoveredAt = Instant.now();
+            List<ResearchProviderRun> runs = providerRuns.findByResearchJobIdOrderByRunOrderAsc(job.getId());
+            for (ResearchProviderRun run : runs) {
+                if (run.getStatus() == ResearchProviderRunStatus.RUNNING) {
+                    run.fail("SEARCH_INTERRUPTED", recoveredAt);
+                } else if (run.getStatus() == ResearchProviderRunStatus.PENDING) {
+                    run.skip("SEARCH_INTERRUPTED_BEFORE_PROVIDER", recoveredAt);
+                }
+            }
+            boolean anySucceeded = runs.stream().anyMatch(run -> run.getStatus() == ResearchProviderRunStatus.SUCCEEDED);
+            boolean anyIncomplete = runs.stream().anyMatch(run ->
+                    run.getStatus() == ResearchProviderRunStatus.FAILED
+                            || run.getStatus() == ResearchProviderRunStatus.SKIPPED
+            );
+            String failureCode = runs.stream()
+                    .filter(run -> run.getStatus() == ResearchProviderRunStatus.FAILED
+                            || run.getStatus() == ResearchProviderRunStatus.SKIPPED)
+                    .map(ResearchProviderRun::getFailureCode)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse("SEARCH_INTERRUPTED");
+            int resultCount = Math.toIntExact(sources.countByResearchJobId(job.getId()));
+            long reportedSuccessCount = runs.stream()
+                    .filter(run -> run.getStatus() == ResearchProviderRunStatus.SUCCEEDED)
+                    .mapToLong(ResearchProviderRun::getResultCount)
+                    .sum();
+            if (reportedSuccessCount != resultCount) {
+                job.failSearch("SEARCH_RECOVERY_SOURCE_COUNT_MISMATCH", recoveredAt);
+                continue;
+            }
+            if (anySucceeded && anyIncomplete) {
+                job.completePartialSearch(resultCount, failureCode, recoveredAt);
+            } else if (anySucceeded) {
+                job.completeSearch(resultCount, recoveredAt);
+            } else {
+                job.failSearch(failureCode, recoveredAt);
+            }
         }
     }
 }

@@ -4,9 +4,12 @@ import ai.aura.api.application.AiReportClient;
 import ai.aura.api.application.AiResearchReportRequest;
 import ai.aura.api.api.ResearchReportResponse;
 import ai.aura.api.domain.ResearchFilters;
+import ai.aura.api.domain.ResearchJobStatus;
+import ai.aura.api.domain.ResearchProviderRunStatus;
 import ai.aura.api.search.ProviderSource;
 import ai.aura.api.search.SearchProvider;
 import ai.aura.api.search.SearchProviderException;
+import ai.aura.api.persistence.ResearchProviderRunRepository;
 import ai.aura.api.persistence.ResearchSourceRepository;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
@@ -65,6 +68,9 @@ class ResearchSearchApiTest {
 
     @Autowired
     private ResearchSourceRepository sources;
+
+    @Autowired
+    private ResearchProviderRunRepository providerRuns;
 
     @MockitoBean
     private AiReportClient aiReportClient;
@@ -333,6 +339,90 @@ class ResearchSearchApiTest {
                 .andExpect(jsonPath("$.failureCode").value("SEARCH_PROVIDER_RATE_LIMITED"))
                 .andExpect(jsonPath("$.providerRuns[0].provider").value("test"))
                 .andExpect(jsonPath("$.providerRuns[0].status").value("FAILED"));
+    }
+
+    @Test
+    void recoveryKeepsCommittedProviderEvidenceAndClosesInterruptedRuns() {
+        UUID id = createJob("recover interrupted search");
+        jobs.beginSearch(
+                id,
+                new ResearchFilters(null, null, null, 20),
+                "all",
+                List.of("first", "second", "third")
+        );
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jobs.delete(id))
+                .isInstanceOf(ai.aura.api.application.ResearchJobConflictException.class);
+        jobs.startProviderRun(id, "first");
+        jobs.completeProviderRun(id, "first", List.of(new ProviderSource(
+                ai.aura.api.domain.SourceType.WEB,
+                "Durable result",
+                "https://example.com/durable-result",
+                "example.com",
+                "Saved when the first provider completed.",
+                "Example",
+                Instant.parse("2026-11-07T12:00:00Z")
+        )));
+        jobs.startProviderRun(id, "second");
+
+        jobs.recoverInterruptedSearches();
+
+        org.assertj.core.api.Assertions.assertThat(jobs.get(id).getStatus()).isEqualTo(ResearchJobStatus.PARTIAL);
+        org.assertj.core.api.Assertions.assertThat(sources.countByResearchJobId(id)).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(providerRuns.findByResearchJobIdOrderByRunOrderAsc(id))
+                .extracting(run -> run.getStatus())
+                .containsExactly(
+                        ResearchProviderRunStatus.SUCCEEDED,
+                        ResearchProviderRunStatus.FAILED,
+                        ResearchProviderRunStatus.SKIPPED
+                );
+        org.assertj.core.api.Assertions.assertThat(providerRuns.findByResearchJobIdOrderByRunOrderAsc(id))
+                .extracting(run -> run.getFailureCode())
+                .containsExactly((String) null, "SEARCH_INTERRUPTED", "SEARCH_INTERRUPTED_BEFORE_PROVIDER");
+    }
+
+    @Test
+    void recoveryCompletesAJobWhenEveryProviderAlreadyCommittedSuccessfully() {
+        UUID id = createJob("finish after restart");
+        jobs.beginSearch(id, ResearchFilters.defaults(), "test", List.of("test"));
+        jobs.startProviderRun(id, "test");
+        jobs.completeProviderRun(id, "test", List.of());
+
+        jobs.recoverInterruptedSearches();
+
+        org.assertj.core.api.Assertions.assertThat(jobs.get(id).getStatus()).isEqualTo(ResearchJobStatus.COMPLETED);
+        org.assertj.core.api.Assertions.assertThat(providerRuns.findByResearchJobIdOrderByRunOrderAsc(id))
+                .extracting(run -> run.getStatus())
+                .containsExactly(ResearchProviderRunStatus.SUCCEEDED);
+    }
+
+    @Test
+    void recoveryFailsAJobWhenNoProviderCompletedBeforeInterruption() {
+        UUID id = createJob("fail after restart");
+        jobs.beginSearch(id, ResearchFilters.defaults(), "all", List.of("first", "second"));
+        jobs.startProviderRun(id, "first");
+
+        jobs.recoverInterruptedSearches();
+
+        org.assertj.core.api.Assertions.assertThat(jobs.get(id).getStatus()).isEqualTo(ResearchJobStatus.FAILED);
+        org.assertj.core.api.Assertions.assertThat(jobs.get(id).getFailureCode()).isEqualTo("SEARCH_INTERRUPTED");
+        org.assertj.core.api.Assertions.assertThat(sources.countByResearchJobId(id)).isZero();
+    }
+
+    @Test
+    void recoveryFailsClosedWhenLegacyProviderCountsHaveNoSavedEvidence() {
+        UUID id = createJob("legacy interrupted search");
+        jobs.beginSearch(id, ResearchFilters.defaults(), "test", List.of("test"));
+        jobs.startProviderRun(id, "test");
+        var legacyRun = providerRuns.findByResearchJobIdAndProvider(id, "test").orElseThrow();
+        legacyRun.succeed(1, Instant.now());
+        providerRuns.save(legacyRun);
+
+        jobs.recoverInterruptedSearches();
+
+        org.assertj.core.api.Assertions.assertThat(jobs.get(id).getStatus()).isEqualTo(ResearchJobStatus.FAILED);
+        org.assertj.core.api.Assertions.assertThat(jobs.get(id).getFailureCode())
+                .isEqualTo("SEARCH_RECOVERY_SOURCE_COUNT_MISMATCH");
+        org.assertj.core.api.Assertions.assertThat(sources.countByResearchJobId(id)).isZero();
     }
 
     @Test

@@ -4,5 +4,6 @@ public enum ResearchProviderRunStatus {
     PENDING,
     RUNNING,
     SUCCEEDED,
-    FAILED
+    FAILED,
+    SKIPPED
 }

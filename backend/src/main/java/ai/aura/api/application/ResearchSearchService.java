@@ -2,14 +2,12 @@ package ai.aura.api.application;
 
 import ai.aura.api.domain.ResearchFilters;
 import ai.aura.api.domain.ResearchJob;
-import ai.aura.api.search.ProviderSearchResult;
 import ai.aura.api.search.ProviderSource;
 import ai.aura.api.search.SearchProvider;
 import ai.aura.api.search.SearchProviderException;
 import ai.aura.api.search.SearchProviderNotConfiguredException;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -45,36 +43,37 @@ public class ResearchSearchService {
                 selectedProvider,
                 selectedProviders.stream().map(SearchProvider::name).toList()
         );
-        List<ProviderSearchResult> results = new ArrayList<>();
         SearchProviderException firstFailure = null;
         for (SearchProvider provider : selectedProviders) {
             jobs.startProviderRun(jobId, provider.name());
+            List<ProviderSource> providerResults;
             try {
-                List<ProviderSource> providerResults = provider.search(job.getSubject(), filters);
-                results.add(new ProviderSearchResult(provider.name(), providerResults));
-                jobs.completeProviderRun(jobId, provider.name(), providerResults.size());
+                providerResults = provider.search(job.getSubject(), filters);
             } catch (SearchProviderException exception) {
                 jobs.failProviderRun(jobId, provider.name(), exception.getCode());
                 if (firstFailure == null) {
                     firstFailure = exception;
                 }
+                continue;
             } catch (RuntimeException exception) {
                 SearchProviderException failure = new SearchProviderException("SEARCH_PROVIDER_FAILURE", false);
                 jobs.failProviderRun(jobId, provider.name(), failure.getCode());
                 if (firstFailure == null) {
                     firstFailure = failure;
                 }
+                continue;
             }
+            jobs.completeProviderRun(jobId, provider.name(), providerResults);
         }
-        ResearchJob completed = jobs.completeSearch(
-                jobId,
-                results,
-                firstFailure == null ? null : firstFailure.getCode()
-        );
+        ResearchJob completed = jobs.completeSearch(jobId, firstFailure == null ? null : firstFailure.getCode());
         if (completed.getStatus() == ai.aura.api.domain.ResearchJobStatus.FAILED) {
-            throw firstFailure == null
-                    ? new SearchProviderException("SEARCH_PROVIDER_FAILURE", false)
-                    : firstFailure;
+            if (firstFailure != null && firstFailure.getCode().equals(completed.getFailureCode())) {
+                throw firstFailure;
+            }
+            throw new SearchProviderException(
+                    completed.getFailureCode() == null ? "SEARCH_PROVIDER_FAILURE" : completed.getFailureCode(),
+                    false
+            );
         }
         return completed;
     }

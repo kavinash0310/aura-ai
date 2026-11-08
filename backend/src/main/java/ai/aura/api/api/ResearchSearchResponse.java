@@ -55,11 +55,12 @@ public record ResearchSearchResponse(
     ) {
         if (status == ResearchJobStatus.PARTIAL) {
             String failedProviders = providerRuns.stream()
-                    .filter(run -> run.status() == ai.aura.api.domain.ResearchProviderRunStatus.FAILED)
+                    .filter(run -> run.status() == ai.aura.api.domain.ResearchProviderRunStatus.FAILED
+                            || run.status() == ai.aura.api.domain.ResearchProviderRunStatus.SKIPPED)
                     .map(ProviderRunResponse::provider)
                     .collect(java.util.stream.Collectors.joining(", "));
             return "Partial coverage: successful providers' results are saved; " + failedProviders
-                    + " did not return results. Provider outcome and failure codes are listed below. "
+                    + " failed or were skipped and did not return results. Provider outcome and failure codes are listed below. "
                     + "Coverage remains partial, not a crawl of the internet.";
         }
         if ("all".equals(provider)) {

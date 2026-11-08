@@ -70,11 +70,12 @@ public class ResearchReportService {
         }
 
         String failedProviders = jobs.listProviderRuns(jobId).stream()
-                .filter(run -> run.getStatus() == ai.aura.api.domain.ResearchProviderRunStatus.FAILED)
+                .filter(run -> run.getStatus() == ai.aura.api.domain.ResearchProviderRunStatus.FAILED
+                        || run.getStatus() == ai.aura.api.domain.ResearchProviderRunStatus.SKIPPED)
                 .map(run -> run.getProvider() + " (" + run.getFailureCode() + ")")
                 .collect(java.util.stream.Collectors.joining(", "));
         String coverageNote = "Partial search: " + failedProviders
-                + " did not return results. This report summarizes only the selected saved sources and may omit evidence from failed providers. "
+                + " failed or were skipped and did not return results. This report summarizes only the selected saved sources and may omit evidence from those providers. "
                 + generated.coverageNote();
         return new ResearchReportResponse(
                 generated.generatedAt(),

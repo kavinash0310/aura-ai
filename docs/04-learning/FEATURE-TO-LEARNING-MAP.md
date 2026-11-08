@@ -7,7 +7,7 @@ CORE means needed for AURA; CAREER means high value for the target role; OPTIONA
 | API foundation | HTTP lifecycle, DI, validation, REST, errors, config | Java 21, Spring Boot 4, Maven | Java OOP, collections, exceptions | CORE / CAREER |
 | Authentication | Filter chain, hashing, stateless/session trade-offs, least privilege | Spring Security | HTTP, crypto basics | CORE / CAREER |
 | Persistence | Entity lifecycle, repositories, transactions, indexes, migrations | PostgreSQL, JPA/Hibernate, Flyway | SQL, relational modeling | CORE / CAREER |
-| Research workflow | State machine, transactions, idempotency, retries, cancellation | Spring services, PostgreSQL | REST, persistence | CORE / CAREER |
+| Research workflow | State machine, transaction boundaries, restart recovery, idempotency, leases, retries, cancellation | Spring services, PostgreSQL | REST, persistence | CORE / CAREER |
 | Python AI service | Type hints, Pydantic, ASGI, async I/O, service authentication, timeouts | Python, FastAPI, `urllib`, Ollama API | Python basics, JSON/HTTP | CAREER |
 | Document ingestion | File validation, parsing, metadata, chunking, offsets | Parser adapters, PostgreSQL | Streams, encodings, security | CORE / CAREER |
 | Search and RAG | Tokenization, embeddings, similarity, FTS, hybrid search, reranking, citations | PostgreSQL FTS, optional pgvector | Probability, vectors, SQL | CORE / CAREER |

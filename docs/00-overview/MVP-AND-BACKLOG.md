@@ -54,6 +54,7 @@ Add web/news adapters, query planning, normalization, deduplication, evidence, c
 
 ### M6 — Controlled workflow
 Add persisted steps, typed tools, retries/backoff, cancellation, approval, audit.
+**Delivered first slice:** synchronous public searches persist each provider's results atomically with its success outcome and reconcile interrupted jobs on single-backend startup; interrupted providers are not retried automatically. Multi-instance leases, retry scheduling, cancellation, and approval remain future work.
 **Accept when:** provider failures recover or surface terminal state; policy denies out-of-scope operations.
 
 ### M7 — Cybersecurity intelligence
