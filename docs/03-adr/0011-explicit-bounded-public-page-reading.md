@@ -17,7 +17,7 @@ No background crawling, account logins, private feeds, paywall/CAPTCHA bypass, a
 
 - The selected page provides more evidence than a provider snippet while keeping each outbound request user-triggered and attributable to one stored source.
 - The page remains untrusted and can be incomplete, inaccurate, manipulative, or prompt-injection shaped. It is shown as text, not executed or sent to the model.
-- Coverage remains partial. Public hostname checks and IPv4-only requests reduce SSRF risk but do not make this route suitable for an internet-facing multi-user deployment without additional authorization, quotas, audit, and security review.
+- Coverage remains partial. The response includes a fetch time and digest, but there is no durable page-read audit event yet. Public hostname checks and IPv4-only requests reduce SSRF risk but do not make this route suitable for an internet-facing multi-user deployment without additional authorization, quotas, durable audit, and security review.
 - Static HTML extraction is broadly useful but misses JavaScript-rendered content and may include navigation or boilerplate.
 
 ## Alternatives considered
