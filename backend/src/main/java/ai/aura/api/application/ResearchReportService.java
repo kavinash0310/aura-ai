@@ -87,7 +87,8 @@ public class ResearchReportService {
                 generated.findings(),
                 generated.limitations(),
                 generated.citations(),
-                coverageNote
+                coverageNote,
+                generated.modelRun()
         );
     }
 

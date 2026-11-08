@@ -41,6 +41,12 @@ Java remains the authority for user authentication, job state, and source owners
 - Report storage: none. The backend returns the result; the current browser page holds it in component state until navigation or reload; a download creates a separate user-controlled copy. The explicit JSON download includes job/query/provider/timing metadata, the candidate source metadata and snippets provided to the model, and the structured report response. It does not include page text.
 - Export limitation: the JSON preserves the exact evidence snapshot and generated response, but not model weights, prompt/runtime configuration, or a guarantee of identical replay.
 
+## Model-run audit metadata
+
+Each response identifies its prompt template (`research-report-v1`) and exposes Ollama's total generation duration in milliseconds plus prompt and output token counts when the configured Ollama build returns them. The values come from Ollama's response fields [`total_duration`, `prompt_eval_count`, and `eval_count`](https://docs.ollama.com/api/chat). A missing or invalid metric is returned as `null` and does not fail report generation. The UI displays available values; JSON and Markdown downloads preserve the prompt version and available counters.
+
+The AI service writes a completion log with operation, configured model name, prompt version, duration, and token counts. It does not log the prompt, claim, source snippets, generated report, or generated comparison. These logs are operational telemetry, not a durable per-user audit database. Prompt versions are maintained in code and must be incremented when the system prompt, output schema, or generation settings change. They identify the template, not an immutable model artifact or a reproducibility guarantee.
+
 The Python service rejects source IDs not present in its request. That confirms referential integrity only, not that text is entailed by the cited page. The UI therefore calls the links candidate sources and displays a fixed warning that reports use provider snippets only; page snapshots read elsewhere in the UI are not included or independently verified.
 
 ## Safety and failure behavior
@@ -60,7 +66,7 @@ The Python service rejects source IDs not present in its request. That confirms 
 - `backend/.../ResearchReportService.java`: completed-job check, source ownership, field truncation, input construction.
 - `backend/.../AiReportClient.java`: internal token and timeout-bound Java-to-Python call.
 - `ai-service/src/aura_ai_service/config.py`: disabled-by-default model and local endpoint validation.
-- `ai-service/src/aura_ai_service/main.py`: request validation, Ollama call, structured-output validation, citation membership check.
+- `ai-service/src/aura_ai_service/main.py`: request validation, versioned prompt constants, bounded Ollama call, output validation, citation membership, and content-free usage logging.
 
 ## Testing and next evaluation
 

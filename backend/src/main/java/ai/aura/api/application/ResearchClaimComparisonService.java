@@ -90,7 +90,8 @@ public class ResearchClaimComparisonService {
                 generated.citations(),
                 "Partial search: " + failedProviders
                         + " failed or were skipped. The comparison covers only selected saved snippets. "
-                        + generated.coverageNote()
+                        + generated.coverageNote(),
+                generated.modelRun()
         );
     }
 

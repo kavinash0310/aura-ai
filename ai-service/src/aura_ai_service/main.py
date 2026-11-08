@@ -4,6 +4,7 @@ import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 from urllib.error import HTTPError, URLError
@@ -15,6 +16,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from aura_ai_service.config import Settings, get_settings
 
 logger = logging.getLogger("aura.ai_service")
+
+REPORT_PROMPT_VERSION = "research-report-v1"
+CLAIM_COMPARISON_PROMPT_VERSION = "claim-comparison-v1"
 
 
 class HealthResponse(BaseModel):
@@ -81,10 +85,20 @@ class ReportCitation(BaseModel):
     kind: Literal["WEB", "NEWS", "DISCUSSION"]
 
 
+class ModelRunTelemetry(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    prompt_version: str = Field(alias="promptVersion")
+    duration_ms: int | None = Field(alias="durationMs")
+    prompt_token_count: int | None = Field(alias="promptTokenCount")
+    output_token_count: int | None = Field(alias="outputTokenCount")
+
+
 class ResearchReportResponse(ResearchReportContent):
     generated_at: datetime = Field(alias="generatedAt")
     provider: Literal["ollama"]
     model: str
+    model_run: ModelRunTelemetry = Field(alias="modelRun")
     citations: list[ReportCitation]
     coverage_note: str = Field(alias="coverageNote")
 
@@ -151,6 +165,7 @@ class ClaimComparisonResponse(BaseModel):
     generated_at: datetime = Field(alias="generatedAt")
     provider: Literal["ollama"]
     model: str
+    model_run: ModelRunTelemetry = Field(alias="modelRun")
     claim: str
     assessment: Literal["SUPPORTED", "CHALLENGED", "MIXED", "INSUFFICIENT"]
     explanation: str
@@ -158,6 +173,14 @@ class ClaimComparisonResponse(BaseModel):
     limitations: list[str]
     citations: list[ClaimComparisonCitation]
     coverage_note: str = Field(alias="coverageNote")
+
+
+@dataclass(frozen=True)
+class OllamaCallResult:
+    content: str
+    total_duration_ns: int | None = None
+    prompt_eval_count: int | None = None
+    eval_count: int | None = None
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
@@ -257,13 +280,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=503, detail="A local report is already being generated"
             ) from None
         try:
-            content = await asyncio.to_thread(
+            ollama_result = await asyncio.to_thread(
                 _call_ollama,
                 resolved_settings.ollama_base_url,
                 ollama_payload,
                 resolved_settings.ollama_timeout_seconds,
             )
-            report = ResearchReportContent.model_validate_json(content)
+            report = ResearchReportContent.model_validate_json(_result_content(ollama_result))
         except ValidationError as error:
             logger.warning(
                 "local_report_invalid_output", extra={"error_type": type(error).__name__}
@@ -280,6 +303,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from None
         finally:
             app.state.report_lock.release()
+
+        model_run = _model_run_telemetry(REPORT_PROMPT_VERSION, ollama_result)
+        _log_model_run("research_report", resolved_settings.ollama_model, model_run)
 
         referenced_ids = set(report.summary_source_ids)
         for finding in report.findings:
@@ -306,6 +332,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             generated_at=datetime.now(UTC),
             provider="ollama",
             model=resolved_settings.ollama_model,
+            model_run=model_run,
             citations=list(citation_by_id.values()),
             coverage_note=(
                 "AI-generated from only the selected search-result metadata and provider snippets. "
@@ -373,13 +400,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=503, detail="A local report is already being generated"
             ) from None
         try:
-            content = await asyncio.to_thread(
+            ollama_result = await asyncio.to_thread(
                 _call_ollama,
                 resolved_settings.ollama_base_url,
                 ollama_payload,
                 resolved_settings.ollama_timeout_seconds,
             )
-            comparison = ClaimComparisonContent.model_validate_json(content)
+            comparison = ClaimComparisonContent.model_validate_json(_result_content(ollama_result))
         except ValidationError as error:
             logger.warning(
                 "local_claim_comparison_invalid_output", extra={"error_type": type(error).__name__}
@@ -396,6 +423,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from None
         finally:
             app.state.report_lock.release()
+
+        model_run = _model_run_telemetry(CLAIM_COMPARISON_PROMPT_VERSION, ollama_result)
+        _log_model_run("claim_comparison", resolved_settings.ollama_model, model_run)
 
         referenced_ids = {
             source_id for item in comparison.evidence for source_id in item.source_ids
@@ -421,6 +451,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             generated_at=datetime.now(UTC),
             provider="ollama",
             model=resolved_settings.ollama_model,
+            model_run=model_run,
             claim=request.claim,
             assessment=comparison.assessment,
             explanation=comparison.explanation,
@@ -437,7 +468,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-def _call_ollama(base_url: str, body: bytes, timeout_seconds: int) -> str:
+def _call_ollama(base_url: str, body: bytes, timeout_seconds: int) -> OllamaCallResult:
     request = Request(
         f"{base_url}/api/chat",
         data=body,
@@ -458,7 +489,66 @@ def _call_ollama(base_url: str, body: bytes, timeout_seconds: int) -> str:
     content = message.get("content")
     if not isinstance(content, str) or not content:
         raise ValueError("Local model returned no report content")
-    return content
+    return OllamaCallResult(
+        content=content,
+        total_duration_ns=_optional_nonnegative_int(outer.get("total_duration")),
+        prompt_eval_count=_optional_nonnegative_int(outer.get("prompt_eval_count")),
+        eval_count=_optional_nonnegative_int(outer.get("eval_count")),
+    )
+
+
+def _optional_nonnegative_int(value: object) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 2**63 - 1:
+        return value
+    return None
+
+
+def _result_content(result: OllamaCallResult | str) -> str:
+    # The string form keeps older internal test doubles compatible when metrics are absent.
+    return result.content if isinstance(result, OllamaCallResult) else result
+
+
+def _model_run_telemetry(
+    prompt_version: str,
+    result: OllamaCallResult | str,
+) -> ModelRunTelemetry:
+    if isinstance(result, OllamaCallResult):
+        duration_ms = (
+            result.total_duration_ns // 1_000_000
+            if result.total_duration_ns is not None
+            else None
+        )
+        prompt_token_count = result.prompt_eval_count
+        output_token_count = result.eval_count
+    else:
+        duration_ms = prompt_token_count = output_token_count = None
+    return ModelRunTelemetry(
+        prompt_version=prompt_version,
+        duration_ms=duration_ms,
+        prompt_token_count=prompt_token_count,
+        output_token_count=output_token_count,
+    )
+
+
+def _log_model_run(operation: str, model: str, model_run: ModelRunTelemetry) -> None:
+    logger.info(
+        "local_model_request_completed operation=%s model=%s prompt_version=%s "
+        "duration_ms=%s prompt_token_count=%s output_token_count=%s",
+        operation,
+        model,
+        model_run.prompt_version,
+        model_run.duration_ms,
+        model_run.prompt_token_count,
+        model_run.output_token_count,
+        extra={
+            "operation": operation,
+            "model": model,
+            "prompt_version": model_run.prompt_version,
+            "duration_ms": model_run.duration_ms,
+            "prompt_token_count": model_run.prompt_token_count,
+            "output_token_count": model_run.output_token_count,
+        },
+    )
 
 
 app = create_app()
