@@ -159,7 +159,7 @@ export function deleteResearchJob(credentials: Credentials, id: string): Promise
 export function runResearch(
   credentials: Credentials,
   id: string,
-  options: { country: string; language: string; freshness: string; resultLimit: number; provider: SearchProviderChoice },
+  options: { country: string; language: string; freshness: string; resultLimit: number; provider: SearchProviderChoice; queries: string[] },
 ): Promise<SearchResponse> {
   return request<SearchResponse>(`${jobPath(id)}/search`, credentials, {
     method: "POST",
@@ -169,6 +169,7 @@ export function runResearch(
       freshness: options.freshness || null,
       resultLimit: options.resultLimit,
       provider: options.provider || null,
+      queries: options.queries,
     }),
   });
 }

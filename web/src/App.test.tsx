@@ -85,6 +85,7 @@ describe("AURA research workspace", () => {
     const source = {
       id: "source-1",
       provider: "gdelt",
+      searchQuery: "passkeys",
       kind: "WEB",
       rank: 1,
       title: "Passkeys overview",
@@ -132,8 +133,15 @@ describe("AURA research workspace", () => {
 
     fireEvent.change(screen.getByLabelText("Research question or topic"), { target: { value: "passkeys" } });
     fireEvent.change(screen.getByLabelText("Search source"), { target: { value: "all" } });
+    fireEvent.click(screen.getByRole("button", { name: /Add search angle/ }));
+    fireEvent.change(screen.getByLabelText("Additional search query 1"), { target: { value: "passkey adoption timeline" } });
     fireEvent.click(screen.getByRole("button", { name: /Start research/ }));
     const resultLink = await screen.findByRole("link", { name: /Passkeys overview/ });
+    const searchCall = fetchMock.mock.calls.find(([url]) => String(url).includes("/search"));
+    expect(JSON.parse(String(searchCall?.[1]?.body))).toMatchObject({
+      queries: ["passkeys", "passkey adoption timeline"],
+      provider: "all",
+    });
     expect(resultLink).toHaveAttribute("href", "https://example.com/passkeys");
     expect(resultLink).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getAllByText("GDELT").length).toBeGreaterThan(0);

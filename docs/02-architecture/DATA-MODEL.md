@@ -43,7 +43,7 @@ erDiagram
   USER ||--o{ AUDIT_EVENT : performs
 ~~~
 
-The current schema also includes saved `research_sources`, provider-run outcomes, documents, and `research_page_reads`. A page-read audit row references its job and source, stores status/timestamps plus an optional text hash/count/truncation or stable failure code, and cascades when the source or job is deleted. It never stores fetched page text. Most other entities and joins above remain target design.
+The current schema also includes saved `research_sources`, provider-run outcomes, documents, and `research_page_reads`. A provider run records its provider, one-based query order, exact user-approved query, run order, lifecycle, result count, and timestamps; one row exists for each provider/query pair. Each saved source records the query that returned it. V8 backfills old provider runs and sources from their job topic before enforcing query provenance. A page-read audit row references its job and source, stores status/timestamps plus an optional text hash/count/truncation or stable failure code, and cascades when the source or job is deleted. It never stores fetched page text. Most other entities and joins above remain target design.
 
 ## Data principles
 

@@ -149,6 +149,8 @@ class ResearchSearchApiTest {
                 .andExpect(jsonPath("$.providerRuns.length()").value(2))
                 .andExpect(jsonPath("$.providerRuns[0].provider").value("test"))
                 .andExpect(jsonPath("$.providerRuns[0].status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.providerRuns[0].query").value("multi-source research"))
+                .andExpect(jsonPath("$.results[0].searchQuery").value("multi-source research"))
                 .andExpect(jsonPath("$.coverageNote").value(org.hamcrest.Matchers.containsString("every currently configured public search provider")));
 
         org.assertj.core.api.Assertions.assertThat(sources.findByResearchJobIdOrderByRankAsc(id))
@@ -169,6 +171,53 @@ class ResearchSearchApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.results.length()").value(1))
                 .andExpect(jsonPath("$.results[0].provider").value("secondary"));
+    }
+
+    @Test
+    void runsBoundedQueryPlanAndRecordsWhichQueryReturnedEachSource() throws Exception {
+        UUID id = createJob("passkeys adoption");
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"provider\":\"test\",\"queries\":[\"passkeys adoption\",\"passkey deployment guidance\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providerRuns.length()").value(2))
+                .andExpect(jsonPath("$.providerRuns[0].queryOrder").value(1))
+                .andExpect(jsonPath("$.providerRuns[0].query").value("passkeys adoption"))
+                .andExpect(jsonPath("$.providerRuns[1].queryOrder").value(2))
+                .andExpect(jsonPath("$.providerRuns[1].query").value("passkey deployment guidance"))
+                .andExpect(jsonPath("$.results.length()").value(6))
+                .andExpect(jsonPath("$.results[0].searchQuery").value("passkeys adoption"))
+                .andExpect(jsonPath("$.results[3].searchQuery").value("passkey deployment guidance"));
+
+        mockMvc.perform(get("/api/v1/research-jobs/" + id + "/export")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .param("format", "csv"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("provider,searchQuery,rank")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("passkey deployment guidance")));
+
+        mockMvc.perform(get("/api/v1/research-jobs/" + id + "/sources")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .param("q", "deployment guidance"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.results.length()").value(3))
+                .andExpect(jsonPath("$.results[0].searchQuery").value("passkey deployment guidance"));
+    }
+
+    @Test
+    void rejectsQueryPlansThatDoNotStartWithTheResearchTopic() throws Exception {
+        UUID id = createJob("approved topic");
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"provider\":\"test\",\"queries\":[\"unrelated query\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_RESEARCH_FILTER"));
+
+        org.assertj.core.api.Assertions.assertThat(jobs.get(id).getStatus()).isEqualTo(ResearchJobStatus.REQUESTED);
     }
 
     @Test
@@ -348,12 +397,13 @@ class ResearchSearchApiTest {
                 id,
                 new ResearchFilters(null, null, null, 20),
                 "all",
-                List.of("first", "second", "third")
+                List.of("first", "second", "third"),
+                List.of("recover interrupted search")
         );
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> jobs.delete(id))
                 .isInstanceOf(ai.aura.api.application.ResearchJobConflictException.class);
-        jobs.startProviderRun(id, "first");
-        jobs.completeProviderRun(id, "first", List.of(new ProviderSource(
+        jobs.startProviderRun(id, "first", 1);
+        jobs.completeProviderRun(id, "first", 1, List.of(new ProviderSource(
                 ai.aura.api.domain.SourceType.WEB,
                 "Durable result",
                 "https://example.com/durable-result",
@@ -362,7 +412,7 @@ class ResearchSearchApiTest {
                 "Example",
                 Instant.parse("2026-11-07T12:00:00Z")
         )));
-        jobs.startProviderRun(id, "second");
+        jobs.startProviderRun(id, "second", 1);
 
         jobs.recoverInterruptedSearches();
 
@@ -383,9 +433,9 @@ class ResearchSearchApiTest {
     @Test
     void recoveryCompletesAJobWhenEveryProviderAlreadyCommittedSuccessfully() {
         UUID id = createJob("finish after restart");
-        jobs.beginSearch(id, ResearchFilters.defaults(), "test", List.of("test"));
-        jobs.startProviderRun(id, "test");
-        jobs.completeProviderRun(id, "test", List.of());
+        jobs.beginSearch(id, ResearchFilters.defaults(), "test", List.of("test"), List.of("finish after restart"));
+        jobs.startProviderRun(id, "test", 1);
+        jobs.completeProviderRun(id, "test", 1, List.of());
 
         jobs.recoverInterruptedSearches();
 
@@ -398,8 +448,8 @@ class ResearchSearchApiTest {
     @Test
     void recoveryFailsAJobWhenNoProviderCompletedBeforeInterruption() {
         UUID id = createJob("fail after restart");
-        jobs.beginSearch(id, ResearchFilters.defaults(), "all", List.of("first", "second"));
-        jobs.startProviderRun(id, "first");
+        jobs.beginSearch(id, ResearchFilters.defaults(), "all", List.of("first", "second"), List.of("fail after restart"));
+        jobs.startProviderRun(id, "first", 1);
 
         jobs.recoverInterruptedSearches();
 
@@ -411,9 +461,9 @@ class ResearchSearchApiTest {
     @Test
     void recoveryFailsClosedWhenLegacyProviderCountsHaveNoSavedEvidence() {
         UUID id = createJob("legacy interrupted search");
-        jobs.beginSearch(id, ResearchFilters.defaults(), "test", List.of("test"));
-        jobs.startProviderRun(id, "test");
-        var legacyRun = providerRuns.findByResearchJobIdAndProvider(id, "test").orElseThrow();
+        jobs.beginSearch(id, ResearchFilters.defaults(), "test", List.of("test"), List.of("legacy interrupted search"));
+        jobs.startProviderRun(id, "test", 1);
+        var legacyRun = providerRuns.findByResearchJobIdAndProviderAndQueryOrder(id, "test", 1).orElseThrow();
         legacyRun.succeed(1, Instant.now());
         providerRuns.save(legacyRun);
 

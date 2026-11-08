@@ -87,7 +87,13 @@ public class ResearchJobService {
     }
 
     @Transactional
-    public ResearchJob beginSearch(UUID id, ResearchFilters filters, String provider, List<String> selectedProviders) {
+    public ResearchJob beginSearch(
+            UUID id,
+            ResearchFilters filters,
+            String provider,
+            List<String> selectedProviders,
+            List<String> queries
+    ) {
         ResearchJob job = repository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResearchJobNotFoundException(id));
         if (job.getStatus() != ResearchJobStatus.REQUESTED) {
@@ -95,33 +101,47 @@ public class ResearchJobService {
         }
         job.beginSearch(provider, filters, Instant.now());
         List<ResearchProviderRun> pendingRuns = new ArrayList<>();
-        for (int index = 0; index < selectedProviders.size(); index++) {
-            pendingRuns.add(ResearchProviderRun.pending(id, selectedProviders.get(index), index + 1));
+        int runOrder = 1;
+        for (int queryIndex = 0; queryIndex < queries.size(); queryIndex++) {
+            for (String selectedProvider : selectedProviders) {
+                pendingRuns.add(ResearchProviderRun.pending(
+                        id,
+                        selectedProvider,
+                        runOrder++,
+                        queryIndex + 1,
+                        queries.get(queryIndex)
+                ));
+            }
         }
         providerRuns.saveAll(pendingRuns);
         return job;
     }
 
     @Transactional
-    public void startProviderRun(UUID jobId, String provider) {
+    public void startProviderRun(UUID jobId, String provider, int queryOrder) {
         ResearchJob job = repository.findByIdForUpdate(jobId)
                 .orElseThrow(() -> new ResearchJobNotFoundException(jobId));
         if (job.getStatus() != ResearchJobStatus.SEARCHING) {
             throw new ResearchJobConflictException();
         }
-        ResearchProviderRun run = providerRuns.findByResearchJobIdAndProvider(jobId, provider)
+        ResearchProviderRun run = providerRuns.findByResearchJobIdAndProviderAndQueryOrder(jobId, provider, queryOrder)
                 .orElseThrow(ResearchJobConflictException::new);
         run.start(Instant.now());
     }
 
     @Transactional
-    public void completeProviderRun(UUID jobId, String provider, List<ProviderSource> providerResults) {
+    public void completeProviderRun(
+            UUID jobId,
+            String provider,
+            int queryOrder,
+            List<ProviderSource> providerResults
+    ) {
         ResearchJob job = repository.findByIdForUpdate(jobId)
                 .orElseThrow(() -> new ResearchJobNotFoundException(jobId));
         if (job.getStatus() != ResearchJobStatus.SEARCHING) {
             throw new ResearchJobConflictException();
         }
-        ResearchProviderRun run = providerRuns.findByResearchJobIdAndProvider(jobId, provider)
+        ResearchProviderRun run = providerRuns.findByResearchJobIdAndProviderAndQueryOrder(jobId, provider, queryOrder)
                 .orElseThrow(ResearchJobConflictException::new);
         int precedingResultCount = providerRuns.findByResearchJobIdOrderByRunOrderAsc(jobId).stream()
                 .filter(previous -> previous.getRunOrder() < run.getRunOrder())
@@ -134,6 +154,7 @@ public class ResearchJobService {
             entities.add(ResearchSource.from(
                     jobId,
                     provider,
+                    run.getQueryText(),
                     precedingResultCount + index + 1,
                     providerResults.get(index),
                     retrievedAt
@@ -144,13 +165,13 @@ public class ResearchJobService {
     }
 
     @Transactional
-    public void failProviderRun(UUID jobId, String provider, String code) {
+    public void failProviderRun(UUID jobId, String provider, int queryOrder, String code) {
         ResearchJob job = repository.findByIdForUpdate(jobId)
                 .orElseThrow(() -> new ResearchJobNotFoundException(jobId));
         if (job.getStatus() != ResearchJobStatus.SEARCHING) {
             throw new ResearchJobConflictException();
         }
-        ResearchProviderRun run = providerRuns.findByResearchJobIdAndProvider(jobId, provider)
+        ResearchProviderRun run = providerRuns.findByResearchJobIdAndProviderAndQueryOrder(jobId, provider, queryOrder)
                 .orElseThrow(ResearchJobConflictException::new);
         run.fail(code, Instant.now());
     }

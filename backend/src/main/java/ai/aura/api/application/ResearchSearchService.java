@@ -28,7 +28,7 @@ public class ResearchSearchService {
         this.jobs = jobs;
     }
 
-    public ResearchJob run(UUID jobId, ResearchFilters filters, String requestedProvider) {
+    public ResearchJob run(UUID jobId, ResearchFilters filters, String requestedProvider, List<String> requestedQueries) {
         List<SearchProvider> selectedProviders = resolveProviders(requestedProvider);
         if (selectedProviders.isEmpty()) {
             throw new SearchProviderNotConfiguredException();
@@ -37,33 +37,39 @@ public class ResearchSearchService {
         String selectedProvider = isAllProviders(requestedProvider)
                 ? "all"
                 : selectedProviders.getFirst().name();
+        List<String> queries = normalizeQueries(jobs.get(jobId).getSubject(), requestedQueries);
         ResearchJob job = jobs.beginSearch(
                 jobId,
                 filters,
                 selectedProvider,
-                selectedProviders.stream().map(SearchProvider::name).toList()
+                selectedProviders.stream().map(SearchProvider::name).toList(),
+                queries
         );
         SearchProviderException firstFailure = null;
-        for (SearchProvider provider : selectedProviders) {
-            jobs.startProviderRun(jobId, provider.name());
-            List<ProviderSource> providerResults;
-            try {
-                providerResults = provider.search(job.getSubject(), filters);
-            } catch (SearchProviderException exception) {
-                jobs.failProviderRun(jobId, provider.name(), exception.getCode());
-                if (firstFailure == null) {
-                    firstFailure = exception;
+        for (int queryIndex = 0; queryIndex < queries.size(); queryIndex++) {
+            String query = queries.get(queryIndex);
+            int queryOrder = queryIndex + 1;
+            for (SearchProvider provider : selectedProviders) {
+                jobs.startProviderRun(jobId, provider.name(), queryOrder);
+                List<ProviderSource> providerResults;
+                try {
+                    providerResults = provider.search(query, filters);
+                } catch (SearchProviderException exception) {
+                    jobs.failProviderRun(jobId, provider.name(), queryOrder, exception.getCode());
+                    if (firstFailure == null) {
+                        firstFailure = exception;
+                    }
+                    continue;
+                } catch (RuntimeException exception) {
+                    SearchProviderException failure = new SearchProviderException("SEARCH_PROVIDER_FAILURE", false);
+                    jobs.failProviderRun(jobId, provider.name(), queryOrder, failure.getCode());
+                    if (firstFailure == null) {
+                        firstFailure = failure;
+                    }
+                    continue;
                 }
-                continue;
-            } catch (RuntimeException exception) {
-                SearchProviderException failure = new SearchProviderException("SEARCH_PROVIDER_FAILURE", false);
-                jobs.failProviderRun(jobId, provider.name(), failure.getCode());
-                if (firstFailure == null) {
-                    firstFailure = failure;
-                }
-                continue;
+                jobs.completeProviderRun(jobId, provider.name(), queryOrder, providerResults);
             }
-            jobs.completeProviderRun(jobId, provider.name(), providerResults);
         }
         ResearchJob completed = jobs.completeSearch(jobId, firstFailure == null ? null : firstFailure.getCode());
         if (completed.getStatus() == ai.aura.api.domain.ResearchJobStatus.FAILED) {
@@ -76,6 +82,31 @@ public class ResearchSearchService {
             );
         }
         return completed;
+    }
+
+    private static List<String> normalizeQueries(String subject, List<String> requestedQueries) {
+        String rootQuery = subject.strip();
+        if (requestedQueries == null || requestedQueries.isEmpty()) {
+            return List.of(rootQuery);
+        }
+        if (requestedQueries.size() > 3) {
+            throw new InvalidResearchFilterException("A research plan can contain at most three queries.");
+        }
+        List<String> normalized = requestedQueries.stream()
+                .map(String::strip)
+                .toList();
+        if (normalized.getFirst().isBlank() || !normalized.getFirst().equalsIgnoreCase(rootQuery)) {
+            throw new InvalidResearchFilterException("The first planned query must match the research topic.");
+        }
+        java.util.LinkedHashMap<String, String> unique = new java.util.LinkedHashMap<>();
+        for (String query : normalized) {
+            if (query.isBlank()) {
+                throw new InvalidResearchFilterException("Planned queries cannot be blank.");
+            }
+            unique.putIfAbsent(query.toLowerCase(java.util.Locale.ROOT), query);
+        }
+        unique.put(rootQuery.toLowerCase(java.util.Locale.ROOT), rootQuery);
+        return List.copyOf(unique.values());
     }
 
     private List<SearchProvider> resolveProviders(String requestedProvider) {

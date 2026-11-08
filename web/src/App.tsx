@@ -129,6 +129,7 @@ export default function App() {
   const [connecting, setConnecting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [subject, setSubject] = useState("");
+  const [additionalQueries, setAdditionalQueries] = useState<string[]>([]);
   const [mode, setMode] = useState<ResearchMode>("GENERAL");
   const [searchProvider, setSearchProvider] = useState<SearchProviderChoice>("");
   const [country, setCountry] = useState("");
@@ -180,6 +181,16 @@ export default function App() {
     () => researchPage ? findResearchPageTextMatches(researchPage.text, pageSearchQuery) : null,
     [researchPage, pageSearchQuery],
   );
+  const plannedQueries = useMemo(() => {
+    const candidates = [subject.trim(), ...additionalQueries.map((query) => query.trim()).filter(Boolean)];
+    const seen = new Set<string>();
+    return candidates.filter((query) => {
+      const key = query.toLowerCase();
+      if (!query || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [subject, additionalQueries]);
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -227,6 +238,7 @@ export default function App() {
         freshness,
         resultLimit,
         provider: searchProvider,
+        queries: plannedQueries,
       });
       setSearch(response);
       setSources(response.results);
@@ -262,6 +274,7 @@ export default function App() {
     setError("");
     setJob(item);
     setSubject(item.subject);
+    setAdditionalQueries([]);
     setMode(item.mode);
     setSearch(null);
     setSources([]);
@@ -921,6 +934,18 @@ export default function App() {
                     <span className="character-count">{subject.length}/300</span>
                   </div>
 
+                  <div className="query-planner">
+                    <div className="query-planner-heading"><div><strong>Search angles</strong><span>Add up to two focused versions of the topic.</span></div><span>{plannedQueries.length}/3 queries</span></div>
+                    {additionalQueries.map((query, index) => <div className="planned-query-input" key={index}>
+                      <label className="sr-only" htmlFor={`planned-query-${index}`}>Additional search query {index + 1}</label>
+                      <input id={`planned-query-${index}`} maxLength={300} value={query} onChange={(event) => setAdditionalQueries((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder="e.g. official response, timeline, analysis" />
+                      <button type="button" aria-label={`Remove search angle ${index + 1}`} onClick={() => setAdditionalQueries((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button>
+                    </div>)}
+                    {additionalQueries.length < 2 && <button className="add-query-button" type="button" onClick={() => setAdditionalQueries((current) => current.length < 2 ? [...current, ""] : current)}>+ Add search angle</button>}
+                    <p className="query-plan-preview"><strong>Plan:</strong> {plannedQueries.length ? plannedQueries.map((query, index) => `${index + 1}. ${query}`).join(" · ") : "Enter a topic to preview the plan."}</p>
+                    <p className="query-plan-disclosure">Each query is sent to the selected public provider(s). “All configured sources” can make up to 9 requests (3 queries × 3 providers); the result limit applies to each provider and query. Provider quotas or charges may apply. Results cover provider indexes, not the whole internet.</p>
+                  </div>
+
                   <div className="form-row">
                     <div className="field-group">
                       <label className="field-label" htmlFor="research-mode">Brief category</label>
@@ -995,7 +1020,7 @@ export default function App() {
                     <span className="meta-item">{search.status === "PARTIAL" ? "Partial results" : "Complete"}</span>
                   </div>
                   <form className="filter-bar" onSubmit={applyFilters}>
-                    <label className="filter-search"><span aria-hidden="true">⌕</span><input aria-label="Search within results" placeholder="Search results" value={draftFilters.q} onChange={(event) => setDraftFilters({ ...draftFilters, q: event.target.value })} /></label>
+                    <label className="filter-search"><span aria-hidden="true">⌕</span><input aria-label="Search within results" placeholder="Search titles and queries" value={draftFilters.q} onChange={(event) => setDraftFilters({ ...draftFilters, q: event.target.value })} /></label>
                     <label className="filter-select"><span className="sr-only">Source type</span><select value={draftFilters.kind} onChange={(event) => setDraftFilters({ ...draftFilters, kind: event.target.value as ResultFilters["kind"] })}><option value="">All sources</option><option value="WEB">Web</option><option value="NEWS">News</option><option value="DISCUSSION">Discussions</option></select><span>⌄</span></label>
                     <label className="filter-select"><span className="sr-only">Provider</span><select aria-label="Filter by provider" value={draftFilters.provider} onChange={(event) => setDraftFilters({ ...draftFilters, provider: event.target.value })}><option value="">All providers</option>{[...new Set((search?.results ?? []).map((source) => source.provider))].sort().map((name) => <option key={name} value={name}>{providerLabel(name)}</option>)}</select><span>⌄</span></label>
                     <label className="filter-host"><span aria-hidden="true">◎</span><input aria-label="Filter by domain" placeholder="Filter domain" value={draftFilters.host} onChange={(event) => setDraftFilters({ ...draftFilters, host: event.target.value })} /></label>
@@ -1003,7 +1028,7 @@ export default function App() {
                     <button className="filter-button" type="submit" disabled={filtering}>{filtering ? "…" : "Apply"}</button>
                   </form>
                   {search.coverageNote && <p className="coverage-note"><span>ⓘ</span> {search.coverageNote}</p>}
-                  {search.providerRuns?.length > 0 && <p className="report-scope-note">Provider outcomes: {search.providerRuns.map((run) => `${providerLabel(run.provider)} ${run.status.toLowerCase()} · ${run.resultCount} results${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>}
+                  {search.providerRuns?.length > 0 && <p className="report-scope-note">Provider outcomes: {search.providerRuns.map((run) => `“${run.query}” → ${providerLabel(run.provider)} ${run.status.toLowerCase()} · ${run.resultCount} results${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>}
                   <p className="report-scope-note">A report uses up to 20 visible results after filtering. Their metadata and snippets go to your configured local model. AURA never fetches pages automatically; Read page sends one unauthenticated HTTPS request after you choose it. Fetched text stays in browser memory and is excluded from reports.</p>
                   {researchReport && <section className="research-report" aria-label="Generated cited report">
                     <div className="report-heading">
@@ -1029,6 +1054,7 @@ export default function App() {
                     <div className="source-content">
                       <div className="source-meta"><span className={`type-pill type-${source.kind.toLowerCase()}`}>{kindLabel(source.kind)}</span><span className="source-domain">{source.domain}</span><span className="source-date">{formatDate(source.publishedAt)}</span></div>
                       <h3><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}<span aria-hidden="true"> ↗</span></a></h3>
+                      {source.searchQuery && <p className="source-query-label">Matched query: {source.searchQuery}</p>}
                       {source.description && <p>{source.description}</p>}
                       <div className="source-page-actions"><button className="nvd-lookup-button" type="button" onClick={() => void readSourcePage(source)} disabled={readingSourceId === source.id}>{readingSourceId === source.id ? "Reading…" : "Read page"}</button><button className="nvd-lookup-button" type="button" onClick={() => void loadPageReadHistory(source)} disabled={loadingPageHistorySourceId !== null}>{loadingPageHistorySourceId === source.id ? "Loading history…" : "Read history"}</button></div>
                       {pageReadHistorySourceId === source.id && pageReadHistory && <div className="source-page-history" aria-live="polite">

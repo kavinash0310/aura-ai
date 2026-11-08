@@ -73,7 +73,8 @@ public class ResearchResultService {
         return contains(source.getTitle(), query)
                 || contains(source.getDescription(), query)
                 || contains(source.getPublisher(), query)
-                || contains(source.getDomain(), query);
+                || contains(source.getDomain(), query)
+                || contains(source.getSearchQuery(), query);
     }
 
     private static boolean contains(String value, String query) {

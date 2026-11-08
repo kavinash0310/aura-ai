@@ -9,6 +9,7 @@ import java.util.UUID;
 public record ResearchSourceResponse(
         UUID id,
         String provider,
+        String searchQuery,
         SourceType kind,
         int rank,
         String title,
@@ -23,6 +24,7 @@ public record ResearchSourceResponse(
         return new ResearchSourceResponse(
                 source.getId(),
                 source.getProvider(),
+                source.getSearchQuery(),
                 source.getType(),
                 source.getRank(),
                 source.getTitle(),

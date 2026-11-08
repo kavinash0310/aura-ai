@@ -25,6 +25,9 @@ public class ResearchSource {
     @Column(nullable = false, length = 32, updatable = false)
     private String provider;
 
+    @Column(name = "search_query", nullable = false, length = 300, updatable = false)
+    private String searchQuery;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "source_type", nullable = false, length = 32, updatable = false)
     private SourceType type;
@@ -60,6 +63,7 @@ public class ResearchSource {
             UUID id,
             UUID researchJobId,
             String provider,
+            String searchQuery,
             SourceType type,
             int rank,
             String title,
@@ -73,6 +77,7 @@ public class ResearchSource {
         this.id = id;
         this.researchJobId = researchJobId;
         this.provider = provider;
+        this.searchQuery = searchQuery;
         this.type = type;
         this.rank = rank;
         this.title = title;
@@ -87,6 +92,7 @@ public class ResearchSource {
     public static ResearchSource from(
             UUID researchJobId,
             String provider,
+            String searchQuery,
             int rank,
             ProviderSource source,
             Instant retrievedAt
@@ -95,6 +101,7 @@ public class ResearchSource {
                 UUID.randomUUID(),
                 researchJobId,
                 provider,
+                searchQuery,
                 source.type(),
                 rank,
                 source.title(),
@@ -110,6 +117,7 @@ public class ResearchSource {
     public UUID getId() { return id; }
     public UUID getResearchJobId() { return researchJobId; }
     public String getProvider() { return provider; }
+    public String getSearchQuery() { return searchQuery; }
     public SourceType getType() { return type; }
     public int getRank() { return rank; }
     public String getTitle() { return title; }
