@@ -13,7 +13,7 @@ Official references: [API Hosts and Auth](https://bsky.network/docs/api-director
 
 - Add an explicit `bluesky` provider backed only by `GET https://public.api.bsky.app/xrpc/app.bsky.feed.searchPostsV2`.
 - Send a user-entered query with `sort=recent`, a limit of at most 20, and optional language and freshness (`since`) filters. Do not use profile, author, engagement, or account-specific endpoints.
-- Do not require or retain account credentials. Do not follow redirects, fetch post pages, crawl the network, or run background searches.
+- Do not require or retain account credentials. The connector does not follow redirects, fetch post pages during search, crawl the network, or run background searches. A selected saved link may be read only through the separately bounded general page-reading action in [ADR 0011](0011-explicit-bounded-public-page-reading.md).
 - Normalize only post record text, the public permalink derived from a validated AT post URI, and the post/index timestamp. Ignore author profiles and engagement metrics. Treat text as untrusted evidence.
 - Make the provider enabled by default with an opt-out environment setting. Automatic retains its existing priority: Brave when keyed, otherwise GDELT, then Bluesky if earlier sources are disabled. All configured sources includes Bluesky when enabled.
 - Mark the result type as `DISCUSSION`, preserve `bluesky` provenance, and state that country filters are not applied.

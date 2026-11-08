@@ -152,6 +152,49 @@ describe("AURA research workspace", () => {
     expect(fetchMock.mock.calls[6]?.[0]).toContain("provider=gdelt");
   });
 
+  it("reads one selected HTTPS source only after the user requests it", async () => {
+    const source = {
+      id: "source-page-1", provider: "brave", kind: "WEB", rank: 1,
+      title: "Public research page", url: "https://example.com/report", domain: "example.com",
+      description: "A short provider snippet.", publisher: "Example", publishedAt: null,
+      retrievedAt: "2026-11-08T00:00:00Z",
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "job-page", subject: "public research", mode: "GENERAL", status: "REQUESTED",
+        createdAt: "2026-11-08T00:00:00Z", searchProvider: null, searchResultCount: 0,
+      }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        jobId: "job-page", query: "public research", status: "COMPLETED", provider: "brave",
+        country: null, language: null, freshness: null, requestedLimit: 10, providerResultCount: 1,
+        searchedAt: "2026-11-08T00:00:00Z", results: [source], providerRuns: [], coverageNote: "Public-source coverage is partial.",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        sourceId: source.id, sourceUrl: source.url, host: source.domain, title: "Full page title",
+        contentHash: "b".repeat(64), characterCount: 28, truncated: false,
+        fetchedAt: "2026-11-08T00:01:00Z", text: "Selected page evidence text.",
+        coverageNote: "Held in browser memory; not stored or sent to the model.",
+      }), { status: 200 }));
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
+    await screen.findByText("Connected securely");
+    fireEvent.change(screen.getByLabelText("Research question or topic"), { target: { value: "public research" } });
+    fireEvent.click(screen.getByRole("button", { name: /Start research/ }));
+    await screen.findByRole("link", { name: /Public research page/ });
+
+    fireEvent.click(screen.getByRole("button", { name: "Read page" }));
+    expect(await screen.findByText("Selected page evidence text.")).toBeInTheDocument();
+    expect(screen.getByText(/Held in browser memory/)).toBeInTheDocument();
+    expect(fetchMock.mock.calls[5]?.[0]).toBe("/api/v1/research-jobs/job-page/sources/source-page-1/page");
+    expect(fetchMock.mock.calls[5]?.[1]?.method).toBe("POST");
+  });
+
   it("reopens a saved brief and deletes it after an explicit confirmation", async () => {
     const savedJob = {
       id: "job-old", subject: "old research brief", mode: "GENERAL", status: "COMPLETED",

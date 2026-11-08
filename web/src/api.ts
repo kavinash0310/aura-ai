@@ -5,6 +5,7 @@ import type {
   ResearchDocument,
   ResearchDocumentSearchHit,
   ResearchJob,
+  ResearchPageResponse,
   ResearchMode,
   SearchProviderChoice,
   ResearchSource,
@@ -169,6 +170,14 @@ export function runResearch(
       provider: options.provider || null,
     }),
   });
+}
+
+export function readResearchPage(credentials: Credentials, jobId: string, sourceId: string): Promise<ResearchPageResponse> {
+  return request<ResearchPageResponse>(
+    `${jobPath(jobId)}/sources/${encodeURIComponent(sourceId)}/page`,
+    credentials,
+    { method: "POST" },
+  );
 }
 
 export function generateResearchReport(

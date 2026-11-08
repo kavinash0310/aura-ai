@@ -13,6 +13,7 @@ Research queries and reports; selected documents and source excerpts; account to
 5. API to Python/model provider: send minimized evidence; model output is untrusted.
 6. Owner-selected documents to document library: text can contain private information or misleading instructions; only authenticated uploads are accepted and the content is not sent to external providers or models. PDF parsing is bounded by upload size, page count, extracted-text size, and serialized parser access.
 7. Future local agent to assets: only exact scoped jobs from authenticated server are accepted.
+8. API to a selected public source page: only an authenticated request for a source already saved in the requested brief can trigger one page read. The source page is untrusted public input; its response text is returned to the browser but is not persisted or included in model reports.
 
 ## Threats and controls
 
@@ -20,7 +21,9 @@ Research queries and reports; selected documents and source excerpts; account to
 |---|---|---|
 | Unauthenticated access | Network caller reads research history | Basic Auth on non-health routes; loopback binding; review before remote use |
 | Prompt injection | A provider snippet contains instructions aimed at the model | Only selected snippets are sent after an explicit action; source content is marked untrusted; the model has no tools; outputs are schema-bounded and citations must match supplied IDs |
-| SSRF | Crafted URL redirects fetcher to metadata endpoint | Validate scheme and resolved IP before/after redirects; block private/reserved destinations |
+| SSRF | A saved result or redirect targets loopback, private services, or cloud metadata | Fetch only a saved source after an explicit POST; require HTTPS on port 443 and a multi-label hostname; resolve through a bounded custom DNS resolver and connect only to public IPv4 answers; reject special/private ranges and mixed private/public answers; disable automatic redirects and permit at most two same-host redirects; disable cookies, auth, compression, and retries; cap response at 1 MB and extracted text at 100,000 characters; allow one active fetch; apply short connection, pool, response, socket, and DNS timeouts. IPv6-only hosts are unsupported. |
+| Malicious page content | Page embeds scripts, hidden text, or prompt-injection instructions | Parse static HTML as untrusted data; remove script/style/noscript/template/SVG/iframe/object/embed elements; display text in escaped React text/pre elements; do not execute page code or send page text to the model |
+| Page privacy and retention | A page contains personal or confidential information | Fetch only after a user click; source must belong to the selected brief; do not store fetched text or log it; keep it only in browser component memory unless the owner explicitly downloads it; retain person-research restrictions and public-interest scope |
 | Platform abuse | Crawler bypasses source controls | Permitted APIs/feeds/public access; respect terms/rate limits; no login/paywall/CAPTCHA bypass |
 | Query disclosure | Search terms reveal interests to one or more providers | Show Automatic, one-provider, or all-configured selection; keep the optional Brave key in local `.env`; send no documents or account data; query only on explicit request; allow GDELT and Bluesky to be disabled |
 | Social-content misuse | A public-post query becomes a tool for targeting or profiling a person | Restrict the product boundary to public-interest research; prohibit private-account access, doxxing, sensitive-trait inference, harassment, invasive tracking, and bulk profile monitoring; use Bluesky topic search only |
@@ -49,11 +52,11 @@ Research queries and reports; selected documents and source excerpts; account to
 
 ## Current implementation scope
 
-The Python service exposes a public health endpoint and a bearer-token-protected report route. Report generation is disabled unless a local Ollama model is configured. The authorized Java workflow sends at most 20 sources from one completed job, including only provider metadata and descriptions; uploaded documents are excluded. Python has no database, search provider, tools, or arbitrary command execution. It validates structured output and rejects unknown source IDs, but citation membership does not establish that the source semantically supports the text. Search results remain untrusted and AURA does not fetch returned links. The UI does not persist Basic Auth credentials in browser storage.
+The Python service exposes a public health endpoint and a bearer-token-protected report route. Report generation is disabled unless a local Ollama model is configured. The authorized Java workflow sends at most 20 sources from one completed job, including only provider metadata and descriptions; uploaded documents and explicitly read page snapshots are excluded. Python has no database, search provider, tools, or arbitrary command execution. It validates structured output and rejects unknown source IDs, but citation membership does not establish that the source semantically supports the text. The UI does not persist Basic Auth credentials in browser storage. Search does not automatically fetch links; a separate explicit action reads only one selected saved source using the public-page limits above.
 
 ## Permission levels
 
-L0 explain from existing evidence. L1 search approved public providers and fetch permitted pages. L2 read explicitly selected sources/documents. L3 analyze selected local data without network probes. L4 fixed safe checks against authorized resources with approval. L5 state-changing, exploitative, unrestricted access is out of scope.
+L0 explain from existing evidence. L1 search approved public providers and fetch permitted pages. L2 read explicitly selected sources/documents, including one selected public page at a time. L3 analyze selected local data without network probes. L4 fixed safe checks against authorized resources with approval. L5 state-changing, exploitative, unrestricted access is out of scope.
 
 ## Security defaults
 

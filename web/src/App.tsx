@@ -7,6 +7,7 @@ import {
   deleteResearchJob,
   downloadExport,
   generateResearchReport,
+  readResearchPage,
   lookupSbom,
   lookupNvdBatch,
   lookupNvd,
@@ -23,6 +24,7 @@ import {
 import type {
   Credentials,
   ResearchJob,
+  ResearchPageResponse,
   ResearchDocument,
   ResearchDocumentSearchHit,
   ResearchMode,
@@ -134,6 +136,8 @@ export default function App() {
   const [search, setSearch] = useState<SearchResponse | null>(null);
   const [sources, setSources] = useState<ResearchSource[]>([]);
   const [researchReport, setResearchReport] = useState<ResearchReportResponse | null>(null);
+  const [researchPage, setResearchPage] = useState<ResearchPageResponse | null>(null);
+  const [readingSourceId, setReadingSourceId] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
   const [draftFilters, setDraftFilters] = useState<ResultFilters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<ResultFilters>(emptyFilters);
@@ -340,6 +344,31 @@ export default function App() {
     } finally {
       setReportBusy(false);
     }
+  }
+
+  async function readSourcePage(source: ResearchSource) {
+    if (!job) return;
+    setReadingSourceId(source.id);
+    setResearchPage(null);
+    setError("");
+    try {
+      setResearchPage(await readResearchPage(credentials, job.id, source.id));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setReadingSourceId(null);
+    }
+  }
+
+  function downloadResearchPage(page: ResearchPageResponse) {
+    const url = URL.createObjectURL(new Blob([page.text], { type: "text/plain;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aura-page-${page.host.replace(/[^a-zA-Z0-9.-]/g, "_")}.txt`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   function downloadResearchReport() {
@@ -865,7 +894,7 @@ export default function App() {
                   </form>
                   {search.coverageNote && <p className="coverage-note"><span>ⓘ</span> {search.coverageNote}</p>}
                   {search.providerRuns?.length > 0 && <p className="report-scope-note">Provider outcomes: {search.providerRuns.map((run) => `${providerLabel(run.provider)} ${run.status.toLowerCase()} · ${run.resultCount} results${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>}
-                  <p className="report-scope-note">A report uses up to 20 visible results after filtering. Their metadata and snippets go to your configured local model; AURA does not fetch the pages.</p>
+                  <p className="report-scope-note">A report uses up to 20 visible results after filtering. Their metadata and snippets go to your configured local model. AURA never fetches pages automatically; Read page sends one unauthenticated HTTPS request after you choose it. Fetched text stays in browser memory and is excluded from reports.</p>
                   {researchReport && <section className="research-report" aria-label="Generated cited report">
                     <div className="report-heading">
                       <div><div className="section-kicker">LOCAL AI REPORT</div><h3>{researchReport.title}</h3><p>{researchReport.provider} · {researchReport.model} · {formatDate(researchReport.generatedAt)}</p></div>
@@ -891,6 +920,13 @@ export default function App() {
                       <div className="source-meta"><span className={`type-pill type-${source.kind.toLowerCase()}`}>{kindLabel(source.kind)}</span><span className="source-domain">{source.domain}</span><span className="source-date">{formatDate(source.publishedAt)}</span></div>
                       <h3><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}<span aria-hidden="true"> ↗</span></a></h3>
                       {source.description && <p>{source.description}</p>}
+                      <div className="source-page-actions"><button className="nvd-lookup-button" type="button" onClick={() => void readSourcePage(source)} disabled={readingSourceId === source.id}>{readingSourceId === source.id ? "Reading…" : "Read page"}</button></div>
+                      {researchPage?.sourceId === source.id && <div className="source-page" aria-live="polite">
+                        <div className="source-page-heading"><strong>{researchPage.title || source.title}</strong><button className="nvd-lookup-button" type="button" onClick={() => downloadResearchPage(researchPage)}>↓ Download text</button></div>
+                        <p>{researchPage.characterCount.toLocaleString()} characters · SHA‑256 {researchPage.contentHash.slice(0, 12)}… · {formatDate(researchPage.fetchedAt)}{researchPage.truncated ? " · excerpt capped at 100,000 characters" : ""}</p>
+                        <pre>{researchPage.text}</pre>
+                        <p>{researchPage.coverageNote}</p>
+                      </div>}
                       <div className="publisher-line">{providerLabel(source.provider)}<span>·</span> {source.publisher || source.domain}<span>·</span> Retrieved {formatDate(source.retrievedAt)}</div>
                     </div>
                     <span className="source-rank">{String(source.rank).padStart(2, "0")}</span>

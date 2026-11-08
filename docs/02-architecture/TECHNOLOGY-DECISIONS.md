@@ -57,3 +57,10 @@ The first report path uses Ollama's local `/api/chat` with JSON Schema output be
 - PostgreSQL current: https://www.postgresql.org/docs/current/
 - FastAPI tutorial: https://fastapi.tiangolo.com/tutorial/
 - Ollama chat endpoint and JSON Schema response format (checked 2026-11-07): https://docs.ollama.com/api/chat
+
+## Public-page reading libraries checked 2026-11-08
+
+- Apache HttpClient 5.6.5 provides the connection-manager DNS resolver hook, connection/request timeouts, redirect/retry controls, and cookie/auth-cache controls used by the bounded reader: [connection management](https://hc.apache.org/httpcomponents-client-5.6.x/connection-management.html), [HttpClientBuilder 5.6.5 API](https://hc.apache.org/httpcomponents-client-5.6.x/5.6.5/httpclient5/apidocs/org/apache/hc/client5/http/impl/classic/HttpClientBuilder.html).
+- jsoup 1.24.1 parses static HTML into a DOM for removal of active/embedded elements and extraction of text: [download/current release](https://jsoup.org/download), [1.24.1 release notes](https://jsoup.org/news/release-1.24.1).
+
+The implementation uses Apache HttpClient instead of the JDK client because the resolver must validate the exact addresses used by outbound connections, and uses jsoup as an HTML parser rather than regular expressions. The libraries parse and transport input; SSRF checks, caps, no-JavaScript behavior, safe text rendering, and explicit user choice remain application responsibilities.

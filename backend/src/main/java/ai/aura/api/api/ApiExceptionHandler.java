@@ -4,6 +4,7 @@ import ai.aura.api.application.InvalidResearchFilterException;
 import ai.aura.api.application.AiServiceUnavailableException;
 import ai.aura.api.application.InvalidDocumentException;
 import ai.aura.api.application.InvalidSbomException;
+import ai.aura.api.application.PublicPageFetchException;
 import ai.aura.api.application.ResearchJobConflictException;
 import ai.aura.api.application.ResearchJobNotFoundException;
 import ai.aura.api.application.ResearchDocumentNotFoundException;
@@ -66,6 +67,12 @@ public class ApiExceptionHandler {
                 : HttpStatus.BAD_GATEWAY;
         return problem(status, "The public search provider did not return usable results.",
                 "Search provider error", exception.getCode());
+    }
+
+    @ExceptionHandler(PublicPageFetchException.class)
+    ProblemDetail handlePublicPageFetch(PublicPageFetchException exception) {
+        return problem(exception.getStatus(), exception.getMessage(),
+                "Public page could not be read", exception.getCode());
     }
 
     @ExceptionHandler(InvalidResearchFilterException.class)

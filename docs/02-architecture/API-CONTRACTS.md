@@ -60,7 +60,7 @@ Responses include `provider`, `providerResultCount`, `providerRuns`, source resu
 
 Requires the local owner Basic Auth account and a `COMPLETED` or `PARTIAL` job. Request `{ "sourceIds": ["<source UUID>"] }` with one to 20 distinct source IDs from this job. The server resolves the IDs against the selected job and sends only their bounded metadata and provider descriptions plus the original query to the internal Python service. This action runs only after the owner clicks the report button. The local Ollama provider is disabled unless explicitly configured; there is no hosted fallback.
 
-The response includes a title, summary, findings, model-generated limitations, the Ollama model name, generated time, cited source IDs, and source links. The Python service rejects citations that are not among the supplied sources, but this verifies ID membership only; it does not prove that a source supports a claim. A fixed coverage note says that AURA did not fetch or independently verify linked pages. The UI sends the first 20 currently visible sources, so apply filters before generating a report. Reports are not persisted by AURA; the user may download the current result as Markdown.
+The response includes a title, summary, findings, model-generated limitations, the Ollama model name, generated time, cited source IDs, and source links. The Python service rejects citations that are not among the supplied sources, but this verifies ID membership only; it does not prove that a source supports a claim. A fixed coverage note says that reports use provider snippets only; even if a page was explicitly read elsewhere in the UI, its text is not included or independently verified by the report. The UI sends the first 20 currently visible sources, so apply filters before generating a report. Reports are not persisted by AURA; the user may download the current result as Markdown.
 
 The Java-to-Python call uses `AURA_AI_INTERNAL_TOKEN`, which must be a separate random secret. Python accepts only Ollama at `localhost`, `host.docker.internal`, `ollama`, or a private IP on port 11434. `AURA_AI_MODEL_PROVIDER` defaults to `disabled`. Local model configuration is described in the local development guide.
 
@@ -75,6 +75,12 @@ Lists saved results for a completed or partially completed job. Optional filters
 - `publishedFrom`, `publishedTo`: inclusive UTC calendar dates. Results with unknown publication time are excluded when a date filter is used.
 
 Reversed dates and invalid filters return `400 INVALID_RESEARCH_FILTER`. A job that has not completed or partially completed returns `409 RESEARCH_JOB_STATE_CONFLICT`.
+
+### POST `/api/v1/research-jobs/{id}/sources/{sourceId}/page`
+
+Reads one public page after an explicit authenticated request. The source ID must already belong to the specified completed or partially completed brief. There is no caller-supplied URL field, so the API fetches only the saved source URL. AURA allows HTTPS on port 443 only, public hostnames with public IPv4 DNS answers, and at most two redirects that remain on the original hostname. It disables cookies, credentials, compression, automatic redirects, and retries; allows one active read; and limits the response to 1 MB, extracted static text to 100,000 characters, DNS lookup to three seconds, connect/pool and response/socket waits to a few seconds, and the entire request/redirect sequence to 20 seconds. HTML/XHTML only. IPv6-only hosts and JavaScript-rendered pages are unsupported.
+
+The response contains `sourceId`, the final page URL and host, title, character count, SHA-256 digest of extracted text, truncation flag, fetch timestamp, text, and a coverage note. The digest identifies the returned text snapshot; it does not prove the page's origin or truth. The body is not saved by AURA, sent to the AI service, or included in reports. The UI holds it in component memory until that view is replaced or reloaded; a user may explicitly download a plain-text copy. Possible errors include `400 PUBLIC_PAGE_URL_BLOCKED`, `413 PUBLIC_PAGE_TOO_LARGE`, `415 PUBLIC_PAGE_NOT_HTML`, `429 PUBLIC_PAGE_FETCH_BUSY`, and `502 PUBLIC_PAGE_FETCH_FAILED`.
 
 ### GET `/api/v1/research-jobs/{id}/export?format=json|csv|md`
 

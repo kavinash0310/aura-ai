@@ -95,7 +95,7 @@ def test_report_returns_only_validated_source_citations(monkeypatch) -> None:
             "kind": "WEB",
         }
     ]
-    assert "not fetched" in response.json()["coverageNote"]
+    assert "not included" in response.json()["coverageNote"]
 
 
 def test_report_rejects_model_citations_outside_selected_source_set(monkeypatch) -> None:

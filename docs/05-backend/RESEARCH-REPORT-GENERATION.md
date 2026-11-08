@@ -4,7 +4,7 @@
 
 An owner can ask AURA to draft a report from sources already saved in a completed research brief. The UI uses the first 20 results currently visible after filters are applied. The report is generated only on click, appears in the current UI session, and can be downloaded as Markdown.
 
-This is a first model integration slice. It does not fetch the linked web pages, include the private document library, persist model prose, or establish that the linked page supports every generated claim.
+This is a first model integration slice. It uses selected provider snippets only; it does not include page snapshots explicitly read through the separate page-reading action, include the private document library, persist model prose, or establish that a linked page supports every generated claim.
 
 ## Data flow
 
@@ -40,7 +40,7 @@ Java remains the authority for user authentication, job state, and source owners
 - Model endpoint: `http://localhost:11434`, `http://host.docker.internal:11434`, `http://ollama:11434`, or a private IP at port 11434. No redirect is followed.
 - Report storage: none. The backend returns the result; the current browser page holds it in component state until navigation/reload or download.
 
-The Python service rejects source IDs not present in its request. That confirms referential integrity only, not that text is entailed by the cited page. The UI therefore calls the links candidate sources and displays a fixed warning that AURA has not fetched or independently verified those pages.
+The Python service rejects source IDs not present in its request. That confirms referential integrity only, not that text is entailed by the cited page. The UI therefore calls the links candidate sources and displays a fixed warning that reports use provider snippets only; page snapshots read elsewhere in the UI are not included or independently verified.
 
 ## Safety and failure behavior
 

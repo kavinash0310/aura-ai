@@ -42,6 +42,19 @@ export interface ResearchSource {
   retrievedAt: string;
 }
 
+export interface ResearchPageResponse {
+  sourceId: string;
+  sourceUrl: string;
+  host: string;
+  title: string;
+  contentHash: string;
+  characterCount: number;
+  truncated: boolean;
+  fetchedAt: string;
+  text: string;
+  coverageNote: string;
+}
+
 export interface ResearchDocument {
   id: string;
   title: string;

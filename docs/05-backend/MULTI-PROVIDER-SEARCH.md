@@ -56,7 +56,7 @@ After each successful provider request, AURA commits its normalized results and 
 - `GET /research-jobs/{id}/sources` and `/export` accept `provider` to filter by the source's exact provider name, case-insensitively.
 - Downloads remain JSON, CSV, or Markdown and include the provider for every row.
 
-Brave covers web, news, and discussion metadata. GDELT covers only indexed public news over at most three months. Bluesky uses its official public AppView post-search API; it does not connect to accounts or private feeds. No adapter fetches result pages. X remains deferred under [ADR 0008](../03-adr/0008-social-source-compliance-gate.md).
+Brave covers web, news, and discussion metadata. GDELT covers only indexed public news over at most three months. Bluesky uses its official public AppView post-search API; it does not connect to accounts or private feeds. Search adapters never fetch result pages automatically; an owner may separately read one selected saved source using the bounded flow in [public-page reading](PUBLIC-PAGE-READING.md). X remains deferred under [ADR 0008](../03-adr/0008-social-source-compliance-gate.md).
 
 ## Code map
 

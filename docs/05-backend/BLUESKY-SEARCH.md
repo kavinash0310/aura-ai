@@ -2,7 +2,7 @@
 
 ## Scope
 
-AURA can query Bluesky's official public AppView for a user-entered topic and save up to 20 recent-sorted public posts per research job. The connector is read-only and uses no account token. It does not search every Bluesky post, retrieve profiles, access private feeds, follow accounts, monitor a person, or fetch the returned post pages.
+AURA can query Bluesky's official public AppView for a user-entered topic and save up to 20 recent-sorted public posts per research job. The connector is read-only and uses no account token. It does not search every Bluesky post, retrieve profiles, access private feeds, follow accounts, monitor a person, or fetch post pages during search. The owner may separately use the general one-page reader for a post link already saved in the selected brief.
 
 Choose `Bluesky · public posts` for one-provider search or `All configured sources` to send the query to all enabled providers. Bluesky is enabled by default and can be disabled with `AURA_BLUESKY_ENABLED=false`. Automatic keeps Brave first and GDELT second, then uses Bluesky only if earlier providers are disabled.
 
