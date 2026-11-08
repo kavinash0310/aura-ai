@@ -1,9 +1,9 @@
 import { compare, valid } from "semver";
 import type { OsvAffectedPackage, OsvVersionEvent, OsvVersionRange, SbomComponent } from "./types";
 
-export const OSV_PURL_CORRELATION_LIMITATION = "AURA evaluates exact PURL identities and complete OSV SemVer 2 evidence for npm only. Other ecosystems or range types stay not assessed; a no-match is limited to the returned advisory data and is not proof of safety.";
+export const OSV_PURL_CORRELATION_LIMITATION = "AURA matches exact OSV affected-version strings for any ecosystem and evaluates complete SemVer 2 ranges for npm only. Other ecosystems or range types stay not assessed; a no-match is limited to the returned advisory data and is not proof of safety.";
 export const OSV_PURL_MATCH_BASIS = "EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION";
-export const OSV_VERSION_ASSESSMENT_POLICY = "NPM_OSV_SEMVER_2_ONLY";
+export const OSV_VERSION_ASSESSMENT_POLICY = "EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_SEMVER_2_RANGES";
 
 export type OsvVersionAssessmentStatus = "AFFECTED" | "NO_MATCH_IN_RETURNED_OSV_VERSION_DATA" | "NOT_ASSESSED";
 
@@ -24,8 +24,8 @@ export interface OsvPackageIdentityMatch {
 const MAX_PURL_LENGTH = 4_096;
 
 /**
- * Correlates exact PURL identities locally. Version evaluation is deliberately
- * limited to strict npm SemVer 2 evidence from an available OSV advisory.
+ * Correlates exact PURL identities locally. Literal exact-version evidence is
+ * ecosystem-independent; range evaluation is limited to strict npm SemVer 2.
  */
 export function correlateOsvPackages(
   advisoryPackages: OsvAffectedPackage[],
@@ -68,7 +68,6 @@ export function assessOsvPackageVersion(
 
   if (advisoryWithdrawn) return notAssessed("The OSV advisory is withdrawn; AURA does not assess affected versions from it.");
   if (!component.version) return notAssessed("The SBOM component has no version to compare.");
-  if (advisoryPackage.ecosystem !== "npm") return notAssessed("Version evaluation currently supports the OSV npm ecosystem only.");
 
   if (advisoryPackage.affectedVersions.includes(component.version)) {
     return {
@@ -79,10 +78,32 @@ export function assessOsvPackageVersion(
     };
   }
 
-  const inventoryVersion = strictSemver(component.version);
-  if (!inventoryVersion) return notAssessed("The inventory version is not strict SemVer 2, so AURA did not compare it.");
   if (advisoryPackage.versionRangesTruncated) {
     return notAssessed("OSV range evidence was truncated or malformed; AURA did not assess a partial range.");
+  }
+
+  if (advisoryPackage.ecosystem !== "npm") {
+    if (advisoryPackage.affectedVersionsTruncated) {
+      return notAssessed("OSV affected-version evidence was truncated; a negative result cannot be determined safely.");
+    }
+    if (advisoryPackage.versionRanges.length > 0 || advisoryPackage.versionRangeDetails.length > 0) {
+      return notAssessed("Range evaluation currently supports npm SemVer 2 only; this ecosystem's range was not compared.");
+    }
+    if (advisoryPackage.affectedVersions.length === 0) {
+      return notAssessed("OSV did not return an exact affected-version list that AURA can assess.");
+    }
+    return {
+      ...base,
+      status: "NO_MATCH_IN_RETURNED_OSV_VERSION_DATA",
+      note: "No exact match was found in the complete returned OSV affected-version list; this does not prove safety beyond that record.",
+      evidence: null,
+    };
+  }
+
+  const inventoryVersion = strictSemver(component.version);
+  if (!inventoryVersion) return notAssessed("The inventory version is not strict SemVer 2, so AURA did not compare it.");
+  if (advisoryPackage.versionRanges.length > 0 && advisoryPackage.versionRangeDetails.length === 0) {
+    return notAssessed("OSV returned range descriptions without structured events; AURA did not infer range semantics.");
   }
 
   const affectedVersionsSupported = advisoryPackage.affectedVersions.every((version) => strictSemver(version) !== null);

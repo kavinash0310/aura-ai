@@ -16,12 +16,12 @@ The owner needs a small, auditable applicability check that provides useful SBOM
 - Keep identity-only forever: safest, but leaves machine-readable OSV `SEMVER` evidence unused.
 - Evaluate all OSV ranges using one generic parser: rejected because `ECOSYSTEM` and `GIT` ranges do not share SemVer ordering.
 - Ask OSV to evaluate each local PURL/version: rejected for this slice because it would disclose inventory data and add a provider request.
-- Evaluate exact npm PURL matches locally with strict SemVer 2 and explicit uncertainty states: selected.
+- Compare exact OSV affected-version strings for exact PURL matches in any ecosystem, and evaluate ranges only for npm with strict SemVer 2: selected.
 - Write a custom SemVer parser: rejected because a maintained parser/comparator already exists.
 
 ## Decision
 
-Only after an explicit per-CVE OSV lookup from an SBOM finding, the browser may assess version data for an exact local/advisory PURL identity when the OSV package ecosystem is `npm`. It uses `semver` 7.8.5 with strict parsing. It supports exact returned npm affected-version entries and `SEMVER` ranges with valid `introduced`, `fixed`, `last_affected`, and `limit` events. It rejects malformed, ambiguous, truncated, or unsupported data; other ecosystems and `ECOSYSTEM`/`GIT` ranges remain `NOT_ASSESSED`.
+Only after an explicit per-CVE OSV lookup from an SBOM finding, the browser may assess version data for an exact local/advisory PURL identity. Literal exact equality against OSV's enumerated affected versions is supported for any ecosystem. Range evaluation uses `semver` 7.8.5 with strict parsing and is limited to OSV `SEMVER` ranges when the package ecosystem is `npm`. It supports valid `introduced`, `fixed`, `last_affected`, and `limit` events. It rejects malformed, ambiguous, truncated, or unsupported ranges; other ecosystem ranges and OSV `ECOSYSTEM`/`GIT` ranges remain `NOT_ASSESSED`.
 
 Results use `AFFECTED`, `NO_MATCH_IN_RETURNED_OSV_VERSION_DATA`, or `NOT_ASSESSED`. A no-match is limited to the complete returned OSV version data and is not a general safety claim. A positive result is source-backed applicability evidence, not proof that the package is installed, deployed, reachable, exploitable, or a business risk. Withdrawn OSV advisories are not assessed.
 
@@ -29,10 +29,10 @@ The API sends only the exact CVE ID. Local component versions stay in the browse
 
 ## Consequences
 
-- A common npm case can show why a version does or does not match an explicit OSV range.
+- Exact enumerated OSV versions can be matched without interpreting ecosystem version semantics; a common npm case can also show why a version does or does not match an explicit OSV range.
 - Source event parsing, SemVer comparison, and status labeling are independently tested.
 - The browser bundle gains the `semver` package and its TypeScript declarations.
-- Unsupported ecosystems, malformed range records, incomplete negative evidence, and withdrawn advisories produce no applicability conclusion; an exact affected-version entry remains direct evidence even if unrelated ranges were truncated.
+- Unsupported range semantics, malformed range records, incomplete negative evidence, and withdrawn advisories produce no applicability conclusion; an exact affected-version entry remains direct evidence even if unrelated ranges were truncated.
 - The data flow remains local after the explicit OSV response; no PURL or inventory version is added to provider requests.
 
 ## Conditions to reconsider

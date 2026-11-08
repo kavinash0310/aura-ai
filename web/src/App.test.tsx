@@ -488,7 +488,7 @@ describe("AURA research workspace", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
 
     fireEvent.click(screen.getByRole("button", { name: "Load OSV advisory" }));
-    expect(await screen.findByText(/complete OSV SemVer 2 evidence for npm only/)).toBeInTheDocument();
+    expect(await screen.findByText(/exact OSV affected-version strings for any ecosystem/)).toBeInTheDocument();
     expect(screen.getByText(/inventory version 1\.2\.0/)).toBeInTheDocument();
     expect(screen.getByText(/Affected by supported OSV version evidence/)).toBeInTheDocument();
     expect(screen.getByText(/Evidence: SEMVER · introduced 1\.0\.0 · fixed 2\.0\.0/)).toBeInTheDocument();
@@ -504,7 +504,8 @@ describe("AURA research workspace", () => {
     });
     const downloadedJson = JSON.parse(downloadedText);
     expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].matchBasis).toBe("EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION");
-    expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].versionAssessmentPolicy).toBe("NPM_OSV_SEMVER_2_ONLY");
+    expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].versionAssessmentPolicy)
+      .toBe("EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_SEMVER_2_RANGES");
     expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].matches[0].components[0].version).toBe("1.2.0");
     expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].matches[0].versionAssessments[0].status).toBe("AFFECTED");
     expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].limitation).toContain("not proof of safety");
@@ -517,7 +518,7 @@ describe("AURA research workspace", () => {
       reader.readAsText(downloads[1]!);
     });
     expect(downloadedCsv).toContain('"osvPurlIdentityMatchBasis","osvVersionAssessmentPolicy","osvInventoryVersionAssessments"');
-    expect(downloadedCsv).toContain('"EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION","NPM_OSV_SEMVER_2_ONLY","pkg:npm/demo@1.2.0:AFFECTED"');
+    expect(downloadedCsv).toContain('"EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION","EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_SEMVER_2_RANGES","pkg:npm/demo@1.2.0:AFFECTED"');
   });
 
   it("generates a report from visible source IDs and downloads a source-linked JSON snapshot", async () => {
