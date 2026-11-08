@@ -137,6 +137,33 @@ export interface ResearchReportResponse {
   coverageNote: string;
 }
 
+export interface ClaimComparisonEvidence {
+  stance: "SUPPORTS" | "CHALLENGES" | "CONTEXT" | "UNCLEAR";
+  text: string;
+  sourceIds: string[];
+}
+
+export interface ClaimComparisonCitation {
+  id: string;
+  title: string;
+  url: string;
+  domain: string;
+  kind: SourceKind;
+}
+
+export interface ClaimComparisonResponse {
+  generatedAt: string;
+  provider: "ollama";
+  model: string;
+  claim: string;
+  assessment: "SUPPORTED" | "CHALLENGED" | "MIXED" | "INSUFFICIENT";
+  explanation: string;
+  evidence: ClaimComparisonEvidence[];
+  limitations: string[];
+  citations: ClaimComparisonCitation[];
+  coverageNote: string;
+}
+
 export interface ResultFilters {
   kind: "" | SourceKind;
   provider: string;
