@@ -84,7 +84,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvalidSbomException.class)
     ProblemDetail handleInvalidSbom(InvalidSbomException exception) {
         return problem(HttpStatus.BAD_REQUEST, exception.getMessage(),
-                "Invalid CycloneDX SBOM", "INVALID_SBOM");
+                "Invalid SBOM", "INVALID_SBOM");
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
