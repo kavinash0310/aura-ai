@@ -1,0 +1,161 @@
+# System architecture
+
+## Current repository state
+
+The repository has an authenticated Java/Spring Boot API, PostgreSQL persistence, a Python FastAPI AI service, a local React workspace served through Nginx, bounded Brave, GDELT, and Bluesky public-search adapters, read-only vulnerability intelligence, and a private document library. Research queries can use one explicitly selected provider or every currently configured provider; each source retains its provider provenance. Vulnerability lookups send explicit CVE IDs to FIRST EPSS and match them against CISA KEV; users can separately request one or up to 25 exact-CVE NVD details. The SBOM endpoint accepts bounded CycloneDX JSON, parses it in memory, and enriches only the exact CVEs already declared in the file; it does not infer package-to-CVE matches or persist the upload. Selected UTF-8 text and Markdown files are stored in PostgreSQL and searched as exact phrases with character-offset citations. An explicit report action sends up to 20 selected search-result snippets to a configured local Ollama model and checks the returned source IDs. A separate, explicit action can read one selected saved source page over public HTTPS; that page text is transient and is not sent to the model or saved. AURA does not connect to social accounts or private feeds, include uploaded documents in inference, or probe systems.
+
+## Target architecture
+
+Keep a small number of justified deployables: React/TypeScript UI, Spring Boot application API, Python FastAPI AI service when AI-specific libraries/workloads justify it, and PostgreSQL. Java owns identity, permissions, persistence, workflow state, provenance, reports, and audit. Python owns model-facing transformations and retrieval experiments. Neither service executes arbitrary commands.
+
+~~~mermaid
+flowchart LR
+  User --> Web[React and TypeScript workspace]
+  Web --> Api[Spring Boot application API]
+  Api --> Pg[(PostgreSQL)]
+  Api --> Search[Provider adapters]
+  Search --> Public[Public web, news, and Bluesky posts]
+  Api --> Docs[Selected document parsers]
+  Docs --> Pg
+  Api --> Workflow[Bounded research workflow]
+  Workflow --> Py[Optional Python FastAPI AI service]
+  Py --> Local[Local model provider]
+  Py --> Hosted[Optional hosted provider]
+  Workflow --> Reports[Cited reports and exports]
+  Api --> Audit[Audit events and approvals]
+  Audit --> Pg
+~~~
+
+The UI submits requests and displays evidence; Java owns durable state and policy; adapters contact configured sources; PostgreSQL stores jobs, provenance, documents, evidence, and findings; Python makes bounded model transformations; reports link back to stored evidence.
+
+Arrows represent product trust flow: requests pass Java authorization before provider calls. Search responses are normalized and stored with provenance. Only selected evidence reaches the explicitly configured local model. Model output is schema-validated and shown as interpretation; it is not stored as verified evidence.
+
+Why: Java matches the owner's backend strengths; Python concentrates AI libraries behind a small service boundary; PostgreSQL provides transactions and FTS without a separate data platform.
+
+**Interview:** “Spring Boot owns the product API and durable workflow. Python is an optional AI boundary, not the authority for access control. PostgreSQL remains the system of record.”
+
+## Current container and search flow
+
+Spring, Python, and PostgreSQL services are implemented. The Spring API calls fixed research/vulnerability providers and, only for an explicit report request, makes an internal authenticated call to Python. Python calls only an explicitly configured local Ollama endpoint. The AI service has no database or research-provider access.
+
+~~~mermaid
+flowchart TB
+  Owner[Single local owner] -->|loopback| Web[React workspace and Nginx]
+  Web -->|same-origin HTTP Basic API requests| Spring[Spring Boot API]
+  Spring -->|JDBC| PostgreSQL[(PostgreSQL)]
+  Spring -->|Flyway migration at startup| PostgreSQL
+  Spring -->|explicit query, selected provider(s)| Search[Brave, GDELT, or Bluesky public API]
+  Owner -->|choose Read page| Web
+  Spring -->|one bounded public HTTPS request| Page[Selected saved result page]
+  Page -->|static HTML text only| Spring
+  Spring -->|exact CVE IDs only after lookup| CISA[CISA KEV data mirror]
+  Spring -->|small exact-ID lookup| FIRST[FIRST EPSS API]
+  Spring -->|selected source metadata only, on explicit report| Python[FastAPI AI service]
+  Python -->|local endpoint, when enabled| Ollama[Local Ollama model]
+  Owner -->|loopback health only| Python
+~~~
+
+Each search adapter uses a fixed HTTPS provider host, a short timeout, and an HTTP client that does not follow redirects. Brave applies strict SafeSearch and returns web/news/discussion results; GDELT returns bounded public news metadata without a key; Bluesky searches bounded public posts through its unauthenticated public AppView API. Adapters cap fields, validate returned links, and deduplicate URLs within each provider. Search never fetches returned URLs. A separate Read page action is available only for a source saved in the current brief: the authenticated API checks source ownership, then permits one unauthenticated HTTPS GET to the public host. It allows standard port 443, public IPv4 DNS answers only, same-host redirects up to two hops, one active fetch, a 1 MB response cap, a 100,000-character text cap, and short connection/read timeouts. Cookies, credentials, compression, automatic redirects, and retries are disabled. It accepts HTML only, removes executable/embedded elements, extracts static text, and does not render JavaScript. The result is returned to the browser's in-memory state with a SHA-256 text digest; AURA does not persist the page or include it in reports. IPv6-only sites, login pages, paywalls, CAPTCHA bypass, and crawling are unsupported. Automatic provider selection prefers Brave when the owner configured a key, then GDELT, then Bluesky if earlier providers are disabled. The UI also offers one provider or all configured providers; all mode records each source's actual provider and may preserve duplicate links from separate indexes. Bluesky does not support AURA's country filter.
+
+## Local document import and retrieval
+
+The owner uploads one UTF-8 `.txt` or `.md` file, or a text-based `.pdf`, to the authenticated API. Java validates the extension and 1 MB limit; text files are decoded strictly, while PDFBox extracts at most 100 pages and 250,000 characters, one PDF at a time. The API normalizes extracted text, calculates SHA-256 over that text, and stores it and metadata in PostgreSQL; original PDF bytes are discarded. Form-feed separators preserve page boundaries for citations. A PostgreSQL generated `simple` search vector and GIN index find and rank candidates; a case-insensitive literal phrase check preserves exact-match behavior and citation offsets. H2 uses a portable phrase-match fallback. The browser previews escaped text and can download or delete it; PDF downloads are explicitly labeled as extracted text. Scanned PDFs are rejected because OCR is not enabled. No parser executes document content, and the document workflow makes no external provider or model calls.
+
+## Defensive CVE lookup flow
+
+The authenticated owner submits one to 25 exact CVE IDs. Java normalizes and validates them, loads the CISA KEV catalog from CISA's maintained GitHub mirror (six-hour in-memory cache), and sends the IDs as a small lookup to FIRST EPSS. The providers are fixed in code, requests have bounded timeouts, provider failures are reported independently, and an expired KEV cache may be returned with a stale label. Results link to their sources and sort KEV-listed CVEs before descending EPSS estimates. This is a prioritization signal only; it does not establish that an asset is present or vulnerable. No asset scanning, exploit, or state-changing operation is performed.
+
+## NVD detail flow
+
+The owner clicks “Load NVD details” for one CVE already displayed in a vulnerability result or SBOM review. The authenticated Java API validates the exact identifier, checks its bounded in-memory cache, and if needed requests that single ID from NVD API 2.0 over fixed HTTPS. The adapter applies an eight-second timeout, sends an optional API key in a header, extracts bounded record fields, and returns source status. It never retries automatically or sends the SBOM itself. CPE applicability is displayed as source evidence and is not matched automatically to inventory. Results are memory-only and are included in exports only for the current report.
+
+## Research request lifecycle
+
+~~~mermaid
+sequenceDiagram
+  actor Owner
+  participant API as Spring API
+  participant Security as Spring Security
+  participant Service as ResearchJobService
+  participant DB as PostgreSQL
+  Owner->>API: POST research request
+  API->>Security: authenticate and authorize
+  Security-->>API: authenticated owner
+  API->>Service: validate and create REQUESTED job
+  Service->>DB: insert row in transaction
+  DB-->>Service: UUID and timestamp
+  Service-->>API: response DTO
+  API-->>Owner: 201 Created with Location
+~~~
+
+REQUESTED means only that AURA saved the user's intent. Search is not complete.
+
+## Public search lifecycle (implemented)
+
+~~~mermaid
+sequenceDiagram
+  actor Owner
+  participant API as Spring API
+  participant Service as Search workflow
+  participant Provider as Selected Brave, GDELT, or Bluesky API
+  participant DB as PostgreSQL
+  Owner->>API: POST job/{id}/search with filters
+  API->>Service: authenticate, validate, check provider configuration
+  Service->>DB: lock REQUESTED job and mark SEARCHING
+  Service->>Provider: send query and bounded search options
+  Provider-->>Service: untrusted public result metadata
+  Service->>Service: validate URLs, cap fields, deduplicate
+  Service->>DB: save source metadata and mark COMPLETED
+  API-->>Owner: source results with provider coverage note
+  Owner->>API: GET filtered sources or export
+  API->>DB: read saved metadata
+  API-->>Owner: JSON, CSV, or Markdown download
+~~~
+
+The owner invokes each search explicitly. If the selected provider is disabled or lacks a required key, the request fails before the job leaves `REQUESTED`; provider failures are recorded with a stable failure code. A provider-run row is persisted for every selected adapter. All mode calls enabled providers in sequence and continues after individual failures; each successful result batch and its `SUCCEEDED` audit status commit together. If some selected providers fail, the job is `PARTIAL`; if no provider succeeds, the job is `FAILED`. On backend startup, AURA reconciles interrupted searches: an in-flight provider is failed, providers not yet called are skipped, already committed source rows remain available, and no search is retried. This assumes one backend instance; multi-instance deployments need leases or heartbeats. AURA returns provider statuses, counts, and failure codes so incomplete coverage is visible. Source content is not treated as verified fact, and search coverage is explicitly partial. GDELT indexes public global news and has a maximum three-month horizon. Bluesky returns bounded public posts; it does not connect to accounts or private feeds. Saved text remains until its brief is deleted and AURA does not sync remote post deletions.
+
+## Local cited report flow
+
+~~~mermaid
+sequenceDiagram
+  actor Owner
+  participant Web as React workspace
+  participant Java as Authenticated Spring API
+  participant DB as PostgreSQL
+  participant Python as Token-protected FastAPI
+  participant Model as Local Ollama
+  Owner->>Web: Click Report after filtering results
+  Web->>Java: POST job/{id}/report with up to 20 source IDs
+  Java->>DB: Load completed job and verify every source belongs to it
+  Java->>Python: Send query and bounded source metadata/snippets
+  Python->>Model: Structured-output prompt; sources labeled untrusted
+  Model-->>Python: Report content and source IDs
+  Python->>Python: Validate schema and cited IDs against input set
+  Python-->>Java: Report plus source links and fixed coverage warning
+  Java-->>Web: Render report for this UI session
+  Owner->>Web: Download Markdown if desired
+~~~
+
+No model request runs in the background. No uploaded document or page content is sent. Unknown citation IDs fail the request. Valid source IDs are only candidate citations; no page fetch or semantic-support check is currently performed.
+
+## Future document/RAG lifecycle
+
+~~~mermaid
+flowchart LR
+  Upload[Explicit upload] --> Validate[Type, size, hash]
+  Validate --> Extract[Parser adapter]
+  Extract --> Normalize[Text and metadata]
+  Normalize --> Chunk[Chunk with source offsets]
+  Chunk --> Index[PostgreSQL full text]
+  Index --> Retrieve[Owner-filtered retrieval]
+  Retrieve --> Context[Selected evidence context]
+  Context --> Model[Optional model]
+  Model --> ValidateAnswer[Schema and citation check]
+  ValidateAnswer --> Answer[Grounded answer]
+~~~
+
+Future flow only. Parsing, chunking, indexing, retrieval, and synthesis remain separate so failures and quality can be measured per stage. pgvector is deferred until semantic retrieval evaluation justifies it.
+
+## Deployment target
+
+Docker Compose runs PostgreSQL, the Spring API, the AI service, and the Nginx-served React UI, with host ports bound to loopback. Brave's API key is optional and must be supplied by the owner; GDELT public news search is enabled by default and may be disabled. Only an explicit search call sends a query to the selected provider(s). The Python report route requires the internal service token and has no configured model by default; if enabled, it calls only the local/private Ollama address validated by settings. Remote access requires separate auth, TLS, retention, and abuse review.

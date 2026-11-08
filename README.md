@@ -2,43 +2,74 @@
 
 AURA AI is an evidence-driven research and intelligence workspace. It gathers public-source information, organizes documents and evidence, answers questions with traceable citations, and supports a defensive cybersecurity intelligence workflow.
 
-The project is also a practical engineering learning path for its owner: a Java/Spring backend, a focused Python AI service, React/TypeScript UI, and PostgreSQL, added incrementally with explanations, tests, and architecture records.
+This is also a practical AI software engineering learning path: a Java/Spring application API, a focused Python AI service, React/TypeScript UI, and PostgreSQL, delivered incrementally with explanations, tests, and architecture records.
 
 ## Product boundaries
 
 - Public research searches configured, permitted sources. It does not promise access to every page or post on the internet.
-- Research results preserve source links, retrieval times, and coverage limits. Claims and model interpretations stay distinguishable.
-- Person-focused research is limited to public-interest information; no doxxing, invasive profiling, sensitive-trait inference, or private-account access.
-- Cybersecurity features are defensive and informational. Active checks require explicit scope and approval; exploit execution and unrestricted system access are outside initial scope.
-- Retrieved pages and documents are untrusted input. The model cannot grant itself permissions or execute arbitrary commands.
+- Reports preserve source links, retrieval times, coverage limits, and the difference between source claims and model interpretation.
+- Person-focused research is for public-interest information; no doxxing, invasive profiling, sensitive-trait inference, or private-account access.
+- Cybersecurity features are defensive and informational. Any future active checks require explicit scope and approval.
+- Retrieved pages and documents are untrusted input. Models cannot grant themselves permissions or execute arbitrary commands.
 
-## Initial engineering direction
+## Initial stack
 
-- Java 21 + Spring Boot for application APIs, persistence, validation, and security.
-- Python + FastAPI for AI workflows once a separate service is justified.
-- PostgreSQL for the system of record and initial full-text search; add vector search only after evaluating a real retrieval need.
-- React + TypeScript for the workspace UI, introduced after core API contracts settle.
-- Local-first development on Windows with 16 GB RAM; hosted model providers remain optional.
-- A modular monolith first. Redis, Kafka, Kubernetes, dedicated vector databases, and multi-agent orchestration are deferred until evidence justifies them.
+- Java 21 + Spring Boot for APIs, persistence, validation, and security.
+- Python 3.12 + FastAPI for bounded AI workloads when useful.
+- PostgreSQL for the system of record and initial full-text search; vector search follows measured need.
+- React + TypeScript for the local workspace UI, served through Nginx.
+- Docker Compose for local Windows development.
+- Modular monolith first. Redis, Kafka, Kubernetes, dedicated vector DB, and multi-agent orchestration are deferred until evidence justifies them.
 
-## Project status
+## Current milestone
 
-This repository was empty at the start of the project. The first milestone is the product and architecture baseline plus a small, runnable Spring Boot foundation. Features are added in reviewable stages; the status documents distinguish implemented work from proposals.
+M1 stores research requests through the authenticated Spring API and PostgreSQL. M2 adds an isolated FastAPI service. M5 supports explicit, bounded searches through Brave (web, news, and discussion results), GDELT (public global news), and the official Bluesky public-post search API. An owner can preview and send up to three query angles to one or all configured public providers; calls run sequentially and each source retains the provider and query that found it. Filters and downloads operate on the result set. With three queries and all three providers, the current maximum is nine requests and up to 300 results. This widens coverage but does not search the whole internet. Bluesky public-post search needs no account credentials; AURA does not connect to accounts or private feeds. The local React workspace can reopen and delete saved briefs. M3 adds a private library for UTF-8 text and Markdown files with bounded uploads, hashes, indexed PostgreSQL candidate search guarded by exact-phrase matching, character citations, preview, download, and deletion. M7 checks exact CVE IDs against CISA KEV and FIRST EPSS, inspects CycloneDX JSON SBOMs up to 2 MB, and can load NVD detail for up to 25 explicitly selected CVEs in one request. SBOM analysis enriches only CVEs already declared in the file; it does not match packages to vulnerabilities. M4 adds explicit, local-model report synthesis from up to 20 saved search-result snippets; reports remain in the UI until downloaded as Markdown or a structured JSON snapshot, and citation IDs are checked against the selected source set. The owner can explicitly read one saved public HTTPS page at a time under strict size, destination, redirect, and timeout limits, search its extracted text locally by exact phrase, and download cited excerpts with offsets. Page text is temporary and not included in reports; each explicit read has a durable metadata-only audit row with outcome and text hash, never the page text. AURA does not crawl the web or probe systems.
+
+See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and [MVP backlog](docs/00-overview/MVP-AND-BACKLOG.md).
+
+The document library extracts text from PDFs (up to 100 pages and 250,000 characters); it does not retain original PDF bytes or run OCR. See the [document API contract](docs/02-architecture/API-CONTRACTS.md#personal-document-library).
+
+Bluesky connector details and its current limits are documented in [BLUESKY-SEARCH.md](docs/05-backend/BLUESKY-SEARCH.md).
+Provider outcome persistence and partial-result behavior are explained in [PROVIDER-OUTCOME-AUDIT.md](docs/05-backend/PROVIDER-OUTCOME-AUDIT.md).
+The query planner limits a search to three visible, user-entered angles and retains query provenance; see [BOUNDED-QUERY-PLANS.md](docs/05-backend/BOUNDED-QUERY-PLANS.md).
+
+## Local development
+
+Requirements: JDK 21, Docker Desktop with Compose, Git, Maven 3.9+ for local Java builds, and Python 3.12+ with uv 0.13.6 for local AI-service work.
+
+1. Copy .env.example to .env and replace all placeholder secrets with unique random values of at least 24 characters.
+2. Keep .env private and untracked. GDELT public news and Bluesky public-post search are enabled by default and need no key or account credentials; use `AURA_GDELT_ENABLED=false` or `AURA_BLUESKY_ENABLED=false` to disable either connector. Add your own `AURA_BRAVE_API_KEY` for Brave web, news, and discussion results. `AURA_NVD_API_KEY` is optional; single-CVE NVD lookups also work without it.
+3. Start the stack with docker compose up --build.
+4. Open the local research workspace at http://127.0.0.1:3000.
+5. Enter the API username and password from `.env`. Credentials stay in page memory and clear on disconnect or reload.
+6. Search with Automatic, All configured sources, Brave, GDELT, or Bluesky. Automatic uses one configured provider; All configured sources queries Brave when keyed and GDELT and Bluesky when enabled. Providers receive the query only after you start the search. If some providers fail, AURA keeps successful results and labels the job Partial; if all fail, it saves the provider outcomes and reports the error. GDELT searches public news from at most the past three months. Bluesky searches bounded public posts; it does not apply country filters.
+7. Spring health: http://127.0.0.1:8080/api/v1/health; AI-service health: http://127.0.0.1:8001/api/v1/health.
+8. Direct API: create a `GENERAL` research job, explicitly run its `/search` route, then use `/sources` filters or `/export?format=json|csv|md`. See [API contracts](docs/02-architecture/API-CONTRACTS.md) for request shapes and limits.
+9. In Documents, upload UTF-8 `.txt` or `.md` files, or text-based `.pdf` files, up to 1 MB. PDFs are limited to 100 pages and 250,000 extracted characters; scanned PDFs need OCR, which is not enabled. Search exact phrases, inspect character/page citations, preview extracted text, download PDF text as `.pdf.extracted.txt`, and delete it when no longer needed. Only normalized/extracted text is stored in PostgreSQL; source PDF bytes are not retained, and documents are not sent to search providers or models.
+10. In Cyber intelligence, submit exact CVE IDs or upload a CycloneDX JSON SBOM of 2 MB or less. AURA parses the file in memory and checks only CVEs declared in it; it does not identify package vulnerabilities or scan systems. Use “Load NVD details” on an individual CVE to request its NVD record, CVSS, and CPE applicability data.
+11. Optional: to create a cited report, install Ollama and a local model. Set `AURA_AI_INTERNAL_TOKEN` to a separate random secret, `AURA_AI_MODEL_PROVIDER=ollama`, and `AURA_AI_OLLAMA_MODEL` to the installed model name. The Compose AI container calls the local Ollama endpoint at `AURA_AI_OLLAMA_BASE_URL`; keep Ollama reachable only on a trusted local interface. No model call occurs until you click Report, and only the first 20 currently visible source snippets and metadata are sent. Uploaded library documents are not included.
+12. Verify Java with `mvn -f backend/pom.xml verify`. For frontend development, use Node 22 in `web` and run `npm ci`, `npm test`, then `npm run build`.
+13. In a terminal, change to `ai-service`, then run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
+
+All host ports bind to loopback. The Python health endpoint is public and returns no user data; report generation requires a separate internal bearer token. The Spring API uses development-only Basic Auth. The web app proxies `/api` to Spring inside the Compose network. An explicit search sends its query to the selected Brave, GDELT, and/or Bluesky provider(s); an explicit report sends up to 20 selected provider snippets to the configured local Ollama service. Uploaded documents are excluded. Vulnerability and SBOM lookups read the CISA KEV catalog and send only exact CVE identifiers to FIRST EPSS; explicit NVD detail requests send only exact CVE IDs to NVD. SBOM files and lookup results are not persisted by AURA. Provider access is governed by each provider's terms. Do not expose or port-forward the local stack. See the [local development guide](docs/19-operations/LOCAL-DEV.md).
 
 ## Start here
 
 - [Product requirements](docs/00-overview/PRODUCT-REQUIREMENTS.md)
 - [MVP and backlog](docs/00-overview/MVP-AND-BACKLOG.md)
+- [Context and decisions](AURA-CONTEXT-AND-DECISIONS.md)
 - [System architecture](docs/02-architecture/SYSTEM-ARCHITECTURE.md)
+- [Bluesky public-post search](docs/05-backend/BLUESKY-SEARCH.md)
+- [Provider outcome audit](docs/05-backend/PROVIDER-OUTCOME-AUDIT.md)
+- [Bounded local report design](docs/05-backend/RESEARCH-REPORT-GENERATION.md)
+- [Multi-provider search design](docs/05-backend/MULTI-PROVIDER-SEARCH.md)
 - [Technology decisions](docs/02-architecture/TECHNOLOGY-DECISIONS.md)
+- [Threat model](docs/02-architecture/THREAT-MODEL.md)
 - [Learning roadmap](docs/04-learning/AURA-LEARNING-ROADMAP.md)
-- [Implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md)
+- [Feature learning map](docs/04-learning/FEATURE-TO-LEARNING-MAP.md)
 - [Progress tracker](docs/04-learning/AURA-PROGRESS.md)
-
-## Development
-
-The implementation setup and exact prerequisites will be documented alongside the first backend milestone. Never commit real credentials. See `.env.example` for configuration names once the database-backed API is in place.
+- [Interview guide](docs/04-learning/AURA-INTERVIEW-GUIDE.md)
 
 ## Learning agreement
 
-Codex-generated code is not evidence that the owner has mastered the concept. Every milestone includes prerequisite material, implementation notes, review questions, and an explanation exercise. Progress is recorded only after the owner can explain or modify the feature independently.
+Generated code is not evidence of mastery. Each milestone includes prerequisites, review questions, and an explanation exercise. Progress is marked complete only after the owner can explain or modify the feature independently.

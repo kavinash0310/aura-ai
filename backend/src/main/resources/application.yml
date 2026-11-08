@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: aura-api
+  datasource:
+    url: ${AURA_DB_URL}
+    username: ${AURA_DB_USER}
+    password: ${AURA_DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    locations: "classpath:db/migration/common,classpath:db/migration/{vendor}"
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 3MB
+      file-size-threshold: 2MB
+server:
+  address: ${AURA_SERVER_ADDRESS:127.0.0.1}
+  port: 8080
+  error:
+    include-message: never
+aura:
+  auth:
+    username: ${AURA_AUTH_USERNAME}
+    password: ${AURA_AUTH_PASSWORD}
+  search:
+    brave:
+      api-key: ${AURA_BRAVE_API_KEY:}
+      timeout: 8s
+    gdelt:
+      enabled: ${AURA_GDELT_ENABLED:true}
+      timeout: 8s
+    bluesky:
+      enabled: ${AURA_BLUESKY_ENABLED:true}
+      timeout: 8s
+  ai:
+    service-url: ${AURA_AI_SERVICE_URL:http://ai:8000}
+    internal-token: ${AURA_AI_INTERNAL_TOKEN:}
+  cyber:
+    nvd:
+      api-key: ${AURA_NVD_API_KEY:}
+      timeout: 8s
+      cache-duration: 6h
+
