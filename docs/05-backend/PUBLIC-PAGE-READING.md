@@ -49,6 +49,10 @@ The API receives only the saved result URL; the browser cannot submit an arbitra
 
 Page content is parsed as data using jsoup. AURA removes `script`, `style`, `noscript`, `template`, `svg`, `iframe`, `object`, and `embed` elements, then returns normalized text. React displays that string as escaped text. No DOM from the remote page is inserted into the application, and JavaScript is not executed. The SHA-256 field fingerprints the extracted text in this response; it is not a signature or a claim that the publisher is trustworthy.
 
+## Local evidence filtering
+
+After reading a page, the owner can search its extracted text locally for an exact, case-sensitive phrase up to 200 characters. AURA shows up to 200 matches with each phrase's zero-based character offset and up to 120 characters of context on either side. If more matches exist, the UI marks the list as capped. “Download matching excerpts” creates a plain-text file with the source URL, fetch time, full-text hash, query phrase, excerpt text, and offsets. This is browser-side processing; the phrase and text are not sent to the API or model.
+
 ## API and errors
 
 `POST /api/v1/research-jobs/{jobId}/sources/{sourceId}/page` has no request body. Its JSON response contains `sourceId`, final URL and host, title, SHA-256 text digest, character count, truncation flag, fetch time, extracted `text`, and a fixed coverage note. Failures return stable Problem Details codes:
@@ -66,7 +70,7 @@ The report route is separate: it continues to receive only selected saved provid
 - `backend/.../PublicPageFetcher.java`: URL policy, DNS pinning/filtering, HTTP limits, redirect policy, HTML extraction, and concurrency cap.
 - `backend/.../ResearchPageService.java`: job/source ownership check, fetch invocation, and returned-text digest.
 - `backend/.../ResearchPageController.java`: authenticated endpoint. Global API security protects it like other non-health routes.
-- `web/src/App.tsx`: explicit read action, temporary page display, and plain-text download.
+- `web/src/App.tsx` and `web/src/researchPageSearch.ts`: explicit read action, local exact-phrase filtering, excerpt offsets/context, temporary page display, and plain-text downloads.
 - `web/src/api.ts` and `web/src/types.ts`: typed browser request/response.
 - `PublicPageFetcherTest` and `ResearchPageServiceTest`: URL/IP/content limits and source ownership checks.
 

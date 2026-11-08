@@ -39,6 +39,7 @@ import type {
   VulnerabilityFinding,
   VulnerabilityLookupResponse,
 } from "./types";
+import { findResearchPageTextMatches, MAX_PAGE_SEARCH_LENGTH } from "./researchPageSearch";
 
 const emptyFilters: ResultFilters = {
   kind: "",
@@ -137,6 +138,7 @@ export default function App() {
   const [sources, setSources] = useState<ResearchSource[]>([]);
   const [researchReport, setResearchReport] = useState<ResearchReportResponse | null>(null);
   const [researchPage, setResearchPage] = useState<ResearchPageResponse | null>(null);
+  const [pageSearchQuery, setPageSearchQuery] = useState("");
   const [readingSourceId, setReadingSourceId] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
   const [draftFilters, setDraftFilters] = useState<ResultFilters>(emptyFilters);
@@ -168,6 +170,10 @@ export default function App() {
   const [sbomBusy, setSbomBusy] = useState(false);
 
   const credentials = useMemo<Credentials>(() => ({ username, password }), [username, password]);
+  const researchPageMatches = useMemo(
+    () => researchPage ? findResearchPageTextMatches(researchPage.text, pageSearchQuery) : null,
+    [researchPage, pageSearchQuery],
+  );
 
   async function connect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -350,6 +356,7 @@ export default function App() {
     if (!job) return;
     setReadingSourceId(source.id);
     setResearchPage(null);
+    setPageSearchQuery("");
     setError("");
     try {
       setResearchPage(await readResearchPage(credentials, job.id, source.id));
@@ -365,6 +372,36 @@ export default function App() {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `aura-page-${page.host.replace(/[^a-zA-Z0-9.-]/g, "_")}.txt`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function downloadResearchPageMatches(
+    page: ResearchPageResponse,
+    phrase: string,
+    matches: NonNullable<typeof researchPageMatches>["matches"],
+    hasMore: boolean,
+  ) {
+    const lines = [
+      "AURA exact-phrase page excerpts",
+      `Source: ${page.sourceUrl}`,
+      `Fetched: ${page.fetchedAt}`,
+      `Extracted text SHA-256: ${page.contentHash}`,
+      `Case-sensitive phrase: ${phrase}`,
+      `Matches shown: ${matches.length}${hasMore ? " (more matches exist; output capped at 200)" : ""}`,
+      "",
+      ...matches.flatMap((match, index) => [
+        `Match ${index + 1} · character offset ${match.start} · length ${match.end - match.start}`,
+        `${match.before}${match.text}${match.after}`,
+        "",
+      ]),
+    ];
+    const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aura-page-${page.host.replace(/[^a-zA-Z0-9.-]/g, "_")}-matches.txt`;
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
@@ -924,6 +961,15 @@ export default function App() {
                       {researchPage?.sourceId === source.id && <div className="source-page" aria-live="polite">
                         <div className="source-page-heading"><strong>{researchPage.title || source.title}</strong><button className="nvd-lookup-button" type="button" onClick={() => downloadResearchPage(researchPage)}>↓ Download text</button></div>
                         <p>{researchPage.characterCount.toLocaleString()} characters · SHA‑256 {researchPage.contentHash.slice(0, 12)}… · {formatDate(researchPage.fetchedAt)}{researchPage.truncated ? " · excerpt capped at 100,000 characters" : ""}</p>
+                        <label className="field-label source-page-search-label" htmlFor={`source-page-search-${source.id}`}>Find exact text in this page (case-sensitive)</label>
+                        <div className="source-page-search"><input id={`source-page-search-${source.id}`} type="search" maxLength={MAX_PAGE_SEARCH_LENGTH} value={pageSearchQuery} onChange={(event) => setPageSearchQuery(event.target.value)} placeholder="Enter a phrase from the page" /><span>{pageSearchQuery.length}/{MAX_PAGE_SEARCH_LENGTH}</span></div>
+                        {pageSearchQuery && researchPageMatches && <div className="source-page-matches" aria-live="polite">
+                          <p>{researchPageMatches.matches.length === 0 ? "No exact matches." : `${researchPageMatches.matches.length}${researchPageMatches.hasMore ? "+" : ""} exact match${researchPageMatches.matches.length === 1 && !researchPageMatches.hasMore ? "" : "es"}${researchPageMatches.hasMore ? " · showing first 200" : ""}`}</p>
+                          {researchPageMatches.matches.length > 0 && <>
+                            <ol>{researchPageMatches.matches.map((match, index) => <li key={`${match.start}-${index}`}><span>Character offset {match.start} · length {match.end - match.start}</span><p>{match.before}<mark>{match.text}</mark>{match.after}</p></li>)}</ol>
+                            <button className="nvd-lookup-button" type="button" onClick={() => downloadResearchPageMatches(researchPage, pageSearchQuery, researchPageMatches.matches, researchPageMatches.hasMore)}>↓ Download matching excerpts</button>
+                          </>}
+                        </div>}
                         <pre>{researchPage.text}</pre>
                         <p>{researchPage.coverageNote}</p>
                       </div>}

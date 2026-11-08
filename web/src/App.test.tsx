@@ -193,6 +193,11 @@ describe("AURA research workspace", () => {
     expect(screen.getByText(/Held in browser memory/)).toBeInTheDocument();
     expect(fetchMock.mock.calls[5]?.[0]).toBe("/api/v1/research-jobs/job-page/sources/source-page-1/page");
     expect(fetchMock.mock.calls[5]?.[1]?.method).toBe("POST");
+
+    fireEvent.change(screen.getByLabelText("Find exact text in this page (case-sensitive)"), { target: { value: "evidence" } });
+    expect(screen.getByText("Character offset 14 · length 8")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "↓ Download matching excerpts" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
   it("reopens a saved brief and deletes it after an explicit confirmation", async () => {
