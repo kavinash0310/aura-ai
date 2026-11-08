@@ -278,6 +278,38 @@ export interface NvdLookupResponse {
   referencesTruncated: boolean;
 }
 
+export interface OsvAffectedPackage {
+  name: string;
+  ecosystem: string;
+  purl: string;
+  versionRanges: string[];
+}
+
+export interface OsvReference {
+  type: string;
+  url: string;
+}
+
+export interface OsvLookupResponse {
+  requestedAt: string;
+  cve: string;
+  status: "AVAILABLE" | "NOT_FOUND" | "UNAVAILABLE" | "RATE_LIMITED";
+  retrievedAt: string;
+  sourceUrl: string;
+  osvId: string | null;
+  summary: string | null;
+  details: string | null;
+  publishedAt: string | null;
+  modifiedAt: string | null;
+  withdrawnAt: string | null;
+  aliases: string[];
+  affectedPackages: OsvAffectedPackage[];
+  affectedPackagesTruncated: boolean;
+  references: OsvReference[];
+  referencesTruncated: boolean;
+  note: string;
+}
+
 export interface NvdBatchLookupResponse {
   requestedAt: string;
   results: NvdLookupResponse[];

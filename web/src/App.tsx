@@ -13,6 +13,7 @@ import {
   lookupSbom,
   lookupNvdBatch,
   lookupNvd,
+  lookupOsv,
   lookupVulnerabilities,
   getDocument,
   listDocuments,
@@ -39,6 +40,7 @@ import type {
   ResultFilters,
   NvdBatchLookupResponse,
   NvdLookupResponse,
+  OsvLookupResponse,
   SbomLookupResponse,
   SearchResponse,
   VulnerabilityFinding,
@@ -145,6 +147,29 @@ function NvdDetails({ data }: { data: NvdLookupResponse }) {
   </div>;
 }
 
+function OsvDetails({ data }: { data: OsvLookupResponse }) {
+  if (data.status !== "AVAILABLE") {
+    return <div className="nvd-details" aria-live="polite"><p className="nvd-note">OSV {data.status}: {data.note}</p></div>;
+  }
+  return <div className="nvd-details" aria-live="polite">
+    <p className="nvd-note"><a href={data.sourceUrl} target="_blank" rel="noopener noreferrer">View OSV advisory ↗</a>{data.osvId ? ` · Record ${data.osvId}` : ""} · Published {formatDate(data.publishedAt)} · Updated {formatDate(data.modifiedAt)}{data.withdrawnAt ? ` · Withdrawn ${formatDate(data.withdrawnAt)}` : ""}</p>
+    {data.summary && <p className="nvd-note"><strong>{data.summary}</strong></p>}
+    {data.details && <details className="nvd-applicability"><summary>Advisory details</summary><p className="nvd-description">{data.details}</p></details>}
+    {data.aliases.length > 0 && <p className="nvd-note">Aliases: {data.aliases.join(", ")}</p>}
+    {data.affectedPackages.length > 0 && <details className="nvd-applicability">
+      <summary>Packages listed by OSV ({data.affectedPackages.length}{data.affectedPackagesTruncated ? "+" : ""})</summary>
+      <p className="nvd-note">Advisory package ranges are source evidence; AURA does not compare them with your inventory.</p>
+      {data.affectedPackages.map((item, index) => <p className="sbom-component" key={`${item.ecosystem}-${item.name}-${index}`}>
+        <strong>{item.name || "Unnamed package"}</strong>{item.ecosystem ? ` · ${item.ecosystem}` : ""}{item.purl ? ` · ${item.purl}` : ""}
+        {item.versionRanges.map((range, rangeIndex) => <span key={`${range}-${rangeIndex}`}> · {range}</span>)}
+      </p>)}
+      {data.affectedPackagesTruncated && <p className="nvd-note">Additional affected package entries were omitted from this view.</p>}
+    </details>}
+    {data.references.length > 0 && <div className="nvd-references"><span>References</span>{data.references.map((reference) => <a key={reference.url} href={reference.url} target="_blank" rel="noopener noreferrer">{reference.type || "OSV reference"} ↗</a>)}{data.referencesTruncated && <span>More references are available from OSV.</span>}</div>}
+    <p className="nvd-note">{data.note}</p>
+  </div>;
+}
+
 export default function App() {
   const workspaceSession = useRef(0);
   const pageHistoryRequest = useRef(0);
@@ -191,6 +216,8 @@ export default function App() {
   const [nvdLookups, setNvdLookups] = useState<Record<string, NvdLookupResponse>>({});
   const [nvdBusyCve, setNvdBusyCve] = useState<string | null>(null);
   const [nvdBatchBusy, setNvdBatchBusy] = useState(false);
+  const [osvLookups, setOsvLookups] = useState<Record<string, OsvLookupResponse>>({});
+  const [osvBusyCve, setOsvBusyCve] = useState<string | null>(null);
   const [documents, setDocuments] = useState<ResearchDocument[]>([]);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentInputKey, setDocumentInputKey] = useState(0);
@@ -620,7 +647,7 @@ export default function App() {
   }
 
   async function loadNvd(cve: string) {
-    if (!connected || nvdBusyCve || nvdBatchBusy) return;
+    if (!connected || nvdBusyCve || nvdBatchBusy || osvBusyCve) return;
     const session = workspaceSession.current;
     setNvdBusyCve(cve);
     setError("");
@@ -637,7 +664,7 @@ export default function App() {
   }
 
   async function loadNvdBatch(cves: string[]) {
-    if (!connected || nvdBusyCve || nvdBatchBusy) return;
+    if (!connected || nvdBusyCve || nvdBatchBusy || osvBusyCve) return;
     const ids = [...new Set(cves.map((cve) => cve.trim().toUpperCase()).filter(Boolean))];
     if (ids.length === 0 || ids.length > 25) {
       setError("Choose between one and 25 exact CVE IDs for an NVD lookup.");
@@ -658,6 +685,23 @@ export default function App() {
       if (session === workspaceSession.current) setError(errorMessage(caught));
     } finally {
       if (session === workspaceSession.current) setNvdBatchBusy(false);
+    }
+  }
+
+  async function loadOsv(cve: string) {
+    if (!connected || nvdBusyCve || nvdBatchBusy || osvBusyCve) return;
+    const session = workspaceSession.current;
+    setOsvBusyCve(cve);
+    setError("");
+    try {
+      const result = await lookupOsv(credentials, cve);
+      if (session === workspaceSession.current) {
+        setOsvLookups((current) => ({ ...current, [result.cve]: result }));
+      }
+    } catch (caught) {
+      if (session === workspaceSession.current) setError(errorMessage(caught));
+    } finally {
+      if (session === workspaceSession.current) setOsvBusyCve(null);
     }
   }
 
@@ -828,7 +872,10 @@ export default function App() {
       const relevantNvdDetails = Object.fromEntries(vulnerabilityLookup.results
         .filter((finding) => nvdLookups[finding.cve])
         .map((finding) => [finding.cve, nvdLookups[finding.cve]]));
-      content = JSON.stringify({ ...vulnerabilityLookup, nvdDetails: relevantNvdDetails }, null, 2);
+      const relevantOsvAdvisories = Object.fromEntries(vulnerabilityLookup.results
+        .filter((finding) => osvLookups[finding.cve])
+        .map((finding) => [finding.cve, osvLookups[finding.cve]]));
+      content = JSON.stringify({ ...vulnerabilityLookup, nvdDetails: relevantNvdDetails, osvAdvisories: relevantOsvAdvisories }, null, 2);
       mimeType = "application/json;charset=utf-8";
     } else {
       const columns: Array<[string, (finding: VulnerabilityFinding) => string | number | boolean | null]> = [
@@ -848,9 +895,10 @@ export default function App() {
         ["nvdUrl", (finding) => finding.nvdUrl],
         ["epssUrl", (finding) => finding.epssUrl],
       ];
-      const headers = [...columns.map(([name]) => name), "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes"];
+      const headers = [...columns.map(([name]) => name), "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes", "osvStatus", "osvId", "osvSummary", "osvPublishedAt", "osvModifiedAt"];
       content = [headers.map(csvCell).join(","), ...vulnerabilityLookup.results.map((finding) => {
         const nvd = nvdLookups[finding.cve];
+        const osv = osvLookups[finding.cve];
         const values: Array<string | number | boolean | null> = [
           ...columns.map(([, value]) => value(finding)),
           nvd?.status ?? null,
@@ -858,6 +906,11 @@ export default function App() {
           nvd?.cvssScore ?? null,
           nvd?.cvssSeverity ?? null,
           nvd?.cwes.join("; ") ?? null,
+          osv?.status ?? null,
+          osv?.osvId ?? null,
+          osv?.summary ?? null,
+          osv?.publishedAt ?? null,
+          osv?.modifiedAt ?? null,
         ];
         return values.map(csvCell).join(",");
       })].join("\r\n");
@@ -900,14 +953,18 @@ export default function App() {
       const relevantNvdDetails = Object.fromEntries(sbomLookup.vulnerabilities
         .filter((vulnerability) => nvdLookups[vulnerability.cve])
         .map((vulnerability) => [vulnerability.cve, nvdLookups[vulnerability.cve]]));
-      content = JSON.stringify({ ...sbomLookup, nvdDetails: relevantNvdDetails }, null, 2);
+      const relevantOsvAdvisories = Object.fromEntries(sbomLookup.vulnerabilities
+        .filter((vulnerability) => osvLookups[vulnerability.cve])
+        .map((vulnerability) => [vulnerability.cve, osvLookups[vulnerability.cve]]));
+      content = JSON.stringify({ ...sbomLookup, nvdDetails: relevantNvdDetails, osvAdvisories: relevantOsvAdvisories }, null, 2);
       mimeType = "application/json;charset=utf-8";
     } else {
       const findings = new Map((sbomLookup.intelligence?.results ?? []).map((finding) => [finding.cve, finding]));
-      const columns = ["cve", "affectedReferences", "findingNames", "findingLevelsOrVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes"];
+      const columns = ["cve", "affectedReferences", "findingNames", "findingLevelsOrVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes", "osvStatus", "osvId", "osvSummary", "osvPublishedAt", "osvModifiedAt"];
       const rows = sbomLookup.vulnerabilities.map((vulnerability) => {
         const finding = findings.get(vulnerability.cve);
         const nvd = nvdLookups[vulnerability.cve];
+        const osv = osvLookups[vulnerability.cve];
         const values: Array<string | number | boolean | null> = [
           vulnerability.cve,
           vulnerability.affectedBomRefs.join("; "),
@@ -922,6 +979,11 @@ export default function App() {
           nvd?.cvssScore ?? null,
           nvd?.cvssSeverity ?? null,
           nvd?.cwes.join("; ") ?? null,
+          osv?.status ?? null,
+          osv?.osvId ?? null,
+          osv?.summary ?? null,
+          osv?.publishedAt ?? null,
+          osv?.modifiedAt ?? null,
         ];
         return values.map(csvCell).join(",");
       });
@@ -954,8 +1016,10 @@ export default function App() {
     setSbomFile(null);
     setSbomLookup(null);
     setNvdLookups({});
+    setOsvLookups({});
     setNvdBusyCve(null);
     setNvdBatchBusy(false);
+    setOsvBusyCve(null);
     setDocumentUploading(false);
     setDocumentSearching(false);
     setOpeningDocumentId(null);
@@ -1331,7 +1395,7 @@ export default function App() {
                 <div><div className="section-kicker">SOURCE STATUS</div><p className="cyber-source-status"><a href={vulnerabilityLookup.kev.sourceUrl} target="_blank" rel="noopener noreferrer">CISA KEV</a> {vulnerabilityLookup.kev.status}{vulnerabilityLookup.kev.dataAsOf ? ` · data ${vulnerabilityLookup.kev.dataAsOf}` : ""}{vulnerabilityLookup.kev.note ? ` · ${vulnerabilityLookup.kev.note}` : ""}</p>
                   <p className="cyber-source-status"><a href={vulnerabilityLookup.epss.sourceUrl} target="_blank" rel="noopener noreferrer">FIRST EPSS</a> {vulnerabilityLookup.epss.status}{vulnerabilityLookup.epss.dataAsOf ? ` · data ${vulnerabilityLookup.epss.dataAsOf}` : ""}{vulnerabilityLookup.epss.note ? ` · ${vulnerabilityLookup.epss.note}` : ""}</p>
                   <p className="cyber-retrieved">Checked {formatDate(vulnerabilityLookup.requestedAt)}</p>
-                  {vulnerabilityLookup.results.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy} onClick={() => void loadNvdBatch(vulnerabilityLookup.results.map((finding) => finding.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${vulnerabilityLookup.results.length} CVEs`}</button>}
+              {vulnerabilityLookup.results.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadNvdBatch(vulnerabilityLookup.results.map((finding) => finding.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${vulnerabilityLookup.results.length} CVEs`}</button>}
                 </div>
                 <div className="export-actions" aria-label="Download vulnerability lookup">
                   <button type="button" onClick={() => downloadVulnerabilityLookup("csv")}>↓ CSV</button>
@@ -1350,8 +1414,10 @@ export default function App() {
                     <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>KEV added <strong>{finding.dateAdded || "—"}</strong></span><span>Due date <strong>{finding.dueDate || "—"}</strong></span><span>Known ransomware use <strong>{finding.knownRansomwareCampaignUse || "—"}</strong></span></div>
                     {finding.requiredAction && <p className="cyber-action">CISA action: {finding.requiredAction}</p>}
                     <div className="cyber-source-links"><a href={finding.cisaUrl} target="_blank" rel="noopener noreferrer">CISA catalog</a><a href={finding.epssUrl} target="_blank" rel="noopener noreferrer">EPSS record</a></div>
-                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy} onClick={() => void loadNvd(finding.cve)}>{nvdBusyCve === finding.cve ? "Loading NVD…" : nvdLookups[finding.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
+                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadNvd(finding.cve)}>{nvdBusyCve === finding.cve ? "Loading NVD…" : nvdLookups[finding.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
                     {nvdLookups[finding.cve] && <NvdDetails data={nvdLookups[finding.cve]} />}
+                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadOsv(finding.cve)}>{osvBusyCve === finding.cve ? "Loading OSV advisory…" : osvLookups[finding.cve] ? "Refresh OSV advisory" : "Load OSV advisory"}</button>
+                    {osvLookups[finding.cve] && <OsvDetails data={osvLookups[finding.cve]} />}
                   </div>
                 </article>)}
               </div> : <div className="empty-results"><strong>No data matched those CVE IDs</strong><p>Check the identifier or retry when the public data sources are available.</p></div>}
@@ -1377,7 +1443,7 @@ export default function App() {
                   {sbomBusy ? <><span className="spinner" /> Reviewing file</> : <>Review file <span aria-hidden="true">↗</span></>}
                 </button>
               </div>
-              <p className="cyber-egress-note">AURA parses this file locally in memory and does not save it. Only declared CVE IDs are sent to FIRST EPSS. NVD details are requested only after you click a per-CVE or batch lookup button.</p>
+              <p className="cyber-egress-note">AURA parses this file locally in memory and does not save it. Only declared CVE IDs are sent to FIRST EPSS. NVD and OSV details are requested only after you click a per-CVE lookup button; each sends the exact CVE ID only.</p>
             </form>
 
             {sbomLookup && <div className="cyber-results" aria-live="polite">
@@ -1393,7 +1459,7 @@ export default function App() {
                 </div>
               </div>
               <p className="coverage-note"><span>ⓘ</span> {sbomLookup.coverageNote}</p>
-              {sbomLookup.vulnerabilities.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy} onClick={() => void loadNvdBatch(sbomLookup.vulnerabilities.map((vulnerability) => vulnerability.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${sbomLookup.vulnerabilities.length} declared CVEs`}</button>}
+              {sbomLookup.vulnerabilities.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadNvdBatch(sbomLookup.vulnerabilities.map((vulnerability) => vulnerability.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${sbomLookup.vulnerabilities.length} declared CVEs`}</button>}
               {sbomLookup.vulnerabilities.length ? <div className="cyber-findings">
                 {sbomLookup.vulnerabilities.map((declared) => {
                   const finding = sbomLookup.intelligence?.results.find((result) => result.cve === declared.cve);
@@ -1410,8 +1476,10 @@ export default function App() {
                       {declared.affectedComponents.length > visibleComponents.length && <p className="sbom-component">Showing {visibleComponents.length} of {declared.affectedComponents.length} {sbomLookup.format === "SARIF JSON" ? "findings" : "resolved components"}. Download the full JSON or CSV for the complete list.</p>}
                       {declared.affectedBomRefs.length > declared.affectedComponents.length && <p className="sbom-component">Some {sbomLookup.format === "SARIF JSON" ? "finding" : "package"} references did not resolve in this file.</p>}
                       {finding && <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>Priority <strong>{finding.priorityRank}</strong></span></div>}
-                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy} onClick={() => void loadNvd(declared.cve)}>{nvdBusyCve === declared.cve ? "Loading NVD…" : nvdLookups[declared.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
+                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadNvd(declared.cve)}>{nvdBusyCve === declared.cve ? "Loading NVD…" : nvdLookups[declared.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
                       {nvdLookups[declared.cve] && <NvdDetails data={nvdLookups[declared.cve]} />}
+                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadOsv(declared.cve)}>{osvBusyCve === declared.cve ? "Loading OSV advisory…" : osvLookups[declared.cve] ? "Refresh OSV advisory" : "Load OSV advisory"}</button>
+                      {osvLookups[declared.cve] && <OsvDetails data={osvLookups[declared.cve]} />}
                     </div>
                   </article>;
                 })}

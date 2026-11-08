@@ -131,7 +131,15 @@ Requires the local owner Basic Auth account. Request `{ "cves": ["CVE-2024-12345
 
 Each result status is `AVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`, or `UNAVAILABLE` and includes request/retrieval timestamps, NVD record link, description (up to 2,000 characters), CVSS severity/version/vector when available, CWE identifiers, up to 50 CPE applicability criteria, and up to 10 HTTPS references. Truncation flags indicate when CPE criteria or references were capped. Results are held in a six-hour, memory-only cache capped at 500 records; unavailable and rate-limited responses are not cached. A 429 is returned as `RATE_LIMITED` without retry. CPE criteria are evidence from NVD and are not automatically matched to SBOM packages. NVD CVSS is severity information, not an asset-specific risk assessment.
 
-NVD receives only the requested exact CVE identifiers. SBOM files and component inventories are not sent to NVD. AURA does not persist NVD responses.
+NVD receives only the requested exact CVE identifiers. SBOM and SARIF files and component inventories are not sent to NVD. AURA does not persist NVD responses.
+
+### POST `/api/v1/cyber/vulnerabilities/osv/lookup`
+
+Requires the local owner Basic Auth account. Request exactly one CVE ID: `{ "cve": "CVE-2024-12345" }`. AURA validates the ID and makes one explicit HTTPS request to OSV's fixed `GET /v1/vulns/{id}` endpoint. It does not follow redirects. The UI exposes this as a per-CVE “Load OSV advisory” action; there is no batch or automatic lookup. OSV receives only the exact CVE ID. See the [OSV vulnerability-by-ID API](https://google.github.io/osv.dev/get-v1-vulns/). AURA makes no automatic retries.
+
+The response status is `AVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`, or `UNAVAILABLE`. Available records include retrieval time, OSV record ID, summary and details (capped at 500 and 5,000 characters), up to 20 aliases, up to 20 affected package entries and their bounded version ranges, and up to 10 HTTPS references. Response bodies are capped at 256 KB and requests time out after eight seconds. References are displayed but never fetched. A six-hour in-memory cache holds up to 500 records; unavailable and rate-limited responses are not cached. AURA does not persist advisory responses.
+
+OSV's affected package and version-range data is third-party advisory evidence. AURA does not send local package inventories to OSV or automatically match OSV ranges against an SBOM. An exact CVE advisory does not prove that a particular installed product is affected.
 
 ## Personal document library
 
