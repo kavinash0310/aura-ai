@@ -242,7 +242,8 @@ public class OsvProvider {
                             + (lastAffected.isBlank() ? 0 : 1)
                             + (limit.isBlank() ? 0 : 1);
                     versionEvents.add(new OsvVulnerabilityData.VersionEvent(
-                            clip(introduced, 120), clip(fixed, 120), clip(lastAffected, 120), clip(limit, 120),
+                            nullableClip(introduced, 120), nullableClip(fixed, 120),
+                            nullableClip(lastAffected, 120), nullableClip(limit, 120),
                             event.size() == 1 && recognizedValues == 1));
                     for (String key : List.of("introduced", "fixed", "last_affected", "limit")) {
                         String value = text(event, key);
@@ -326,6 +327,10 @@ public class OsvProvider {
             return value == null ? "" : value;
         }
         return value.substring(0, maximum);
+    }
+
+    private static String nullableClip(String value, int maximum) {
+        return value == null || value.isBlank() ? null : clip(value, maximum);
     }
 
     private static OsvVulnerabilityData notFound(String cve, String note) {
