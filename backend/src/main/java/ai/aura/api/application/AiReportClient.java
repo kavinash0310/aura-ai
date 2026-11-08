@@ -1,7 +1,8 @@
 package ai.aura.api.application;
 
-import ai.aura.api.api.ResearchReportResponse;
 import ai.aura.api.api.ResearchClaimComparisonResponse;
+import ai.aura.api.api.ResearchQueryPlanResponse;
+import ai.aura.api.api.ResearchReportResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.JdkClientHttpRequestFactory;

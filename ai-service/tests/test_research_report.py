@@ -63,9 +63,8 @@ def test_query_plan_suggests_distinct_angles_and_returns_model_telemetry(monkeyp
             content=json.dumps(
                 {
                     "suggestions": [
-                        "public agency statement",
-                        " Public agency statement ",
                         "  passkeys   adoption  ",
+                        "public agency statement",
                     ]
                 }
             ),
