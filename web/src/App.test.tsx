@@ -320,8 +320,8 @@ describe("AURA research workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
     await screen.findByText("Connected securely");
     const file = new File([JSON.stringify({ bomFormat: "CycloneDX" })], "inventory.json", { type: "application/json" });
-    fireEvent.change(screen.getByLabelText("CycloneDX or SPDX JSON file"), { target: { files: [file] } });
-    fireEvent.click(screen.getByRole("button", { name: /Review SBOM/ }));
+    fireEvent.change(screen.getByLabelText("CycloneDX, SPDX, or SARIF JSON file"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: /Review file/ }));
 
     expect(await screen.findByText("CVE-2026-12345 ↗")).toBeInTheDocument();
     expect(screen.getByText("demo")).toBeInTheDocument();
