@@ -904,7 +904,7 @@ export default function App() {
       mimeType = "application/json;charset=utf-8";
     } else {
       const findings = new Map((sbomLookup.intelligence?.results ?? []).map((finding) => [finding.cve, finding]));
-      const columns = ["cve", "affectedPackageReferences", "componentNames", "componentVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes"];
+      const columns = ["cve", "affectedReferences", "findingNames", "findingLevelsOrVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes"];
       const rows = sbomLookup.vulnerabilities.map((vulnerability) => {
         const finding = findings.get(vulnerability.cve);
         const nvd = nvdLookups[vulnerability.cve];
@@ -1358,14 +1358,14 @@ export default function App() {
             </div>}
 
             <div className="sbom-divider" />
-            <div className="sbom-heading"><div><h3>SBOM review</h3><p>Review CycloneDX 1.3–1.7 or SPDX 2.3 JSON inventories.</p></div><span className="panel-tag">MAX 2 MB</span></div>
+            <div className="sbom-heading"><div><h3>Security inventory and findings review</h3><p>Review CycloneDX 1.3–1.7, SPDX 2.3, or SARIF 2.1.0 JSON.</p></div><span className="panel-tag">MAX 2 MB</span></div>
             <form className="sbom-form" onSubmit={analyzeSbom}>
-              <label className="field-label" htmlFor="sbom-file">CycloneDX or SPDX JSON file</label>
+              <label className="field-label" htmlFor="sbom-file">CycloneDX, SPDX, or SARIF JSON file</label>
               <input
                 id="sbom-file"
                 className="text-input sbom-file-input"
                 type="file"
-                accept=".json,.spdx,application/json"
+                accept=".json,.spdx,.sarif,application/json"
                 onChange={(event) => {
                   setSbomFile(event.currentTarget.files?.[0] ?? null);
                   setSbomLookup(null);
@@ -1374,7 +1374,7 @@ export default function App() {
               <div className="cyber-form-footer">
                 <span className="provider-note"><i className="shield-icon">◇</i> Declared CVEs only · no package matching or scanning</span>
                 <button className="primary-button" type="submit" disabled={!connected || sbomBusy || !sbomFile}>
-                  {sbomBusy ? <><span className="spinner" /> Reviewing SBOM</> : <>Review SBOM <span aria-hidden="true">↗</span></>}
+                  {sbomBusy ? <><span className="spinner" /> Reviewing file</> : <>Review file <span aria-hidden="true">↗</span></>}
                 </button>
               </div>
               <p className="cyber-egress-note">AURA parses this file locally in memory and does not save it. Only declared CVE IDs are sent to FIRST EPSS. NVD details are requested only after you click a per-CVE or batch lookup button.</p>
@@ -1384,7 +1384,7 @@ export default function App() {
               <div className="cyber-results-header">
                 <div>
                   <div className="section-kicker">SBOM SUMMARY</div>
-                  <p className="cyber-source-status">{sbomLookup.format} {sbomLookup.specVersion} · {sbomLookup.componentCount} components · {sbomLookup.cveCount} declared CVEs</p>
+                  <p className="cyber-source-status">{sbomLookup.format} {sbomLookup.specVersion} · {sbomLookup.componentCount} {sbomLookup.format === "SARIF JSON" ? "results" : "components/packages"} · {sbomLookup.cveCount} declared CVEs</p>
                   {sbomLookup.intelligence && <p className="cyber-source-status">KEV {sbomLookup.intelligence.kev.status} · EPSS {sbomLookup.intelligence.epss.status}</p>}
                 </div>
                 <div className="export-actions" aria-label="Download SBOM review">
@@ -1403,17 +1403,19 @@ export default function App() {
                     <div className="cyber-finding-rank">{finding ? String(finding.priorityRank).padStart(2, "0") : "—"}</div>
                     <div className="cyber-finding-main">
                       <div className="cyber-finding-heading"><a href={`https://nvd.nist.gov/vuln/detail/${encodeURIComponent(declared.cve)}`} target="_blank" rel="noopener noreferrer">{declared.cve} ↗</a><span className={finding?.knownExploited ? "kev-badge kev-badge-active" : "kev-badge"}>{finding?.knownExploited ? "CISA KEV" : finding?.knownExploited === false ? "Not in KEV" : "KEV unavailable"}</span></div>
-                      <p className="cyber-product">Affected package references: {visibleRefs.join(" · ") || "None declared"}{declared.affectedBomRefs.length > visibleRefs.length ? ` · and ${declared.affectedBomRefs.length - visibleRefs.length} more` : ""}</p>
-                      {visibleComponents.map((component) => <p className="sbom-component" key={component.bomRef}><strong>{component.name || component.bomRef}</strong>{component.version ? ` · ${component.version}` : ""}{component.purl ? ` · ${component.purl}` : ""}</p>)}
-                      {declared.affectedComponents.length > visibleComponents.length && <p className="sbom-component">Showing {visibleComponents.length} of {declared.affectedComponents.length} resolved components. Download the full JSON or CSV for the complete list.</p>}
-                      {declared.affectedBomRefs.length > declared.affectedComponents.length && <p className="sbom-component">Some package references did not resolve to a component in this file.</p>}
+                      <p className="cyber-product">{sbomLookup.format === "SARIF JSON" ? "SARIF finding references" : "Affected package references"}: {visibleRefs.join(" · ") || "None declared"}{declared.affectedBomRefs.length > visibleRefs.length ? ` · and ${declared.affectedBomRefs.length - visibleRefs.length} more` : ""}</p>
+                      {visibleComponents.map((component) => sbomLookup.format === "SARIF JSON"
+                        ? <p className="sbom-component" key={component.bomRef}><strong>{component.name || component.bomRef}</strong>{component.version ? ` · ${component.version}` : ""}</p>
+                        : <p className="sbom-component" key={component.bomRef}><strong>{component.name || component.bomRef}</strong>{component.version ? ` · ${component.version}` : ""}{component.purl ? ` · ${component.purl}` : ""}</p>)}
+                      {declared.affectedComponents.length > visibleComponents.length && <p className="sbom-component">Showing {visibleComponents.length} of {declared.affectedComponents.length} {sbomLookup.format === "SARIF JSON" ? "findings" : "resolved components"}. Download the full JSON or CSV for the complete list.</p>}
+                      {declared.affectedBomRefs.length > declared.affectedComponents.length && <p className="sbom-component">Some {sbomLookup.format === "SARIF JSON" ? "finding" : "package"} references did not resolve in this file.</p>}
                       {finding && <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>Priority <strong>{finding.priorityRank}</strong></span></div>}
                       <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy} onClick={() => void loadNvd(declared.cve)}>{nvdBusyCve === declared.cve ? "Loading NVD…" : nvdLookups[declared.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
                       {nvdLookups[declared.cve] && <NvdDetails data={nvdLookups[declared.cve]} />}
                     </div>
                   </article>;
                 })}
-              </div> : <div className="empty-results"><strong>No CVE IDs were declared in this SBOM</strong><p>AURA does not infer vulnerabilities from package names or versions.</p></div>}
+              </div> : <div className="empty-results"><strong>No CVE IDs were declared in this {sbomLookup.format === "SARIF JSON" ? "SARIF log" : "SBOM"}</strong><p>AURA does not infer vulnerabilities from package names, versions, or finding messages.</p></div>}
             </div>}
           </section>
           {error && <div className="toast-error" role="alert"><span>!</span><p>{error}</p><button type="button" onClick={() => setError("")} aria-label="Dismiss error">×</button></div>}

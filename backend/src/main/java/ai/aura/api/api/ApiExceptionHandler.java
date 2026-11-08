@@ -84,7 +84,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler(InvalidSbomException.class)
     ProblemDetail handleInvalidSbom(InvalidSbomException exception) {
         return problem(HttpStatus.BAD_REQUEST, exception.getMessage(),
-                "Invalid SBOM", "INVALID_SBOM");
+                "Invalid SBOM or SARIF report", "INVALID_SBOM");
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

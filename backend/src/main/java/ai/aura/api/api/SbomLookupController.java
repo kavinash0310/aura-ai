@@ -25,7 +25,7 @@ public class SbomLookupController {
     @PostMapping(value = "/lookup", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public SbomLookupResponse lookup(@RequestPart("file") MultipartFile file) {
         if (file.isEmpty()) {
-            throw new InvalidSbomException("Choose a non-empty CycloneDX or SPDX JSON SBOM.");
+            throw new InvalidSbomException("Choose a non-empty CycloneDX, SPDX, or SARIF JSON file.");
         }
         if (file.getSize() > CycloneDxSbomParser.MAX_FILE_BYTES) {
             throw new InvalidSbomException("SBOM JSON files must be 2 MB or smaller.");

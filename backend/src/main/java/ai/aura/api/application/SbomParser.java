@@ -12,11 +12,18 @@ import java.util.List;
 public class SbomParser {
     private final CycloneDxSbomParser cycloneDxParser;
     private final SpdxSbomParser spdxParser;
+    private final SarifSbomParser sarifParser;
     private final JsonMapper jsonMapper;
 
-    public SbomParser(CycloneDxSbomParser cycloneDxParser, SpdxSbomParser spdxParser, JsonMapper jsonMapper) {
+    public SbomParser(
+            CycloneDxSbomParser cycloneDxParser,
+            SpdxSbomParser spdxParser,
+            SarifSbomParser sarifParser,
+            JsonMapper jsonMapper
+    ) {
         this.cycloneDxParser = cycloneDxParser;
         this.spdxParser = spdxParser;
+        this.sarifParser = sarifParser;
         this.jsonMapper = jsonMapper;
     }
 
@@ -53,7 +60,10 @@ public class SbomParser {
             if ("SPDX-2.3".equals(root.path("spdxVersion").asText())) {
                 return spdxParser.parse(input);
             }
+            if ("2.1.0".equals(root.path("version").asText())) {
+                return sarifParser.parse(input);
+            }
         }
-        throw new InvalidSbomException("The JSON file must be CycloneDX 1.3–1.7 or SPDX 2.3.");
+        throw new InvalidSbomException("The JSON file must be CycloneDX 1.3–1.7, SPDX 2.3, or SARIF 2.1.0.");
     }
 }

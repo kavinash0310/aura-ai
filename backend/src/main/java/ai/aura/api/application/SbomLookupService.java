@@ -8,7 +8,7 @@ import java.util.List;
 
 @Service
 public class SbomLookupService {
-    private static final String COVERAGE_NOTE = "AURA reads CycloneDX or SPDX package references and only CVE IDs explicitly declared by the SBOM. It does not match package versions to vulnerabilities, prove that a component is installed, or scan systems. The uploaded file is not persisted.";
+    private static final String COVERAGE_NOTE = "AURA reads declared CycloneDX/SPDX vulnerability references or exact SARIF rule IDs. It does not infer CVEs from package data or finding messages, prove that software is installed or affected, or scan systems. Uploaded files are not persisted.";
 
     private final SbomParser parser;
     private final VulnerabilityLookupService vulnerabilityLookup;
