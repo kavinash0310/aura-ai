@@ -11,8 +11,8 @@ CORE means needed for AURA; CAREER means high value for the target role; OPTIONA
 | Python AI service | Type hints, Pydantic, ASGI, async I/O, service authentication, timeouts | Python, FastAPI, `urllib`, Ollama API | Python basics, JSON/HTTP | CAREER |
 | Document ingestion | File validation, parsing, metadata, chunking, offsets | Parser adapters, PostgreSQL | Streams, encodings, security | CORE / CAREER |
 | Search and RAG | Tokenization, embeddings, similarity, FTS, hybrid search, reranking, citations | PostgreSQL FTS, optional pgvector | Probability, vectors, SQL | CORE / CAREER |
-| LLM integration | Prompt injection, structured outputs, source-ID validation, context and latency bounds | Local Ollama `/api/chat`, Pydantic JSON Schema | HTTP, JSON schemas, evidence provenance | CORE / CAREER |
-| Research sources | Query planning, quotas, source terms, provider aggregation, per-source provenance, retries, normalization, dedupe | Provider-neutral adapters | HTTP, pagination | CORE |
+| LLM integration | Prompt injection, structured outputs, source-ID validation, context and latency bounds, model-drafted query angles | Local Ollama `/api/chat`, Pydantic JSON Schema | HTTP, JSON schemas, evidence provenance | CORE / CAREER |
+| Research sources | Owner-reviewed query planning, quotas, source terms, provider aggregation, per-source provenance, retries, normalization, dedupe | Provider-neutral adapters | HTTP, pagination | CORE |
 | Evidence/reports | Provenance, claim/evidence distinction, contradictions, reproducibility | PostgreSQL, Markdown/PDF | Domain modeling | CORE |
 | Controlled workflows | Tool permission, state, audit, approval, recovery | Java state machine, optional LangGraph | Workflow fundamentals | CORE / CAREER |
 | Cyber intelligence | CVE/CPE/SBOM, KEV, EPSS, CVSS v3/v4, advisory provenance, bounded public APIs, PURL identity, exact OSV version evidence, strict npm SemVer range applicability, deterministic ranking regression fixtures, source freshness, uncertainty | NVD/CISA/FIRST/OSV/GitHub Advisory adapters | Normalization, probability, source trust, HTTP limits, caching, version identifiers, SemVer, test design | CORE |

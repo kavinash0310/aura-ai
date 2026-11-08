@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from aura_ai_service.config import Settings, get_settings
 
@@ -19,12 +19,35 @@ logger = logging.getLogger("aura.ai_service")
 
 REPORT_PROMPT_VERSION = "research-report-v1"
 CLAIM_COMPARISON_PROMPT_VERSION = "claim-comparison-v1"
+QUERY_PLAN_PROMPT_VERSION = "research-query-plan-v1"
 
 
 class HealthResponse(BaseModel):
     status: Literal["UP"]
     service: str
     version: str
+
+
+class ResearchQueryPlanRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    topic: Annotated[str, Field(min_length=1, max_length=300)]
+
+    @field_validator("topic")
+    @classmethod
+    def topic_must_not_be_blank(cls, value: str) -> str:
+        topic = value.strip()
+        if not topic:
+            raise ValueError("Topic must not be blank")
+        return topic
+
+
+class ResearchQueryPlanContent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    suggestions: Annotated[
+        list[Annotated[str, Field(min_length=1, max_length=300)]], Field(max_length=2)
+    ]
 
 
 class ReportSource(BaseModel):
@@ -92,6 +115,17 @@ class ModelRunTelemetry(BaseModel):
     duration_ms: int | None = Field(alias="durationMs")
     prompt_token_count: int | None = Field(alias="promptTokenCount")
     output_token_count: int | None = Field(alias="outputTokenCount")
+
+
+class ResearchQueryPlanResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    generated_at: datetime = Field(alias="generatedAt")
+    provider: Literal["ollama"]
+    model: str
+    suggestions: list[str]
+    model_run: ModelRunTelemetry = Field(alias="modelRun")
+    note: str
 
 
 class ResearchReportResponse(ResearchReportContent):
@@ -220,7 +254,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=None,
         lifespan=lifespan,
     )
-    app.state.report_lock = asyncio.Semaphore(1)
+    app.state.model_lock = asyncio.Semaphore(1)
 
     @app.get("/api/v1/health", response_model=HealthResponse, tags=["operations"])
     async def health() -> HealthResponse:
@@ -228,6 +262,111 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             status="UP",
             service=resolved_settings.service_name,
             version=resolved_settings.service_version,
+        )
+
+    @app.post(
+        "/api/v1/research/query-plan",
+        response_model=ResearchQueryPlanResponse,
+        tags=["research"],
+    )
+    async def research_query_plan(
+        request: ResearchQueryPlanRequest,
+        authorization: Annotated[str | None, Header()] = None,
+    ) -> ResearchQueryPlanResponse:
+        token = resolved_settings.internal_token
+        provided = (
+            authorization[7:] if authorization and authorization.startswith("Bearer ") else ""
+        )
+        if not token or not hmac.compare_digest(provided, token):
+            raise HTTPException(status_code=401, detail="Internal service authentication failed")
+        if resolved_settings.model_provider != "ollama":
+            raise HTTPException(
+                status_code=503,
+                detail="Local query planning model is not configured",
+            )
+
+        prompt_payload = request.model_dump(mode="json")
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Suggest up to two short, distinct public-web search queries that explore "
+                    "useful angles on the supplied research topic. Return only the required JSON. "
+                    "Do not answer the topic, add factual claims, or use private or sensitive "
+                    "personal data, exact home addresses, credentials, or real-time location. "
+                    "Focus on public sources such as official statements, timelines, evidence, "
+                    "and independent analysis when relevant. The user will review and edit every "
+                    "suggestion; no search is performed by this request."
+                ),
+            },
+            {"role": "user", "content": json.dumps(prompt_payload, ensure_ascii=False)},
+        ]
+        ollama_payload = json.dumps(
+            {
+                "model": resolved_settings.ollama_model,
+                "messages": messages,
+                "format": ResearchQueryPlanContent.model_json_schema(),
+                "stream": False,
+                "options": {"temperature": 0.2, "num_predict": 350},
+            },
+            ensure_ascii=False,
+        ).encode("utf-8")
+
+        try:
+            await asyncio.wait_for(app.state.model_lock.acquire(), timeout=2)
+        except TimeoutError:
+            raise HTTPException(status_code=503, detail="The local model is already busy") from None
+        try:
+            ollama_result = await asyncio.to_thread(
+                _call_ollama,
+                resolved_settings.ollama_base_url,
+                ollama_payload,
+                resolved_settings.ollama_timeout_seconds,
+            )
+            plan = ResearchQueryPlanContent.model_validate_json(_result_content(ollama_result))
+        except ValidationError as error:
+            logger.warning(
+                "local_query_plan_invalid_output",
+                extra={"error_type": type(error).__name__},
+            )
+            raise HTTPException(
+                status_code=502,
+                detail="The local model returned an invalid query plan",
+            ) from None
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError) as error:
+            logger.warning(
+                "local_query_plan_generation_failed",
+                extra={"error_type": type(error).__name__},
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="The configured local model is unavailable",
+            ) from None
+        finally:
+            app.state.model_lock.release()
+
+        topic_key = " ".join(request.topic.casefold().split())
+        seen = {topic_key}
+        suggestions: list[str] = []
+        for value in plan.suggestions:
+            suggestion = " ".join(value.split())
+            key = suggestion.casefold()
+            if key and key not in seen:
+                seen.add(key)
+                suggestions.append(suggestion)
+
+        model_run = _model_run_telemetry(QUERY_PLAN_PROMPT_VERSION, ollama_result)
+        _log_model_run("research_query_plan", resolved_settings.ollama_model, model_run)
+        return ResearchQueryPlanResponse(
+            generated_at=datetime.now(UTC),
+            provider="ollama",
+            model=resolved_settings.ollama_model,
+            suggestions=suggestions,
+            model_run=model_run,
+            note=(
+                "Draft suggestions only. Review and edit them before the separate Start "
+                "research action; this request did not contact search providers."
+            ),
         )
 
     @app.post("/api/v1/research/report", response_model=ResearchReportResponse, tags=["research"])
@@ -274,7 +413,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ).encode("utf-8")
 
         try:
-            await asyncio.wait_for(app.state.report_lock.acquire(), timeout=2)
+            await asyncio.wait_for(app.state.model_lock.acquire(), timeout=2)
         except TimeoutError:
             raise HTTPException(
                 status_code=503, detail="A local report is already being generated"
@@ -302,7 +441,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=503, detail="The configured local model is unavailable"
             ) from None
         finally:
-            app.state.report_lock.release()
+            app.state.model_lock.release()
 
         model_run = _model_run_telemetry(REPORT_PROMPT_VERSION, ollama_result)
         _log_model_run("research_report", resolved_settings.ollama_model, model_run)
@@ -394,7 +533,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ).encode("utf-8")
 
         try:
-            await asyncio.wait_for(app.state.report_lock.acquire(), timeout=2)
+            await asyncio.wait_for(app.state.model_lock.acquire(), timeout=2)
         except TimeoutError:
             raise HTTPException(
                 status_code=503, detail="A local report is already being generated"
@@ -422,7 +561,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=503, detail="The configured local model is unavailable"
             ) from None
         finally:
-            app.state.report_lock.release()
+            app.state.model_lock.release()
 
         model_run = _model_run_telemetry(CLAIM_COMPARISON_PROMPT_VERSION, ollama_result)
         _log_model_run("claim_comparison", resolved_settings.ollama_model, model_run)

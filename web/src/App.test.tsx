@@ -25,6 +25,38 @@ describe("AURA research workspace", () => {
     expect(window.sessionStorage.length).toBe(0);
   });
 
+  it("lets the owner review a local-model search suggestion before searching", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        generatedAt: "2026-11-08T00:00:00Z",
+        provider: "ollama",
+        model: "local-test-model",
+        suggestions: ["official public response"],
+        modelRun: { promptVersion: "research-query-plan-v1", durationMs: 100, promptTokenCount: 10, outputTokenCount: 5 },
+        note: "Draft only; no search providers contacted.",
+      }), { status: 200 }));
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
+    await screen.findByText("Connected securely");
+    fireEvent.change(screen.getByLabelText("Research question or topic"), { target: { value: "topic" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Suggest with local AI" }));
+    expect(await screen.findByText("official public response")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[3]?.[0]).toBe("/api/v1/research/query-plan");
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ topic: "topic" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add suggestion: official public response" }));
+    expect(screen.getByLabelText("Additional search query 1")).toHaveValue("official public response");
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
   it("imports a private text file and searches it with a stable character citation", async () => {
     const document = {
       id: "doc-1", title: "Local notes", originalFilename: "notes.md", mediaType: "text/markdown; charset=utf-8",
