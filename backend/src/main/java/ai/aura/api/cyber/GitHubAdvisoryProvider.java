@@ -167,8 +167,8 @@ public class GitHubAdvisoryProvider {
         String sourceUrl = ghsaId.matches("(?i)GHSA-[23456789CFGHJMPQRVWX]{4}-[23456789CFGHJMPQRVWX]{4}-[23456789CFGHJMPQRVWX]{4}")
                 ? SOURCE_URL + ghsaId.toUpperCase(Locale.ROOT)
                 : SOURCE_URL + "?query=" + cve;
-        Cvss cvssV3 = readCvss(item.path("cvss_severities").path("cvss_v3"));
-        Cvss cvssV4 = readCvss(item.path("cvss_severities").path("cvss_v4"));
+        GitHubAdvisoryData.Cvss cvssV3 = readCvss(item.path("cvss_severities").path("cvss_v3"));
+        GitHubAdvisoryData.Cvss cvssV4 = readCvss(item.path("cvss_severities").path("cvss_v4"));
         if (cvssV3 == null) {
             cvssV3 = readCvss(item.path("cvss"));
         }
