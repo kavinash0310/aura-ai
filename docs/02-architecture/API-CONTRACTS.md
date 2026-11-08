@@ -141,6 +141,14 @@ The response status is `AVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`, or `UNAVAILABLE
 
 OSV's affected package and version-range data is third-party advisory evidence. AURA does not send local package inventories to OSV or automatically match OSV ranges against an SBOM. An exact CVE advisory does not prove that a particular installed product is affected.
 
+### POST `/api/v1/cyber/vulnerabilities/github-advisories/lookup`
+
+Requires the local owner Basic Auth account. Request exactly one CVE ID: `{ "cve": "CVE-2024-12345" }`. AURA validates the identifier and makes one explicit request to GitHub's public global-advisories endpoint, filtered by that exact `cve_id` and `type=reviewed`. No GitHub account or token is used. The action is available per CVE from the UI; SBOM review never triggers this lookup automatically. The API receives only the selected CVE identifier. See GitHub's [REST API documentation for global security advisories](https://docs.github.com/en/rest/security-advisories/global-advisories).
+
+Responses have status `AVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`, or `UNAVAILABLE`, and include retrieval time plus up to ten exact-CVE advisory records. Each record is bounded to 3,000 description characters, 20 CWE identifiers, 20 affected package entries, and 10 HTTPS references. CVSS v3 and v4 values are exposed when supplied by GitHub. Response bodies are limited to 256 KB; requests time out after eight seconds, do not follow redirects, and are not retried. Available and not-found results are cached in memory for six hours, up to 500 CVEs; rate-limited and unavailable results are not cached. AURA does not persist advisory responses.
+
+Only reviewed advisories are requested. Each returned record must repeat the exact CVE in GitHub's `cve_id` field or CVE identifiers; records for other CVEs are discarded. Advisory text, severity, affected package ranges, and CVSS are source claims, not proof of local exposure or asset-specific risk. AURA does not submit package inventories, infer package matches, or fetch reference links. The UI displays data from the public API; JSON/CSV downloads occur only when the owner explicitly requests an export.
+
 ## Personal document library
 
 All document routes require the local owner Basic Auth account. Document upload is an explicit local action; file contents are stored in PostgreSQL and are not sent to Brave, FIRST, CISA, NVD, or an AI model.

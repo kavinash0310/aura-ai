@@ -385,6 +385,58 @@ describe("AURA research workspace", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ cve: "CVE-2026-12345" });
   });
 
+  it("loads reviewed GitHub advisories only after an explicit exact-CVE request", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requestedAt: "2026-11-07T00:00:00Z",
+        coverageNote: "Read-only exact CVE lookup.",
+        kev: { status: "AVAILABLE", retrievedAt: "2026-11-07T00:00:00Z", dataAsOf: "2026-11-07", sourceUrl: "https://github.com/CISAGov/kev-data", note: "" },
+        epss: { status: "AVAILABLE", retrievedAt: "2026-11-07T00:00:00Z", dataAsOf: "2026-11-07", sourceUrl: "https://api.first.org/epss/", note: "" },
+        results: [{
+          cve: "CVE-2026-12345", priorityRank: 1, knownExploited: false, vendorProject: null, product: null,
+          vulnerabilityName: null, dateAdded: null, dueDate: null, requiredAction: null,
+          knownRansomwareCampaignUse: null, epssScore: 0.2, epssPercentile: 0.6, epssScoreDate: "2026-11-07",
+          priorityRationale: "Not listed in the returned KEV snapshot; sorted by EPSS estimate.",
+          cisaUrl: "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+          nvdUrl: "https://nvd.nist.gov/vuln/detail/CVE-2026-12345", epssUrl: "https://api.first.org/data/v1/epss?cve=CVE-2026-12345",
+        }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requestedAt: "2026-11-07T00:00:01Z", cve: "CVE-2026-12345", status: "AVAILABLE",
+        retrievedAt: "2026-11-07T00:00:01Z", advisoriesTruncated: false,
+        note: "GitHub-reviewed advisory evidence is shown as published.",
+        advisories: [{
+          ghsaId: "GHSA-7fhm-mqm4-2wp7", cveId: "CVE-2026-12345",
+          sourceUrl: "https://github.com/advisories/GHSA-7FHM-MQM4-2WP7", type: "reviewed", severity: "HIGH",
+          summary: "Example GitHub advisory", description: "Reviewed advisory details.",
+          publishedAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-02T00:00:00Z", reviewedAt: "2026-01-02T00:00:00Z", withdrawnAt: "",
+          cvssV3: { vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", score: 9.8 },
+          cvssV4: { vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N", score: 9.3 },
+          cwes: ["CWE-79"], cwesTruncated: false, affectedPackages: [{ ecosystem: "npm", name: "example", vulnerableVersionRange: "< 2.0.0", firstPatchedVersion: "2.0.0" }],
+          affectedPackagesTruncated: false, references: [{ url: "https://github.com/example/project/security/advisories/GHSA-7fhm-mqm4-2wp7" }], referencesTruncated: false,
+        }],
+      }), { status: 200 }));
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
+    await screen.findByText("Connected securely");
+    fireEvent.change(screen.getByLabelText("CVE IDs"), { target: { value: "CVE-2026-12345" } });
+    fireEvent.click(screen.getByRole("button", { name: /Check vulnerabilities/ }));
+    await screen.findByRole("button", { name: "Load GitHub advisories" });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load GitHub advisories" }));
+    expect(await screen.findByText("Reviewed advisory details.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View GHSA-7fhm-mqm4-2wp7 ↗" })).toHaveAttribute("href", "https://github.com/advisories/GHSA-7FHM-MQM4-2WP7");
+    expect(fetchMock.mock.calls[4]?.[0]).toBe("/api/v1/cyber/vulnerabilities/github-advisories/lookup");
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ cve: "CVE-2026-12345" });
+  });
+
   it("generates a report from visible source IDs and downloads a source-linked JSON snapshot", async () => {
     const reportBlobs: Blob[] = [];
     vi.stubGlobal("URL", {

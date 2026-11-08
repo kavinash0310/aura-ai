@@ -310,6 +310,50 @@ export interface OsvLookupResponse {
   note: string;
 }
 
+export interface GitHubAdvisoryCvss {
+  vector: string | null;
+  score: number | null;
+}
+
+export interface GitHubAdvisoryPackage {
+  ecosystem: string;
+  name: string;
+  vulnerableVersionRange: string;
+  firstPatchedVersion: string;
+}
+
+export interface GitHubAdvisory {
+  ghsaId: string;
+  cveId: string;
+  sourceUrl: string;
+  type: string;
+  severity: string;
+  summary: string;
+  description: string;
+  publishedAt: string;
+  updatedAt: string;
+  reviewedAt: string;
+  withdrawnAt: string;
+  cvssV3: GitHubAdvisoryCvss | null;
+  cvssV4: GitHubAdvisoryCvss | null;
+  cwes: string[];
+  cwesTruncated: boolean;
+  affectedPackages: GitHubAdvisoryPackage[];
+  affectedPackagesTruncated: boolean;
+  references: Array<{ url: string }>;
+  referencesTruncated: boolean;
+}
+
+export interface GitHubAdvisoryLookupResponse {
+  requestedAt: string;
+  cve: string;
+  status: "AVAILABLE" | "NOT_FOUND" | "UNAVAILABLE" | "RATE_LIMITED";
+  retrievedAt: string;
+  advisories: GitHubAdvisory[];
+  advisoriesTruncated: boolean;
+  note: string;
+}
+
 export interface NvdBatchLookupResponse {
   requestedAt: string;
   results: NvdLookupResponse[];

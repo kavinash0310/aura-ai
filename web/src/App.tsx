@@ -14,6 +14,7 @@ import {
   lookupNvdBatch,
   lookupNvd,
   lookupOsv,
+  lookupGitHubAdvisories,
   lookupVulnerabilities,
   getDocument,
   listDocuments,
@@ -41,6 +42,7 @@ import type {
   NvdBatchLookupResponse,
   NvdLookupResponse,
   OsvLookupResponse,
+  GitHubAdvisoryLookupResponse,
   SbomLookupResponse,
   SearchResponse,
   VulnerabilityFinding,
@@ -170,6 +172,30 @@ function OsvDetails({ data }: { data: OsvLookupResponse }) {
   </div>;
 }
 
+function GitHubAdvisoryDetails({ data }: { data: GitHubAdvisoryLookupResponse }) {
+  if (data.status !== "AVAILABLE") {
+    return <div className="nvd-details" aria-live="polite"><p className="nvd-note">GitHub Advisory Database {data.status}: {data.note}</p></div>;
+  }
+  return <div className="nvd-details" aria-live="polite">
+    <p className="nvd-note">Retrieved {formatDate(data.retrievedAt)} · {data.advisories.length}{data.advisoriesTruncated ? "+" : ""} reviewed advisory record{data.advisories.length === 1 ? "" : "s"}</p>
+    <p className="nvd-note">GitHub advisories are separate source records; their package ranges are not matched against your inventory.</p>
+    {data.advisories.map((advisory) => <section className="nvd-applicability" key={advisory.ghsaId || advisory.sourceUrl}>
+      <p className="nvd-note"><a href={advisory.sourceUrl} target="_blank" rel="noopener noreferrer">View {advisory.ghsaId || "GitHub advisory"} ↗</a> · {advisory.type || "reviewed"} · {advisory.severity || "severity unavailable"} · Published {formatDate(advisory.publishedAt)} · Updated {formatDate(advisory.updatedAt)}{advisory.withdrawnAt ? " · Withdrawn " + formatDate(advisory.withdrawnAt) : ""}</p>
+      {advisory.summary && <p className="nvd-note"><strong>{advisory.summary}</strong></p>}
+      {advisory.description && <details><summary>Advisory details</summary><p className="nvd-description">{advisory.description}</p></details>}
+      {advisory.cvssV4 && <p className="nvd-note">CVSS v4{advisory.cvssV4.score != null ? " " + advisory.cvssV4.score.toFixed(1) : " score unavailable"}{advisory.cvssV4.vector ? " · " + advisory.cvssV4.vector : ""} · severity is not an asset-specific risk score.</p>}
+      {advisory.cvssV3 && <p className="nvd-note">CVSS v3{advisory.cvssV3.score != null ? " " + advisory.cvssV3.score.toFixed(1) : " score unavailable"}{advisory.cvssV3.vector ? " · " + advisory.cvssV3.vector : ""} · severity is not an asset-specific risk score.</p>}
+      {advisory.cwes.length > 0 && <p className="nvd-note">Weaknesses: {advisory.cwes.join(", ")}{advisory.cwesTruncated ? " · additional CWE entries omitted" : ""}</p>}
+      {advisory.affectedPackages.length > 0 && <details><summary>Advisory package ranges ({advisory.affectedPackages.length}{advisory.affectedPackagesTruncated ? "+" : ""})</summary>
+        {advisory.affectedPackages.map((item, index) => <p className="sbom-component" key={item.ecosystem + "-" + item.name + "-" + index}><strong>{item.name || "Unnamed package"}</strong>{item.ecosystem ? " · " + item.ecosystem : ""}{item.vulnerableVersionRange ? " · affected " + item.vulnerableVersionRange : ""}{item.firstPatchedVersion ? " · first patched " + item.firstPatchedVersion : ""}</p>)}
+      </details>}
+      {advisory.references.length > 0 && <div className="nvd-references"><span>References</span>{advisory.references.map((reference) => <a key={reference.url} href={reference.url} target="_blank" rel="noopener noreferrer">Reference ↗</a>)}{advisory.referencesTruncated && <span>More references are available from GitHub.</span>}</div>}
+    </section>)}
+    {data.advisoriesTruncated && <p className="nvd-note">More reviewed advisories may exist; the response is capped at ten.</p>}
+    <p className="nvd-note">{data.note}</p>
+  </div>;
+}
+
 export default function App() {
   const workspaceSession = useRef(0);
   const pageHistoryRequest = useRef(0);
@@ -218,6 +244,8 @@ export default function App() {
   const [nvdBatchBusy, setNvdBatchBusy] = useState(false);
   const [osvLookups, setOsvLookups] = useState<Record<string, OsvLookupResponse>>({});
   const [osvBusyCve, setOsvBusyCve] = useState<string | null>(null);
+  const [githubAdvisories, setGithubAdvisories] = useState<Record<string, GitHubAdvisoryLookupResponse>>({});
+  const [githubAdvisoryBusyCve, setGithubAdvisoryBusyCve] = useState<string | null>(null);
   const [documents, setDocuments] = useState<ResearchDocument[]>([]);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentInputKey, setDocumentInputKey] = useState(0);
@@ -647,7 +675,7 @@ export default function App() {
   }
 
   async function loadNvd(cve: string) {
-    if (!connected || nvdBusyCve || nvdBatchBusy || osvBusyCve) return;
+    if (!connected || nvdBusyCve || nvdBatchBusy || osvBusyCve || githubAdvisoryBusyCve) return;
     const session = workspaceSession.current;
     setNvdBusyCve(cve);
     setError("");
@@ -664,7 +692,7 @@ export default function App() {
   }
 
   async function loadNvdBatch(cves: string[]) {
-    if (!connected || nvdBusyCve || nvdBatchBusy || osvBusyCve) return;
+    if (!connected || nvdBusyCve || nvdBatchBusy || osvBusyCve || githubAdvisoryBusyCve) return;
     const ids = [...new Set(cves.map((cve) => cve.trim().toUpperCase()).filter(Boolean))];
     if (ids.length === 0 || ids.length > 25) {
       setError("Choose between one and 25 exact CVE IDs for an NVD lookup.");
@@ -689,7 +717,7 @@ export default function App() {
   }
 
   async function loadOsv(cve: string) {
-    if (!connected || nvdBusyCve || nvdBatchBusy || osvBusyCve) return;
+    if (!connected || nvdBusyCve || nvdBatchBusy || osvBusyCve || githubAdvisoryBusyCve) return;
     const session = workspaceSession.current;
     setOsvBusyCve(cve);
     setError("");
@@ -702,6 +730,23 @@ export default function App() {
       if (session === workspaceSession.current) setError(errorMessage(caught));
     } finally {
       if (session === workspaceSession.current) setOsvBusyCve(null);
+    }
+  }
+
+  async function loadGitHubAdvisories(cve: string) {
+    if (!connected || nvdBusyCve || nvdBatchBusy || osvBusyCve || githubAdvisoryBusyCve) return;
+    const session = workspaceSession.current;
+    setGithubAdvisoryBusyCve(cve);
+    setError("");
+    try {
+      const result = await lookupGitHubAdvisories(credentials, cve);
+      if (session === workspaceSession.current) {
+        setGithubAdvisories((current) => ({ ...current, [result.cve]: result }));
+      }
+    } catch (caught) {
+      if (session === workspaceSession.current) setError(errorMessage(caught));
+    } finally {
+      if (session === workspaceSession.current) setGithubAdvisoryBusyCve(null);
     }
   }
 
@@ -875,7 +920,10 @@ export default function App() {
       const relevantOsvAdvisories = Object.fromEntries(vulnerabilityLookup.results
         .filter((finding) => osvLookups[finding.cve])
         .map((finding) => [finding.cve, osvLookups[finding.cve]]));
-      content = JSON.stringify({ ...vulnerabilityLookup, nvdDetails: relevantNvdDetails, osvAdvisories: relevantOsvAdvisories }, null, 2);
+      const relevantGitHubAdvisories = Object.fromEntries(vulnerabilityLookup.results
+        .filter((finding) => githubAdvisories[finding.cve])
+        .map((finding) => [finding.cve, githubAdvisories[finding.cve]]));
+      content = JSON.stringify({ ...vulnerabilityLookup, nvdDetails: relevantNvdDetails, osvAdvisories: relevantOsvAdvisories, githubAdvisories: relevantGitHubAdvisories }, null, 2);
       mimeType = "application/json;charset=utf-8";
     } else {
       const columns: Array<[string, (finding: VulnerabilityFinding) => string | number | boolean | null]> = [
@@ -895,10 +943,11 @@ export default function App() {
         ["nvdUrl", (finding) => finding.nvdUrl],
         ["epssUrl", (finding) => finding.epssUrl],
       ];
-      const headers = [...columns.map(([name]) => name), "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes", "osvStatus", "osvId", "osvSummary", "osvPublishedAt", "osvModifiedAt"];
+      const headers = [...columns.map(([name]) => name), "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes", "osvStatus", "osvId", "osvSummary", "osvPublishedAt", "osvModifiedAt", "githubAdvisoryStatus", "githubAdvisoryIds", "githubAdvisorySummaries"];
       content = [headers.map(csvCell).join(","), ...vulnerabilityLookup.results.map((finding) => {
         const nvd = nvdLookups[finding.cve];
         const osv = osvLookups[finding.cve];
+        const github = githubAdvisories[finding.cve];
         const values: Array<string | number | boolean | null> = [
           ...columns.map(([, value]) => value(finding)),
           nvd?.status ?? null,
@@ -911,6 +960,9 @@ export default function App() {
           osv?.summary ?? null,
           osv?.publishedAt ?? null,
           osv?.modifiedAt ?? null,
+          github?.status ?? null,
+          github?.advisories.map((advisory) => advisory.ghsaId).filter(Boolean).join("; ") ?? null,
+          github?.advisories.map((advisory) => advisory.summary).filter(Boolean).join("; ") ?? null,
         ];
         return values.map(csvCell).join(",");
       })].join("\r\n");
@@ -956,15 +1008,19 @@ export default function App() {
       const relevantOsvAdvisories = Object.fromEntries(sbomLookup.vulnerabilities
         .filter((vulnerability) => osvLookups[vulnerability.cve])
         .map((vulnerability) => [vulnerability.cve, osvLookups[vulnerability.cve]]));
-      content = JSON.stringify({ ...sbomLookup, nvdDetails: relevantNvdDetails, osvAdvisories: relevantOsvAdvisories }, null, 2);
+      const relevantGitHubAdvisories = Object.fromEntries(sbomLookup.vulnerabilities
+        .filter((vulnerability) => githubAdvisories[vulnerability.cve])
+        .map((vulnerability) => [vulnerability.cve, githubAdvisories[vulnerability.cve]]));
+      content = JSON.stringify({ ...sbomLookup, nvdDetails: relevantNvdDetails, osvAdvisories: relevantOsvAdvisories, githubAdvisories: relevantGitHubAdvisories }, null, 2);
       mimeType = "application/json;charset=utf-8";
     } else {
       const findings = new Map((sbomLookup.intelligence?.results ?? []).map((finding) => [finding.cve, finding]));
-      const columns = ["cve", "affectedReferences", "findingNames", "findingLevelsOrVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes", "osvStatus", "osvId", "osvSummary", "osvPublishedAt", "osvModifiedAt"];
+      const columns = ["cve", "affectedReferences", "findingNames", "findingLevelsOrVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes", "osvStatus", "osvId", "osvSummary", "osvPublishedAt", "osvModifiedAt", "githubAdvisoryStatus", "githubAdvisoryIds", "githubAdvisorySummaries"];
       const rows = sbomLookup.vulnerabilities.map((vulnerability) => {
         const finding = findings.get(vulnerability.cve);
         const nvd = nvdLookups[vulnerability.cve];
         const osv = osvLookups[vulnerability.cve];
+        const github = githubAdvisories[vulnerability.cve];
         const values: Array<string | number | boolean | null> = [
           vulnerability.cve,
           vulnerability.affectedBomRefs.join("; "),
@@ -984,6 +1040,9 @@ export default function App() {
           osv?.summary ?? null,
           osv?.publishedAt ?? null,
           osv?.modifiedAt ?? null,
+          github?.status ?? null,
+          github?.advisories.map((advisory) => advisory.ghsaId).filter(Boolean).join("; ") ?? null,
+          github?.advisories.map((advisory) => advisory.summary).filter(Boolean).join("; ") ?? null,
         ];
         return values.map(csvCell).join(",");
       });
@@ -1017,9 +1076,11 @@ export default function App() {
     setSbomLookup(null);
     setNvdLookups({});
     setOsvLookups({});
+    setGithubAdvisories({});
     setNvdBusyCve(null);
     setNvdBatchBusy(false);
     setOsvBusyCve(null);
+    setGithubAdvisoryBusyCve(null);
     setDocumentUploading(false);
     setDocumentSearching(false);
     setOpeningDocumentId(null);
@@ -1395,7 +1456,7 @@ export default function App() {
                 <div><div className="section-kicker">SOURCE STATUS</div><p className="cyber-source-status"><a href={vulnerabilityLookup.kev.sourceUrl} target="_blank" rel="noopener noreferrer">CISA KEV</a> {vulnerabilityLookup.kev.status}{vulnerabilityLookup.kev.dataAsOf ? ` · data ${vulnerabilityLookup.kev.dataAsOf}` : ""}{vulnerabilityLookup.kev.note ? ` · ${vulnerabilityLookup.kev.note}` : ""}</p>
                   <p className="cyber-source-status"><a href={vulnerabilityLookup.epss.sourceUrl} target="_blank" rel="noopener noreferrer">FIRST EPSS</a> {vulnerabilityLookup.epss.status}{vulnerabilityLookup.epss.dataAsOf ? ` · data ${vulnerabilityLookup.epss.dataAsOf}` : ""}{vulnerabilityLookup.epss.note ? ` · ${vulnerabilityLookup.epss.note}` : ""}</p>
                   <p className="cyber-retrieved">Checked {formatDate(vulnerabilityLookup.requestedAt)}</p>
-              {vulnerabilityLookup.results.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadNvdBatch(vulnerabilityLookup.results.map((finding) => finding.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${vulnerabilityLookup.results.length} CVEs`}</button>}
+              {vulnerabilityLookup.results.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null || githubAdvisoryBusyCve !== null} onClick={() => void loadNvdBatch(vulnerabilityLookup.results.map((finding) => finding.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${vulnerabilityLookup.results.length} CVEs`}</button>}
                 </div>
                 <div className="export-actions" aria-label="Download vulnerability lookup">
                   <button type="button" onClick={() => downloadVulnerabilityLookup("csv")}>↓ CSV</button>
@@ -1414,10 +1475,12 @@ export default function App() {
                     <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>KEV added <strong>{finding.dateAdded || "—"}</strong></span><span>Due date <strong>{finding.dueDate || "—"}</strong></span><span>Known ransomware use <strong>{finding.knownRansomwareCampaignUse || "—"}</strong></span></div>
                     {finding.requiredAction && <p className="cyber-action">CISA action: {finding.requiredAction}</p>}
                     <div className="cyber-source-links"><a href={finding.cisaUrl} target="_blank" rel="noopener noreferrer">CISA catalog</a><a href={finding.epssUrl} target="_blank" rel="noopener noreferrer">EPSS record</a></div>
-                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadNvd(finding.cve)}>{nvdBusyCve === finding.cve ? "Loading NVD…" : nvdLookups[finding.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
+                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null || githubAdvisoryBusyCve !== null} onClick={() => void loadNvd(finding.cve)}>{nvdBusyCve === finding.cve ? "Loading NVD…" : nvdLookups[finding.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
                     {nvdLookups[finding.cve] && <NvdDetails data={nvdLookups[finding.cve]} />}
-                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadOsv(finding.cve)}>{osvBusyCve === finding.cve ? "Loading OSV advisory…" : osvLookups[finding.cve] ? "Refresh OSV advisory" : "Load OSV advisory"}</button>
+                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null || githubAdvisoryBusyCve !== null} onClick={() => void loadOsv(finding.cve)}>{osvBusyCve === finding.cve ? "Loading OSV advisory…" : osvLookups[finding.cve] ? "Refresh OSV advisory" : "Load OSV advisory"}</button>
                     {osvLookups[finding.cve] && <OsvDetails data={osvLookups[finding.cve]} />}
+                    <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null || githubAdvisoryBusyCve !== null} onClick={() => void loadGitHubAdvisories(finding.cve)}>{githubAdvisoryBusyCve === finding.cve ? "Loading GitHub advisories…" : githubAdvisories[finding.cve] ? "Refresh GitHub advisories" : "Load GitHub advisories"}</button>
+                    {githubAdvisories[finding.cve] && <GitHubAdvisoryDetails data={githubAdvisories[finding.cve]} />}
                   </div>
                 </article>)}
               </div> : <div className="empty-results"><strong>No data matched those CVE IDs</strong><p>Check the identifier or retry when the public data sources are available.</p></div>}
@@ -1443,7 +1506,7 @@ export default function App() {
                   {sbomBusy ? <><span className="spinner" /> Reviewing file</> : <>Review file <span aria-hidden="true">↗</span></>}
                 </button>
               </div>
-              <p className="cyber-egress-note">AURA parses this file locally in memory and does not save it. Only declared CVE IDs are sent to FIRST EPSS. NVD and OSV details are requested only after you click a per-CVE lookup button; each sends the exact CVE ID only.</p>
+              <p className="cyber-egress-note">AURA parses this file locally in memory and does not save it. Only declared CVE IDs are sent to FIRST EPSS. NVD, OSV, and GitHub advisory details are requested only after you click a per-CVE lookup button; each request sends the exact CVE ID only.</p>
             </form>
 
             {sbomLookup && <div className="cyber-results" aria-live="polite">
@@ -1459,7 +1522,7 @@ export default function App() {
                 </div>
               </div>
               <p className="coverage-note"><span>ⓘ</span> {sbomLookup.coverageNote}</p>
-              {sbomLookup.vulnerabilities.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadNvdBatch(sbomLookup.vulnerabilities.map((vulnerability) => vulnerability.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${sbomLookup.vulnerabilities.length} declared CVEs`}</button>}
+              {sbomLookup.vulnerabilities.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null || githubAdvisoryBusyCve !== null} onClick={() => void loadNvdBatch(sbomLookup.vulnerabilities.map((vulnerability) => vulnerability.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${sbomLookup.vulnerabilities.length} declared CVEs`}</button>}
               {sbomLookup.vulnerabilities.length ? <div className="cyber-findings">
                 {sbomLookup.vulnerabilities.map((declared) => {
                   const finding = sbomLookup.intelligence?.results.find((result) => result.cve === declared.cve);
@@ -1476,10 +1539,12 @@ export default function App() {
                       {declared.affectedComponents.length > visibleComponents.length && <p className="sbom-component">Showing {visibleComponents.length} of {declared.affectedComponents.length} {sbomLookup.format === "SARIF JSON" ? "findings" : "resolved components"}. Download the full JSON or CSV for the complete list.</p>}
                       {declared.affectedBomRefs.length > declared.affectedComponents.length && <p className="sbom-component">Some {sbomLookup.format === "SARIF JSON" ? "finding" : "package"} references did not resolve in this file.</p>}
                       {finding && <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>Priority <strong>{finding.priorityRank}</strong></span></div>}
-                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadNvd(declared.cve)}>{nvdBusyCve === declared.cve ? "Loading NVD…" : nvdLookups[declared.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
+                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null || githubAdvisoryBusyCve !== null} onClick={() => void loadNvd(declared.cve)}>{nvdBusyCve === declared.cve ? "Loading NVD…" : nvdLookups[declared.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
                       {nvdLookups[declared.cve] && <NvdDetails data={nvdLookups[declared.cve]} />}
-                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null} onClick={() => void loadOsv(declared.cve)}>{osvBusyCve === declared.cve ? "Loading OSV advisory…" : osvLookups[declared.cve] ? "Refresh OSV advisory" : "Load OSV advisory"}</button>
+                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null || githubAdvisoryBusyCve !== null} onClick={() => void loadOsv(declared.cve)}>{osvBusyCve === declared.cve ? "Loading OSV advisory…" : osvLookups[declared.cve] ? "Refresh OSV advisory" : "Load OSV advisory"}</button>
                       {osvLookups[declared.cve] && <OsvDetails data={osvLookups[declared.cve]} />}
+                      <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null || githubAdvisoryBusyCve !== null} onClick={() => void loadGitHubAdvisories(declared.cve)}>{githubAdvisoryBusyCve === declared.cve ? "Loading GitHub advisories…" : githubAdvisories[declared.cve] ? "Refresh GitHub advisories" : "Load GitHub advisories"}</button>
+                      {githubAdvisories[declared.cve] && <GitHubAdvisoryDetails data={githubAdvisories[declared.cve]} />}
                     </div>
                   </article>;
                 })}
