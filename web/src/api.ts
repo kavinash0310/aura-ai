@@ -2,6 +2,7 @@ import type {
   Credentials,
   NvdBatchLookupResponse,
   NvdLookupResponse,
+  OsvLookupResponse,
   ResearchDocument,
   ResearchDocumentSearchHit,
   ResearchJob,
@@ -102,6 +103,13 @@ export function lookupSbom(credentials: Credentials, file: File): Promise<SbomLo
 
 export function lookupNvd(credentials: Credentials, cve: string): Promise<NvdLookupResponse> {
   return request<NvdLookupResponse>("/api/v1/cyber/vulnerabilities/nvd/lookup", credentials, {
+    method: "POST",
+    body: JSON.stringify({ cve }),
+  });
+}
+
+export function lookupOsv(credentials: Credentials, cve: string): Promise<OsvLookupResponse> {
+  return request<OsvLookupResponse>("/api/v1/cyber/vulnerabilities/osv/lookup", credentials, {
     method: "POST",
     body: JSON.stringify({ cve }),
   });
