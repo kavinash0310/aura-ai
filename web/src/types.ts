@@ -124,10 +124,18 @@ export interface ResearchReportCitation {
   kind: SourceKind;
 }
 
+export interface ModelRunTelemetry {
+  promptVersion: string;
+  durationMs: number | null;
+  promptTokenCount: number | null;
+  outputTokenCount: number | null;
+}
+
 export interface ResearchReportResponse {
   generatedAt: string;
   provider: "ollama";
   model: string;
+  modelRun?: ModelRunTelemetry | null;
   title: string;
   summary: string;
   summarySourceIds: string[];
@@ -155,6 +163,7 @@ export interface ClaimComparisonResponse {
   generatedAt: string;
   provider: "ollama";
   model: string;
+  modelRun?: ModelRunTelemetry | null;
   claim: string;
   assessment: "SUPPORTED" | "CHALLENGED" | "MIXED" | "INSUFFICIENT";
   explanation: string;

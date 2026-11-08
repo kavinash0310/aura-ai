@@ -35,6 +35,7 @@ import type {
   ResearchSource,
   ResearchReportResponse,
   ClaimComparisonResponse,
+  ModelRunTelemetry,
   ResultFilters,
   NvdBatchLookupResponse,
   NvdLookupResponse,
@@ -98,6 +99,14 @@ function stanceLabel(stance: ClaimComparisonResponse["evidence"][number]["stance
     : stance === "CHALLENGES" ? "Challenges"
       : stance === "CONTEXT" ? "Context"
         : "Unclear";
+}
+
+function modelRunLabel(modelRun?: ModelRunTelemetry | null): string {
+  if (!modelRun) return "Usage metadata unavailable";
+  const duration = modelRun.durationMs == null ? "Ollama time n/a" : `Ollama ${modelRun.durationMs} ms`;
+  const promptTokens = modelRun.promptTokenCount == null ? "?" : modelRun.promptTokenCount.toLocaleString();
+  const outputTokens = modelRun.outputTokenCount == null ? "?" : modelRun.outputTokenCount.toLocaleString();
+  return `Prompt ${modelRun.promptVersion} · ${duration} · ${promptTokens} input / ${outputTokens} output tokens`;
 }
 
 function sourceInitial(domain: string): string {
@@ -522,6 +531,7 @@ export default function App() {
       "",
       `Query: ${escapeMarkdown(job.subject)}`,
       `Generated: ${formatDate(researchReport.generatedAt)} · Model: ${escapeMarkdown(researchReport.model)}`,
+      `Model run: ${modelRunLabel(researchReport.modelRun)}`,
       "",
       "## Summary",
       "",
@@ -778,6 +788,7 @@ export default function App() {
         `Claim: ${escape(claimComparison.claim)}`,
         `Assessment: ${assessmentLabel(claimComparison.assessment)}`,
         `Generated: ${formatDate(claimComparison.generatedAt)} · Model: ${escape(claimComparison.model)}`,
+        `Model run: ${modelRunLabel(claimComparison.modelRun)}`,
         "",
         escape(claimComparison.explanation),
         "",
@@ -1161,7 +1172,7 @@ export default function App() {
                     <div className="claim-comparison-actions"><span>{claimDraft.length}/500 · {selectedSources.length}/20 sources selected</span><button type="button" onClick={() => void compareClaim()} disabled={!connected || claimBusy || reportBusy || selectedSources.length === 0 || !claimDraft.trim()}>{claimBusy ? "Comparing…" : "Compare claim"}</button></div>
                   </section>
                   {claimComparison && <section className="research-report claim-comparison-result" aria-label="AI claim comparison result">
-                    <div className="report-heading"><div><div className="section-kicker">LOCAL AI ASSESSMENT · {claimComparison.assessment}</div><h3>{assessmentLabel(claimComparison.assessment)}</h3><p>{claimComparison.provider} · {claimComparison.model} · {formatDate(claimComparison.generatedAt)}</p></div><div className="report-download-actions"><button className="nvd-lookup-button" type="button" onClick={() => downloadClaimComparison("md")}>↓ Markdown</button><button className="nvd-lookup-button" type="button" onClick={() => downloadClaimComparison("json")}>↓ JSON</button></div></div>
+                    <div className="report-heading"><div><div className="section-kicker">LOCAL AI ASSESSMENT · {claimComparison.assessment}</div><h3>{assessmentLabel(claimComparison.assessment)}</h3><p>{claimComparison.provider} · {claimComparison.model} · {formatDate(claimComparison.generatedAt)}</p><p>{modelRunLabel(claimComparison.modelRun)}</p></div><div className="report-download-actions"><button className="nvd-lookup-button" type="button" onClick={() => downloadClaimComparison("md")}>↓ Markdown</button><button className="nvd-lookup-button" type="button" onClick={() => downloadClaimComparison("json")}>↓ JSON</button></div></div>
                     <p className="claim-comparison-explanation"><strong>Claim:</strong> {claimComparison.claim}<br />{claimComparison.explanation}</p>
                     {claimComparison.evidence.length > 0 && <div className="report-findings"><strong>Evidence from selected snippets</strong>{claimComparison.evidence.map((item, index) => <p key={`${index}-${item.text}`}><span className={`claim-stance stance-${item.stance.toLowerCase()}`}>{stanceLabel(item.stance)}</span> {item.text}{item.sourceIds.map((id) => {
                       const citation = claimComparison.citations.find((source) => source.id === id);
@@ -1174,7 +1185,7 @@ export default function App() {
                   </section>}
                   {researchReport && <section className="research-report" aria-label="Generated cited report">
                     <div className="report-heading">
-                      <div><div className="section-kicker">LOCAL AI REPORT</div><h3>{researchReport.title}</h3><p>{researchReport.provider} · {researchReport.model} · {formatDate(researchReport.generatedAt)}</p></div>
+                      <div><div className="section-kicker">LOCAL AI REPORT</div><h3>{researchReport.title}</h3><p>{researchReport.provider} · {researchReport.model} · {formatDate(researchReport.generatedAt)}</p><p>{modelRunLabel(researchReport.modelRun)}</p></div>
                       <div className="report-download-actions"><button className="nvd-lookup-button" type="button" onClick={downloadResearchReport}>↓ Download Markdown</button><button className="nvd-lookup-button" type="button" onClick={downloadResearchReportJson}>↓ Download JSON</button></div>
                     </div>
                     <p className="report-summary">{researchReport.summary}{researchReport.summarySourceIds.map((id) => {

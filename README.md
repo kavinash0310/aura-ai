@@ -27,6 +27,8 @@ M1 stores research requests through the authenticated Spring API and PostgreSQL.
 
 See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and [MVP backlog](docs/00-overview/MVP-AND-BACKLOG.md).
 
+Local AI report and claim-comparison responses include prompt template versions and available Ollama timing/token counters. Completion logs contain usage metadata only; prompt text, source snippets, claims, and model output are excluded.
+
 The document library extracts text from PDFs (up to 100 pages and 250,000 characters); it does not retain original PDF bytes or run OCR. See the [document API contract](docs/02-architecture/API-CONTRACTS.md#personal-document-library).
 
 Bluesky connector details and its current limits are documented in [BLUESKY-SEARCH.md](docs/05-backend/BLUESKY-SEARCH.md).

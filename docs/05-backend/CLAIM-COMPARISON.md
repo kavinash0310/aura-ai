@@ -39,7 +39,9 @@ Spring requires an authenticated completed or partially completed job. It resolv
 
 Retrieved metadata and descriptions are untrusted. The prompt tells the local model to ignore instructions inside source content, use no outside knowledge, avoid inferring private or sensitive personal information, and treat missing evidence as inconclusive. These instructions and output validation reduce risk but cannot ensure model accuracy. A supported label does not prove the claim; the owner should open and review candidate sources.
 
-The model receives only the user-entered claim and selected saved metadata/snippets after the explicit button action. It does not receive page text from the separate page-reading feature, account data, or uploaded documents. Results are transient in browser memory. Markdown and JSON downloads are explicit user actions; they contain the assessment and cited source metadata/snippets. AURA does not store comparison prose in the database.
+The model receives only the user-entered claim and selected saved metadata/snippets after the explicit button action. It does not receive page text from the separate page-reading feature, account data, or uploaded documents. Results are transient in browser memory. Markdown and JSON downloads are explicit user actions; they contain the assessment, prompt version/available timing and token counts, and cited source metadata/snippets. AURA does not store comparison prose in the database. The AI service's completion logs record operation, configured model, prompt version, and available usage metrics without claim text, snippets, or model output.
+
+The comparison prompt version is `claim-comparison-v1`. Prompt versions live in code and must change when the system prompt, output schema, or generation settings change. Ollama's `total_duration`, `prompt_eval_count`, and `eval_count` response fields provide generation duration and token counts when available; missing values remain null and do not fail the request. These usage fields do not identify an immutable model artifact or guarantee repeatable output.
 
 ## Code map
 
@@ -52,4 +54,4 @@ The model receives only the user-entered claim and selected saved metadata/snipp
 
 ## Remaining quality work
 
-This deterministic structure validation checks whether a citation ID was selected; it does not test semantic support. Curated human-reviewed examples, source-level reliability/context indicators, and prompt/model versioning are still needed before using model assessments in consequential decisions. Search coverage is limited to the configured public providers and indexed results; AURA does not search the entire internet.
+This deterministic structure validation checks whether a citation ID was selected; it does not test semantic support. Curated human-reviewed examples, source-level reliability/context indicators, and model artifact tracking are still needed before using model assessments in consequential decisions. Search coverage is limited to the configured public providers and indexed results; AURA does not search the entire internet.
