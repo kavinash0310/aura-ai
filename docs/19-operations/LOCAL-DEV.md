@@ -29,6 +29,7 @@
 15. Verify Java with `mvn -f backend/pom.xml verify`.
 16. For frontend checks, change to `web` and run `npm ci`, `npm test`, then `npm run build`.
 17. For Python checks, change into `ai-service` and run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
+18. Back up or restore the local PostgreSQL data with the PowerShell scripts in [`DATABASE-BACKUP-RESTORE.md`](DATABASE-BACKUP-RESTORE.md). A restore replaces the current database and needs the explicit `-ConfirmRestore` switch.
 
 ## Useful commands
 
@@ -36,7 +37,10 @@
 - API logs: docker compose logs -f api
 - AI-service logs: docker compose logs -f ai
 - Database logs: docker compose logs -f db
+- Create a verified database backup: `pwsh -NoProfile -File .\scripts\Backup-AuraDatabase.ps1`
 
 ## Limits
 
 Basic Auth is development-only. Do not port-forward or publish the services. Search recovery assumes a single backend instance; do not horizontally scale this local configuration. Search sends an explicit query to the selected Brave, GDELT, and/or Bluesky provider(s), but does not fetch links automatically. Read page is a separate authenticated action for one source already saved in a brief: public HTTPS on port 443, public IPv4 only, two same-host redirects at most, one active read, 1 MB response and 100,000-character text caps, short DNS/connect/response timeouts, and a hard 20-second total deadline. It uses no cookies, login, compression, or retries. JavaScript is not run; page text is not saved or sent to Ollama. A metadata-only audit records each attempt (status, timestamps, hash/count/truncation or stable failure code) and is removed with its source or brief; “Read history” displays it without page text. Use its exact-phrase finder in the browser to inspect up to 200 matches and download excerpts with character offsets; those searches stay local. GDELT searches indexed public news over at most three months. Bluesky search uses the official public AppView and returns bounded public posts without account or private-feed access; it does not apply country filters. Saved results include provider provenance and can be filtered by provider; the provider run summary marks partial results and lists failure or skip codes. A report action sends only the selected saved result metadata and snippets to the explicitly configured local Ollama endpoint; it never falls back to a hosted model. Explicit vulnerability lookups read the CISA KEV catalog and send only submitted CVE IDs to FIRST EPSS; NVD receives exact CVE IDs only after a separate per-item or bounded batch click. SBOM and SARIF uploads are bounded to 2 MB, parsed in memory, and not persisted. Research documents are stored in PostgreSQL after explicit upload and remain local to this instance. Report citations are checked for source-ID membership but not semantic support. Vulnerability data does not establish whether installed assets are affected.
+
+Database backups include all persisted research metadata, source snippets, provider audits, document text, and security audit records. They do not contain the original PDF bytes (which AURA does not retain). The backup directory is ignored by Git, but is not encrypted automatically; use an encrypted disk or encrypted storage and protect backup files like the original database. See the backup/restore runbook for integrity checks and restore behavior.
