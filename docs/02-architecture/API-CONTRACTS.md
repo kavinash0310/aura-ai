@@ -139,7 +139,7 @@ Requires the local owner Basic Auth account. Request exactly one CVE ID: `{ "cve
 
 The response status is `AVAILABLE`, `NOT_FOUND`, `RATE_LIMITED`, or `UNAVAILABLE`. Available records include retrieval time, OSV record ID, summary and details (capped at 500 and 5,000 characters), up to 20 aliases, up to 20 affected package entries and their bounded version ranges, and up to 10 HTTPS references. Response bodies are capped at 256 KB and requests time out after eight seconds. References are displayed but never fetched. A six-hour in-memory cache holds up to 500 records; unavailable and rate-limited responses are not cached. AURA does not persist advisory responses.
 
-OSV's affected package and version-range data is third-party advisory evidence. AURA does not send local package inventories to OSV or automatically match OSV ranges against an SBOM. An exact CVE advisory does not prove that a particular installed product is affected.
+OSV's affected package and version-range data is third-party advisory evidence. AURA does not send local package inventories to OSV. After an explicit OSV lookup initiated from an SBOM finding, the browser may correlate advisory packages with that finding's local components by exact PURL identity after removing only the version segment. It does not evaluate ecosystem version ranges, infer from package names alone, or decide whether an installed version is affected. This local identity correlation is included in explicit SBOM JSON/CSV downloads. An exact CVE advisory or package identity match does not prove that a particular installed product is affected.
 
 ### POST `/api/v1/cyber/vulnerabilities/github-advisories/lookup`
 
