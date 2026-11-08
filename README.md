@@ -63,6 +63,7 @@ All host ports bind to loopback. The Python health endpoint is public and return
 - [System architecture](docs/02-architecture/SYSTEM-ARCHITECTURE.md)
 - [Bluesky public-post search](docs/05-backend/BLUESKY-SEARCH.md)
 - [Provider outcome audit](docs/05-backend/PROVIDER-OUTCOME-AUDIT.md)
+- [Database backup and restore runbook](docs/19-operations/DATABASE-BACKUP-RESTORE.md)
 - [Bounded local report design](docs/05-backend/RESEARCH-REPORT-GENERATION.md)
 - [Multi-provider search design](docs/05-backend/MULTI-PROVIDER-SEARCH.md)
 - [Technology decisions](docs/02-architecture/TECHNOLOGY-DECISIONS.md)

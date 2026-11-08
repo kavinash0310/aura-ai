@@ -73,4 +73,6 @@ Add persisted steps, typed tools, retries/backoff, cancellation, approval, audit
 
 ### M8 — Workspace and production readiness
 Add React pages, observability, security review, backup/restore, packaging, runbooks.
+**Delivered first slice:** Windows PowerShell scripts create PostgreSQL custom-format backups with archive inspection, SHA-256 manifests, and Git-ignored local output. Restore verifies the paired manifest and archive, creates a pre-restore safety backup, stops a running API, and applies the archive transactionally only after the explicit `-ConfirmRestore` flag. See the [database backup/restore runbook](../19-operations/DATABASE-BACKUP-RESTORE.md).
+**Still needed:** automated scheduling and retention, backup encryption/off-device handling, recovery drills, broader production observability, packaging, and a security review.
 **Accept when:** setup, report flow, auth boundaries, recovery, and limitations are demonstrated from a clean environment.
