@@ -13,7 +13,6 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -84,7 +83,7 @@ public class OsvProvider {
                 evictOldestEntries();
             }
             return result;
-        } catch (RestClientException | IllegalArgumentException | IOException | ResponseTooLargeException exception) {
+        } catch (RestClientException | IllegalArgumentException | ResponseTooLargeException exception) {
             return unavailable(cve, "UNAVAILABLE",
                     "OSV is temporarily unavailable or returned a response above AURA's 256 KB limit. No retry was attempted.");
         }
