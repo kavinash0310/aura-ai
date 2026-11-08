@@ -9,7 +9,7 @@ Search providers return candidate links, but snippets can omit context needed fo
 
 ## Decision
 
-Add one authenticated, explicit page-read endpoint for a source already saved in the specified research brief. The browser sends a POST with job and source IDs, not a URL. The API checks source ownership, then performs one unauthenticated public HTTPS read using a custom DNS resolver that rejects non-public IPv4 addresses. Require port 443, constrain redirects to two same-host hops, accept only HTML/XHTML, and cap concurrency, timeouts, raw bytes, extracted characters, and title length. Disable cookies, credentials, compression, automatic redirects, and retries. Parse static content to text, remove active/embedded content, and return it only to browser memory. Do not persist it or send it to the report model.
+Add one authenticated, explicit page-read endpoint for a source already saved in the specified research brief. The browser sends a POST with job and source IDs, not a URL. The API checks source ownership, then performs one unauthenticated public HTTPS read using a custom DNS resolver that rejects non-public IPv4 addresses. Require port 443, constrain redirects to two same-host hops, accept only HTML/XHTML, and cap concurrency, timeouts, raw bytes, extracted characters, and title length. Disable cookies, credentials, compression, automatic redirects, and retries. Parse static content to text, remove active/embedded content, and return it only to browser memory. Before fetching, persist a metadata-only `RUNNING` audit row; after the attempt, store status, timestamps, extracted-text hash/count/truncation, and a stable failure code. Never store page text in the audit row or send it to the report model. Provide an authenticated recent-history route. At startup, mark leftover `RUNNING` rows interrupted; this first slice assumes one backend instance.
 
 No background crawling, account logins, private feeds, paywall/CAPTCHA bypass, arbitrary network probes, JavaScript execution, or automatic page reads are included. The existing public-interest restrictions for person research still apply.
 
@@ -17,7 +17,7 @@ No background crawling, account logins, private feeds, paywall/CAPTCHA bypass, a
 
 - The selected page provides more evidence than a provider snippet while keeping each outbound request user-triggered and attributable to one stored source.
 - The page remains untrusted and can be incomplete, inaccurate, manipulative, or prompt-injection shaped. It is shown as text, not executed or sent to the model.
-- Coverage remains partial. The response includes a fetch time and digest, but there is no durable page-read audit event yet. Public hostname checks and IPv4-only requests reduce SSRF risk but do not make this route suitable for an internet-facing multi-user deployment without additional authorization, quotas, durable audit, and security review.
+- Coverage remains partial. The response includes a fetch time and digest, and a durable audit row records metadata only; the text remains transient. Audit rows are removed with their source or brief. Public hostname checks and IPv4-only requests reduce SSRF risk but do not make this route suitable for an internet-facing multi-user deployment without per-user authorization, quotas, retention policy, and security review.
 - Static HTML extraction is broadly useful but misses JavaScript-rendered content and may include navigation or boilerplate.
 
 ## Alternatives considered

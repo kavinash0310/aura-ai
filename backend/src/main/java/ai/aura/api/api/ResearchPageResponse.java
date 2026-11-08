@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record ResearchPageResponse(
+        UUID readId,
         UUID sourceId,
         String sourceUrl,
         String host,
@@ -17,8 +18,8 @@ public record ResearchPageResponse(
         String text,
         String coverageNote
 ) {
-    public static ResearchPageResponse from(UUID sourceId, PublicPageFetcher.FetchedPage page, String contentHash) {
-        return new ResearchPageResponse(sourceId, page.url(), page.host(), page.title(), contentHash,
+    public static ResearchPageResponse from(UUID readId, UUID sourceId, PublicPageFetcher.FetchedPage page, String contentHash) {
+        return new ResearchPageResponse(readId, sourceId, page.url(), page.host(), page.title(), contentHash,
                 page.text().length(), page.truncated(), page.fetchedAt(), page.text(),
                 "Fetched only after an explicit request. This page snapshot is held in browser memory, is not saved by AURA, and is not sent to a model or another provider.");
     }

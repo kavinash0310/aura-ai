@@ -173,7 +173,7 @@ describe("AURA research workspace", () => {
         searchedAt: "2026-11-08T00:00:00Z", results: [source], providerRuns: [], coverageNote: "Public-source coverage is partial.",
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        sourceId: source.id, sourceUrl: source.url, host: source.domain, title: "Full page title",
+        readId: "page-read-1", sourceId: source.id, sourceUrl: source.url, host: source.domain, title: "Full page title",
         contentHash: "b".repeat(64), characterCount: 28, truncated: false,
         fetchedAt: "2026-11-08T00:01:00Z", text: "Selected page evidence text.",
         coverageNote: "Held in browser memory; not stored or sent to the model.",

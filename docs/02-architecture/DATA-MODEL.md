@@ -43,7 +43,7 @@ erDiagram
   USER ||--o{ AUDIT_EVENT : performs
 ~~~
 
-Only research_jobs exists in M1. Other entities and joins are target design.
+The current schema also includes saved `research_sources`, provider-run outcomes, documents, and `research_page_reads`. A page-read audit row references its job and source, stores status/timestamps plus an optional text hash/count/truncation or stable failure code, and cascades when the source or job is deleted. It never stores fetched page text. Most other entities and joins above remain target design.
 
 ## Data principles
 

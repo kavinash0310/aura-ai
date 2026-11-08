@@ -6,6 +6,7 @@ import type {
   ResearchDocumentSearchHit,
   ResearchJob,
   ResearchPageResponse,
+  ResearchPageReadAudit,
   ResearchMode,
   SearchProviderChoice,
   ResearchSource,
@@ -177,6 +178,19 @@ export function readResearchPage(credentials: Credentials, jobId: string, source
     `${jobPath(jobId)}/sources/${encodeURIComponent(sourceId)}/page`,
     credentials,
     { method: "POST" },
+  );
+}
+
+export function listResearchPageReads(
+  credentials: Credentials,
+  jobId: string,
+  sourceId: string,
+  limit = 10,
+): Promise<ResearchPageReadAudit[]> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return request<ResearchPageReadAudit[]>(
+    `${jobPath(jobId)}/sources/${encodeURIComponent(sourceId)}/page-reads?${params.toString()}`,
+    credentials,
   );
 }
 

@@ -8,6 +8,7 @@ import {
   downloadExport,
   generateResearchReport,
   readResearchPage,
+  listResearchPageReads,
   lookupSbom,
   lookupNvdBatch,
   lookupNvd,
@@ -25,6 +26,7 @@ import type {
   Credentials,
   ResearchJob,
   ResearchPageResponse,
+  ResearchPageReadAudit,
   ResearchDocument,
   ResearchDocumentSearchHit,
   ResearchMode,
@@ -120,6 +122,7 @@ function NvdDetails({ data }: { data: NvdLookupResponse }) {
 
 export default function App() {
   const workspaceSession = useRef(0);
+  const pageHistoryRequest = useRef(0);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [connected, setConnected] = useState(false);
@@ -138,8 +141,11 @@ export default function App() {
   const [sources, setSources] = useState<ResearchSource[]>([]);
   const [researchReport, setResearchReport] = useState<ResearchReportResponse | null>(null);
   const [researchPage, setResearchPage] = useState<ResearchPageResponse | null>(null);
+  const [pageReadHistory, setPageReadHistory] = useState<ResearchPageReadAudit[] | null>(null);
+  const [pageReadHistorySourceId, setPageReadHistorySourceId] = useState<string | null>(null);
   const [pageSearchQuery, setPageSearchQuery] = useState("");
   const [readingSourceId, setReadingSourceId] = useState<string | null>(null);
+  const [loadingPageHistorySourceId, setLoadingPageHistorySourceId] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
   const [draftFilters, setDraftFilters] = useState<ResultFilters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<ResultFilters>(emptyFilters);
@@ -355,7 +361,11 @@ export default function App() {
   async function readSourcePage(source: ResearchSource) {
     if (!job) return;
     setReadingSourceId(source.id);
+    pageHistoryRequest.current += 1;
+    setLoadingPageHistorySourceId(null);
     setResearchPage(null);
+    setPageReadHistory(null);
+    setPageReadHistorySourceId(null);
     setPageSearchQuery("");
     setError("");
     try {
@@ -364,6 +374,26 @@ export default function App() {
       setError(errorMessage(caught));
     } finally {
       setReadingSourceId(null);
+    }
+  }
+
+  async function loadPageReadHistory(source: ResearchSource) {
+    if (!job) return;
+    const requestId = ++pageHistoryRequest.current;
+    setLoadingPageHistorySourceId(source.id);
+    setPageReadHistory(null);
+    setPageReadHistorySourceId(source.id);
+    setError("");
+    try {
+      const history = await listResearchPageReads(credentials, job.id, source.id);
+      if (pageHistoryRequest.current === requestId) setPageReadHistory(history);
+    } catch (caught) {
+      if (pageHistoryRequest.current === requestId) {
+        setPageReadHistorySourceId(null);
+        setError(errorMessage(caught));
+      }
+    } finally {
+      if (pageHistoryRequest.current === requestId) setLoadingPageHistorySourceId(null);
     }
   }
 
@@ -957,10 +987,15 @@ export default function App() {
                       <div className="source-meta"><span className={`type-pill type-${source.kind.toLowerCase()}`}>{kindLabel(source.kind)}</span><span className="source-domain">{source.domain}</span><span className="source-date">{formatDate(source.publishedAt)}</span></div>
                       <h3><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}<span aria-hidden="true"> ↗</span></a></h3>
                       {source.description && <p>{source.description}</p>}
-                      <div className="source-page-actions"><button className="nvd-lookup-button" type="button" onClick={() => void readSourcePage(source)} disabled={readingSourceId === source.id}>{readingSourceId === source.id ? "Reading…" : "Read page"}</button></div>
+                      <div className="source-page-actions"><button className="nvd-lookup-button" type="button" onClick={() => void readSourcePage(source)} disabled={readingSourceId === source.id}>{readingSourceId === source.id ? "Reading…" : "Read page"}</button><button className="nvd-lookup-button" type="button" onClick={() => void loadPageReadHistory(source)} disabled={loadingPageHistorySourceId !== null}>{loadingPageHistorySourceId === source.id ? "Loading history…" : "Read history"}</button></div>
+                      {pageReadHistorySourceId === source.id && pageReadHistory && <div className="source-page-history" aria-live="polite">
+                        <strong>Page-read audit history</strong>
+                        {pageReadHistory.length === 0 ? <p>No page reads have been recorded for this source.</p> : <ul>{pageReadHistory.map((read) => <li key={read.id}><span>{read.status} · {new Date(read.requestedAt).toLocaleString()}{read.completedAt ? " · completed " + new Date(read.completedAt).toLocaleString() : " · still running"}</span>{read.characterCount != null && <span>{read.characterCount.toLocaleString()} characters{read.truncated ? " · excerpt capped" : ""}</span>}{read.contentHash && <span>SHA‑256 {read.contentHash}</span>}{read.failureCode && <span>Failure code {read.failureCode}</span>}</li>)}</ul>}
+                        <p>Audit history stores request metadata and content hashes, never fetched page text.</p>
+                      </div>}
                       {researchPage?.sourceId === source.id && <div className="source-page" aria-live="polite">
                         <div className="source-page-heading"><strong>{researchPage.title || source.title}</strong><button className="nvd-lookup-button" type="button" onClick={() => downloadResearchPage(researchPage)}>↓ Download text</button></div>
-                        <p>{researchPage.characterCount.toLocaleString()} characters · SHA‑256 {researchPage.contentHash.slice(0, 12)}… · {formatDate(researchPage.fetchedAt)}{researchPage.truncated ? " · excerpt capped at 100,000 characters" : ""}</p>
+                        <p>{researchPage.characterCount.toLocaleString()} characters · Read {researchPage.readId.slice(0, 8)} · SHA‑256 {researchPage.contentHash.slice(0, 12)}… · {formatDate(researchPage.fetchedAt)}{researchPage.truncated ? " · excerpt capped at 100,000 characters" : ""}</p>
                         <label className="field-label source-page-search-label" htmlFor={`source-page-search-${source.id}`}>Find exact text in this page (case-sensitive)</label>
                         <div className="source-page-search"><input id={`source-page-search-${source.id}`} type="search" maxLength={MAX_PAGE_SEARCH_LENGTH} value={pageSearchQuery} onChange={(event) => setPageSearchQuery(event.target.value)} placeholder="Enter a phrase from the page" /><span>{pageSearchQuery.length}/{MAX_PAGE_SEARCH_LENGTH}</span></div>
                         {pageSearchQuery && researchPageMatches && <div className="source-page-matches" aria-live="polite">

@@ -43,6 +43,7 @@ export interface ResearchSource {
 }
 
 export interface ResearchPageResponse {
+  readId: string;
   sourceId: string;
   sourceUrl: string;
   host: string;
@@ -53,6 +54,18 @@ export interface ResearchPageResponse {
   fetchedAt: string;
   text: string;
   coverageNote: string;
+}
+
+export interface ResearchPageReadAudit {
+  id: string;
+  sourceId: string;
+  status: "RUNNING" | "SUCCEEDED" | "FAILED" | "ABANDONED";
+  requestedAt: string;
+  completedAt: string | null;
+  contentHash: string | null;
+  characterCount: number | null;
+  truncated: boolean | null;
+  failureCode: string | null;
 }
 
 export interface ResearchDocument {
