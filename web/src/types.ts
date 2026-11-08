@@ -282,7 +282,24 @@ export interface OsvAffectedPackage {
   name: string;
   ecosystem: string;
   purl: string;
+  affectedVersions: string[];
+  affectedVersionsTruncated: boolean;
   versionRanges: string[];
+  versionRangeDetails: OsvVersionRange[];
+  versionRangesTruncated: boolean;
+}
+
+export interface OsvVersionRange {
+  type: string;
+  events: OsvVersionEvent[];
+}
+
+export interface OsvVersionEvent {
+  introduced: string | null;
+  fixed: string | null;
+  lastAffected: string | null;
+  limit: string | null;
+  validShape: boolean;
 }
 
 export interface OsvReference {
