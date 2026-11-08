@@ -49,7 +49,7 @@ import type {
   VulnerabilityLookupResponse,
 } from "./types";
 import { findResearchPageTextMatches, MAX_PAGE_SEARCH_LENGTH } from "./researchPageSearch";
-import { correlateOsvPackages, OSV_PURL_MATCH_BASIS, OSV_PURL_MATCH_LIMITATION, OSV_VERSION_ASSESSMENT } from "./sbomAdvisoryCorrelation";
+import { correlateOsvPackages, OSV_PURL_CORRELATION_LIMITATION, OSV_PURL_MATCH_BASIS, OSV_VERSION_ASSESSMENT_POLICY } from "./sbomAdvisoryCorrelation";
 
 const emptyFilters: ResultFilters = {
   kind: "",
@@ -154,24 +154,32 @@ function OsvDetails({ data, inventoryComponents = [] }: { data: OsvLookupRespons
   if (data.status !== "AVAILABLE") {
     return <div className="nvd-details" aria-live="polite"><p className="nvd-note">OSV {data.status}: {data.note}</p></div>;
   }
-  const identityMatches = correlateOsvPackages(data.affectedPackages, inventoryComponents);
+  const identityMatches = correlateOsvPackages(data.affectedPackages, inventoryComponents, Boolean(data.withdrawnAt));
   return <div className="nvd-details" aria-live="polite">
     <p className="nvd-note"><a href={data.sourceUrl} target="_blank" rel="noopener noreferrer">View OSV advisory ↗</a>{data.osvId ? ` · Record ${data.osvId}` : ""} · Published {formatDate(data.publishedAt)} · Updated {formatDate(data.modifiedAt)}{data.withdrawnAt ? ` · Withdrawn ${formatDate(data.withdrawnAt)}` : ""}</p>
     {data.summary && <p className="nvd-note"><strong>{data.summary}</strong></p>}
     {data.details && <details className="nvd-applicability"><summary>Advisory details</summary><p className="nvd-description">{data.details}</p></details>}
     {data.aliases.length > 0 && <p className="nvd-note">Aliases: {data.aliases.join(", ")}</p>}
     {inventoryComponents.length > 0 && <div className="nvd-applicability">
-      <p className="nvd-note"><strong>Local package identity correlation</strong> · {OSV_PURL_MATCH_LIMITATION}</p>
+      <p className="nvd-note"><strong>Local package assessment</strong> · {OSV_PURL_CORRELATION_LIMITATION}</p>
       {identityMatches.length === 0
         ? <p className="nvd-note">No exact PURL identity match was found. Missing PURLs or other package identifiers were not inferred.</p>
         : identityMatches.map((match, index) => <div className="sbom-component" key={match.advisoryPackage.purl + "-" + index}>
           <strong>{match.advisoryPackage.name || "Advisory package"}</strong>{match.advisoryPackage.ecosystem ? " · " + match.advisoryPackage.ecosystem : ""}
-          {match.components.map((component) => <p key={component.bomRef}>{component.name || component.bomRef}{component.version ? " · inventory version " + component.version : " · inventory version unavailable"} · {component.bomRef}</p>)}
+          {match.components.map((component) => {
+            const assessment = match.versionAssessments.find((item) => item.bomRef === component.bomRef);
+            const label = assessment?.status === "AFFECTED"
+              ? "Affected by supported OSV version evidence"
+              : assessment?.status === "NO_MATCH_IN_RETURNED_OSV_VERSION_DATA"
+              ? "No match in returned OSV version data"
+              : "Version not assessed";
+            return <p key={component.bomRef}>{component.name || component.bomRef}{component.version ? " · inventory version " + component.version : " · inventory version unavailable"} · {component.bomRef}{assessment ? ` · ${label}: ${assessment.note}` : ""}{assessment?.evidence ? ` · Evidence: ${assessment.evidence}` : ""}</p>;
+          })}
         </div>)}
     </div>}
     {data.affectedPackages.length > 0 && <details className="nvd-applicability">
       <summary>Packages listed by OSV ({data.affectedPackages.length}{data.affectedPackagesTruncated ? "+" : ""})</summary>
-      <p className="nvd-note">Advisory package ranges are source evidence; AURA does not compare them with your inventory.</p>
+      <p className="nvd-note">OSV package versions and ranges are source evidence. AURA compares only exact PURL identities and supported npm SemVer 2 evidence locally.</p>
       {data.affectedPackages.map((item, index) => <p className="sbom-component" key={`${item.ecosystem}-${item.name}-${index}`}>
         <strong>{item.name || "Unnamed package"}</strong>{item.ecosystem ? ` · ${item.ecosystem}` : ""}{item.purl ? ` · ${item.purl}` : ""}
         {item.versionRanges.map((range, rangeIndex) => <span key={`${range}-${rangeIndex}`}> · {range}</span>)}
@@ -1023,9 +1031,9 @@ export default function App() {
         .filter((vulnerability) => osvLookups[vulnerability.cve])
         .map((vulnerability) => [vulnerability.cve, {
           matchBasis: OSV_PURL_MATCH_BASIS,
-          versionAssessment: OSV_VERSION_ASSESSMENT,
-          limitation: OSV_PURL_MATCH_LIMITATION,
-          matches: correlateOsvPackages(osvLookups[vulnerability.cve].affectedPackages, vulnerability.affectedComponents),
+          versionAssessmentPolicy: OSV_VERSION_ASSESSMENT_POLICY,
+          limitation: OSV_PURL_CORRELATION_LIMITATION,
+          matches: correlateOsvPackages(osvLookups[vulnerability.cve].affectedPackages, vulnerability.affectedComponents, Boolean(osvLookups[vulnerability.cve].withdrawnAt)),
         }]));
       const relevantGitHubAdvisories = Object.fromEntries(sbomLookup.vulnerabilities
         .filter((vulnerability) => githubAdvisories[vulnerability.cve])
@@ -1034,12 +1042,12 @@ export default function App() {
       mimeType = "application/json;charset=utf-8";
     } else {
       const findings = new Map((sbomLookup.intelligence?.results ?? []).map((finding) => [finding.cve, finding]));
-      const columns = ["cve", "affectedReferences", "findingNames", "findingLevelsOrVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes", "osvStatus", "osvId", "osvSummary", "osvPublishedAt", "osvModifiedAt", "osvPurlIdentityMatchBasis", "osvVersionAssessment", "osvPurlIdentityMatchCount", "osvPurlMatchedInventoryComponents", "githubAdvisoryStatus", "githubAdvisoryIds", "githubAdvisorySummaries"];
+      const columns = ["cve", "affectedReferences", "findingNames", "findingLevelsOrVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes", "osvStatus", "osvId", "osvSummary", "osvPublishedAt", "osvModifiedAt", "osvPurlIdentityMatchBasis", "osvVersionAssessmentPolicy", "osvInventoryVersionAssessments", "osvPurlIdentityMatchCount", "osvPurlMatchedInventoryComponents", "githubAdvisoryStatus", "githubAdvisoryIds", "githubAdvisorySummaries"];
       const rows = sbomLookup.vulnerabilities.map((vulnerability) => {
         const finding = findings.get(vulnerability.cve);
         const nvd = nvdLookups[vulnerability.cve];
         const osv = osvLookups[vulnerability.cve];
-        const osvMatches = osv ? correlateOsvPackages(osv.affectedPackages, vulnerability.affectedComponents) : [];
+        const osvMatches = osv ? correlateOsvPackages(osv.affectedPackages, vulnerability.affectedComponents, Boolean(osv.withdrawnAt)) : [];
         const github = githubAdvisories[vulnerability.cve];
         const values: Array<string | number | boolean | null> = [
           vulnerability.cve,
@@ -1061,7 +1069,8 @@ export default function App() {
           osv?.publishedAt ?? null,
           osv?.modifiedAt ?? null,
           osv ? OSV_PURL_MATCH_BASIS : null,
-          osv ? OSV_VERSION_ASSESSMENT : null,
+          osv ? OSV_VERSION_ASSESSMENT_POLICY : null,
+          osvMatches.flatMap((match) => match.versionAssessments.map((assessment) => `${assessment.bomRef}:${assessment.status}`)).join("; "),
           new Set(osvMatches.flatMap((match) => match.components.map((component) => component.bomRef))).size,
           [...new Set(osvMatches.flatMap((match) => match.components.map((component) => `${component.name || component.bomRef}${component.version ? "@" + component.version : ""}`)))].join("; "),
           github?.status ?? null,

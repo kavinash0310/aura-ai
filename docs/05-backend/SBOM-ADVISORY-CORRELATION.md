@@ -1,8 +1,8 @@
-# Local SBOM and OSV package identity correlation
+# Local SBOM and OSV package correlation
 
 ## Goal
 
-When the owner explicitly loads OSV details for a CVE declared in an SBOM, AURA can show whether an OSV affected-package entry and one of that finding's local components share the same Package URL identity. The comparison runs in the browser from the existing responses. It makes no extra network request and never sends the SBOM to OSV.
+After the owner explicitly loads OSV details for a CVE declared in an SBOM, AURA can correlate OSV affected-package records with the local components already linked to that CVE. The browser compares PURL identity and, for a narrow supported case, evaluates returned npm SemVer 2 evidence against the local component version. Package inventory is never sent to OSV.
 
 ## Data flow
 
@@ -15,30 +15,62 @@ sequenceDiagram
 
     Owner->>UI: Upload bounded SBOM and request review
     UI->>API: Upload file to local API
-    API-->>UI: Declared CVEs and resolved local components
+    API-->>UI: Declared CVEs and resolved components
     Owner->>UI: Click Load OSV advisory on one CVE
     UI->>API: Send exact CVE only
     API->>OSV: GET /v1/vulns/{CVE}
-    OSV-->>API: Advisory package PURLs and ranges
-    API-->>UI: Bounded advisory evidence
-    UI->>UI: Compare exact PURL identities locally
-    UI-->>Owner: Show identity matches with version limit
+    OSV-->>API: Affected package PURLs, exact versions, ranges, and events
+    API->>API: Cap and preserve structured source evidence
+    API-->>UI: Bounded advisory response
+    UI->>UI: Compare PURL identities locally
+    UI->>UI: Assess supported npm SemVer evidence
+    UI-->>Owner: Show identity and version-assessment status
 ```
 
-## Match rule
+Only the explicitly selected CVE leaves the UI. Correlation and version assessment use the existing OSV response and local SBOM response in memory; they make no follow-up network request and are not persisted. JSON/CSV exports happen only after an explicit download action.
 
-The helper in `web/src/sbomAdvisoryCorrelation.ts` accepts only PURLs up to 4,096 characters beginning with `pkg:` and a valid type/path shape. It lowercases the PURL type, removes the version delimiter only when it appears after the last slash, and otherwise requires the remaining PURL string, including qualifiers, to match exactly. It does not compare names alone, normalize namespaces, sort/decode qualifiers, or guess aliases. The advisory PURL may omit a version; the local component PURL may include one.
+## Package identity rule
 
-The result is labeled **exact PURL identity only**. The code does not compare an inventory version against OSV's `SEMVER`, `ECOSYSTEM`, or `GIT` events. It does not decide that software is affected, installed, reachable, exploitable, or at risk. A missing exact PURL match is not proof that the advisory is unrelated; source IDs may be missing or encoded differently.
+The helper in `web/src/sbomAdvisoryCorrelation.ts` compares bounded PURLs of a minimum `pkg:type/path` shape. It lowercases the type, removes a version delimiter only when it occurs after the final slash, ignores subpaths, and otherwise preserves package path and qualifiers exactly. It does not decode, sort, or guess aliases; missing or differently encoded PURLs do not fall back to package names.
 
-## API and exports
+## Version-assessment rule
 
-No backend route or schema change is needed: the SBOM lookup already returns locally resolved component PURLs and OSV returns affected package PURLs. Only after an explicit per-CVE OSV action does the UI join the two in memory. SBOM JSON exports include `osvPackageCorrelations` with the exact match basis, `versionAssessment: NOT_PERFORMED`, and a limitation. CSV exports add the match basis, `NOT_PERFORMED` assessment, exact-PURL match count and matching local component labels. JSON and CSV are downloaded only after an explicit owner action; the API and database do not persist the derived correlation.
+Version comparison runs only when all of these are true:
 
-## Tests
+- OSV returned an available, non-withdrawn advisory for the exact requested CVE.
+- The local component and OSV package share the exact PURL identity above.
+- OSV's package ecosystem is exactly `npm` and the SBOM component has a version.
+- For range comparison, OSV supplied complete `SEMVER` range events in the supported event shape, and both range boundaries and local version are strict SemVer 2.
+- Or, for a positive exact-version result, the local version exactly equals an OSV `affected[].versions` entry.
 
-Pure helper tests cover exact matches across differing versions, namespace/ecosystem separation, absent/malformed PURLs, and the boundary between identity and version applicability. The UI test checks the explicit OSV request, local match rendering, and exported limitation. Java tests remain unchanged because correlation does not occur in the backend.
+The client uses `semver` 7.8.5 in strict mode. It handles `introduced` including the OSV sentinel `0`, exclusive `fixed`, inclusive `last_affected`, and `limit` events. It requires valid, alternating introduction/end boundaries and refuses ambiguous or malformed event sequences. SemVer 2 ranges have SemVer ordering; OSV `ECOSYSTEM` ranges use ecosystem-specific ordering and are intentionally not compared. OSV's schema distinguishes exact listed versions, `SEMVER`, `ECOSYSTEM`, and `GIT` ranges; see the [OSV schema](https://ossf.github.io/osv-schema/). The [npm SemVer library](https://www.npmjs.com/package/semver) provides strict parsing and comparison.
 
-## Learning prompt
+Each local component gets one of these results:
 
-Explain why identity lookup is a separate stage from version applicability. Then independently add a small test for one supported PURL qualifier. Before implementing version matching, define supported ecosystems and source-specific range formats, then build a curated boundary-case fixture set.
+- `AFFECTED`: exact version-list evidence or a supported range matches.
+- `NO_MATCH_IN_RETURNED_OSV_VERSION_DATA`: the complete returned version evidence was supported and no match was found. This is not proof that software is safe outside this OSV record or its stated coverage.
+- `NOT_ASSESSED`: missing version/evidence, withdrawn record, non-npm ecosystem, unsupported range type, malformed SemVer/event sequence, or truncated evidence.
+
+An exact returned affected-version entry can still support a positive match if unrelated range data was truncated. A range match is reported only when all range evidence is complete, because later events can close a partially returned range. Any truncated data prevents a negative result. A PURL identity match by itself does not mean a version is vulnerable. None of these statuses establishes that a component is installed, reachable, exploitable, exposed, or a material risk to an organization.
+
+## Bounded API data
+
+The fixed OSV provider response remains capped at 256 KiB, 20 affected packages, and 10 range entries per package. It now also returns up to 100 exact affected versions, up to 50 structured events per range, display strings for those ranges, and truncation flags. Event keys are preserved in a typed response and an invalid event shape is marked as invalid so the browser cannot silently treat it as a complete range.
+
+## Exports
+
+SBOM JSON exports include the exact PURL match basis, assessment policy `NPM_OSV_SEMVER_2_ONLY`, per-component version-assessment statuses, supporting evidence, and coverage limitation. CSV exports include the policy, each matched component's assessment status, exact identity match count, and local component labels. OSV responses and correlation are not written to the database.
+
+## Testing
+
+Backend provider tests cover structured OSV version data, malformed payload shapes, and independent version/range caps. Browser unit tests cover exact PURL matching, SemVer boundaries and prereleases, `introduced: 0`, disjoint ranges, `fixed`, `last_affected`, `limit`, exact listed versions, missing/invalid versions, unsupported ecosystems/types, malformed events, truncation, and withdrawn records. The UI integration test confirms the explicit exact-CVE request, local assessment, and JSON/CSV export.
+
+## Code and learning prompts
+
+- `backend/src/main/java/ai/aura/api/cyber/OsvProvider.java` — fixed outbound lookup, response caps, and structured event parsing.
+- `backend/src/main/java/ai/aura/api/cyber/OsvVulnerabilityData.java` — bounded source data model.
+- `web/src/sbomAdvisoryCorrelation.ts` — exact PURL identity and strict local npm SemVer assessment.
+- `web/src/sbomAdvisoryCorrelation.test.ts` — version-boundary regression fixtures.
+- `web/src/App.tsx` — user-visible limits and explicit exports.
+
+Explain why range identity and version ordering are separate decisions, why exact package names are insufficient, and why `NOT_ASSESSED` is safer than comparing a range whose ecosystem semantics are unsupported. Propose the fixture requirements before adding another package ecosystem.

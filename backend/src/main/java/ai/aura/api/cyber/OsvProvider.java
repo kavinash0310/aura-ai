@@ -34,7 +34,9 @@ public class OsvProvider {
     private static final int MAX_TEXT_LENGTH = 5_000;
     private static final int MAX_ALIAS_COUNT = 20;
     private static final int MAX_AFFECTED_PACKAGES = 20;
+    private static final int MAX_AFFECTED_VERSIONS = 100;
     private static final int MAX_PACKAGE_RANGES = 10;
+    private static final int MAX_RANGE_EVENTS = 50;
     private static final int MAX_REFERENCES = 10;
     private static final int MAX_CACHE_ENTRIES = 500;
 
@@ -144,7 +146,7 @@ public class OsvProvider {
                 affected.truncated(),
                 references.references(),
                 references.truncated(),
-                "OSV aggregates public vulnerability records. Advisory package ranges are source evidence, not proof that a user's software is affected. AURA does not match packages automatically."
+                "OSV aggregates public vulnerability records. AURA compares only exact PURL identities and complete npm SemVer 2 version evidence locally; other ecosystems and range types are not assessed."
         );
     }
 
@@ -166,32 +168,82 @@ public class OsvProvider {
             if (!packageNode.isObject()) {
                 continue;
             }
+            VersionResults versions = readAffectedVersions(affected.path("versions"));
+            VersionRangeResults ranges = readVersionRanges(affected.path("ranges"));
             packages.add(new OsvVulnerabilityData.AffectedPackage(
                     clip(text(packageNode, "name"), 300),
                     clip(text(packageNode, "ecosystem"), 100),
                     clip(text(packageNode, "purl"), 500),
-                    readVersionRanges(affected.path("ranges"))
+                    versions.versions(),
+                    versions.truncated(),
+                    ranges.descriptions(),
+                    ranges.ranges(),
+                    ranges.truncated()
             ));
         }
         return new PackageResults(packages, truncated);
     }
 
-    private static List<String> readVersionRanges(JsonNode rangesNode) {
-        if (!rangesNode.isArray()) {
-            return List.of();
+    private static VersionResults readAffectedVersions(JsonNode versionsNode) {
+        if (!versionsNode.isArray()) {
+            return new VersionResults(List.of(), !versionsNode.isMissingNode() && !versionsNode.isNull());
         }
-        List<String> ranges = new ArrayList<>();
-        for (JsonNode range : rangesNode) {
-            if (!range.isObject() || ranges.size() == MAX_PACKAGE_RANGES) {
+        List<String> versions = new ArrayList<>();
+        boolean truncated = false;
+        for (JsonNode version : versionsNode) {
+            if (versions.size() == MAX_AFFECTED_VERSIONS) {
+                truncated = true;
                 break;
             }
+            if (version.isTextual() && !version.asText().isBlank()) {
+                versions.add(clip(version.asText().strip(), 120));
+            } else {
+                truncated = true;
+            }
+        }
+        return new VersionResults(List.copyOf(versions), truncated);
+    }
+
+    private static VersionRangeResults readVersionRanges(JsonNode rangesNode) {
+        if (!rangesNode.isArray()) {
+            return new VersionRangeResults(List.of(), List.of(), !rangesNode.isMissingNode() && !rangesNode.isNull());
+        }
+        List<String> descriptions = new ArrayList<>();
+        List<OsvVulnerabilityData.VersionRange> ranges = new ArrayList<>();
+        boolean truncated = false;
+        for (JsonNode range : rangesNode) {
+            if (descriptions.size() == MAX_PACKAGE_RANGES) {
+                truncated = true;
+                break;
+            }
+            if (!range.isObject()) {
+                truncated = true;
+                continue;
+            }
             StringBuilder description = new StringBuilder(clip(text(range, "type"), 40));
-            JsonNode events = range.path("events");
-            if (events.isArray()) {
-                for (JsonNode event : events) {
+            List<OsvVulnerabilityData.VersionEvent> versionEvents = new ArrayList<>();
+            JsonNode eventNodes = range.path("events");
+            if (eventNodes.isArray()) {
+                for (JsonNode event : eventNodes) {
+                    if (versionEvents.size() == MAX_RANGE_EVENTS) {
+                        truncated = true;
+                        break;
+                    }
                     if (!event.isObject()) {
+                        versionEvents.add(new OsvVulnerabilityData.VersionEvent(null, null, null, null, false));
                         continue;
                     }
+                    String introduced = text(event, "introduced");
+                    String fixed = text(event, "fixed");
+                    String lastAffected = text(event, "last_affected");
+                    String limit = text(event, "limit");
+                    int recognizedValues = (introduced.isBlank() ? 0 : 1)
+                            + (fixed.isBlank() ? 0 : 1)
+                            + (lastAffected.isBlank() ? 0 : 1)
+                            + (limit.isBlank() ? 0 : 1);
+                    versionEvents.add(new OsvVulnerabilityData.VersionEvent(
+                            clip(introduced, 120), clip(fixed, 120), clip(lastAffected, 120), clip(limit, 120),
+                            event.size() == 1 && recognizedValues == 1));
                     for (String key : List.of("introduced", "fixed", "last_affected", "limit")) {
                         String value = text(event, key);
                         if (!value.isBlank()) {
@@ -201,9 +253,11 @@ public class OsvProvider {
                     }
                 }
             }
-            ranges.add(clip(description.toString(), 500));
+            descriptions.add(clip(description.toString(), 500));
+            ranges.add(new OsvVulnerabilityData.VersionRange(
+                    clip(text(range, "type"), 40), List.copyOf(versionEvents)));
         }
-        return List.copyOf(ranges);
+        return new VersionRangeResults(List.copyOf(descriptions), List.copyOf(ranges), truncated);
     }
 
     private static ReferenceResults readReferences(JsonNode referencesNode) {
@@ -291,6 +345,16 @@ public class OsvProvider {
     }
 
     private record PackageResults(List<OsvVulnerabilityData.AffectedPackage> packages, boolean truncated) {
+    }
+
+    private record VersionResults(List<String> versions, boolean truncated) {
+    }
+
+    private record VersionRangeResults(
+            List<String> descriptions,
+            List<OsvVulnerabilityData.VersionRange> ranges,
+            boolean truncated
+    ) {
     }
 
     private record ReferenceResults(List<OsvVulnerabilityData.Reference> references, boolean truncated) {
