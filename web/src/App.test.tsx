@@ -437,6 +437,81 @@ describe("AURA research workspace", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ cve: "CVE-2026-12345" });
   });
 
+  it("correlates OSV package PURLs with SBOM identities locally without deciding version exposure", async () => {
+    const downloads: Blob[] = [];
+    vi.stubGlobal("URL", {
+      createObjectURL: (blob: Blob) => { downloads.push(blob); return "blob:aura-sbom"; },
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requestedAt: "2026-11-07T00:00:00Z", format: "CycloneDX JSON", specVersion: "1.7",
+        componentCount: 1, cveCount: 1,
+        vulnerabilities: [{
+          cve: "CVE-2026-12345", affectedBomRefs: ["pkg:npm/demo@1.2.0"],
+          affectedComponents: [{ bomRef: "pkg:npm/demo@1.2.0", name: "demo", version: "1.2.0", purl: "pkg:npm/demo@1.2.0" }],
+        }],
+        intelligence: null, coverageNote: "Only CVEs declared in the SBOM are checked.",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requestedAt: "2026-11-07T00:00:01Z", cve: "CVE-2026-12345", status: "AVAILABLE",
+        retrievedAt: "2026-11-07T00:00:01Z", sourceUrl: "https://osv.dev/vulnerability/CVE-2026-12345",
+        osvId: "GHSA-7fhm-mqm4-2wp7", summary: "Example package advisory", details: "Advisory details.",
+        publishedAt: "2026-01-01T00:00:00Z", modifiedAt: "2026-01-02T00:00:00Z", withdrawnAt: null,
+        aliases: ["CVE-2026-12345"], affectedPackages: [{
+          name: "demo", ecosystem: "npm", purl: "pkg:npm/demo",
+          versionRanges: ["SEMVER · introduced 1.0.0 · fixed 2.0.0"],
+        }],
+        affectedPackagesTruncated: false, references: [], referencesTruncated: false,
+        note: "Source evidence only.",
+      }), { status: 200 }));
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
+    await screen.findByText("Connected securely");
+    const file = new File([JSON.stringify({ bomFormat: "CycloneDX" })], "inventory.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("CycloneDX, SPDX, or SARIF JSON file"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: /Review file/ }));
+    await screen.findByRole("button", { name: "Load OSV advisory" });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+
+    fireEvent.click(screen.getByRole("button", { name: "Load OSV advisory" }));
+    expect(await screen.findByText(/Exact PURL identity only after removing the version segment/)).toBeInTheDocument();
+    expect(screen.getByText(/inventory version 1\.2\.0/)).toBeInTheDocument();
+    expect(screen.getByText(/does not evaluate advisory version ranges/)).toBeInTheDocument();
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ cve: "CVE-2026-12345" });
+
+    fireEvent.click(screen.getByRole("button", { name: "↓ JSON" }));
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    const downloadedText = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(downloads[0]!);
+    });
+    const downloadedJson = JSON.parse(downloadedText);
+    expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].matchBasis).toBe("EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION");
+    expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].versionAssessment).toBe("NOT_PERFORMED");
+    expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].matches[0].components[0].version).toBe("1.2.0");
+    expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].limitation).toContain("does not evaluate advisory version ranges");
+
+    fireEvent.click(screen.getByRole("button", { name: "↓ CSV" }));
+    const downloadedCsv = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(downloads[1]!);
+    });
+    expect(downloadedCsv).toContain('"osvPurlIdentityMatchBasis","osvVersionAssessment"');
+    expect(downloadedCsv).toContain('"EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION","NOT_PERFORMED"');
+  });
+
   it("generates a report from visible source IDs and downloads a source-linked JSON snapshot", async () => {
     const reportBlobs: Blob[] = [];
     vi.stubGlobal("URL", {
