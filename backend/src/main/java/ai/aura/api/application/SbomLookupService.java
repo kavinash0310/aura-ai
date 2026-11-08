@@ -8,29 +8,29 @@ import java.util.List;
 
 @Service
 public class SbomLookupService {
-    private static final String COVERAGE_NOTE = "AURA reads CycloneDX component references and only CVE IDs already declared by the SBOM. It does not match package versions to vulnerabilities, prove that a component is installed, or scan systems. The uploaded file is not persisted.";
+    private static final String COVERAGE_NOTE = "AURA reads CycloneDX or SPDX package references and only CVE IDs explicitly declared by the SBOM. It does not match package versions to vulnerabilities, prove that a component is installed, or scan systems. The uploaded file is not persisted.";
 
-    private final CycloneDxSbomParser parser;
+    private final SbomParser parser;
     private final VulnerabilityLookupService vulnerabilityLookup;
 
-    public SbomLookupService(CycloneDxSbomParser parser, VulnerabilityLookupService vulnerabilityLookup) {
+    public SbomLookupService(SbomParser parser, VulnerabilityLookupService vulnerabilityLookup) {
         this.parser = parser;
         this.vulnerabilityLookup = vulnerabilityLookup;
     }
 
     public SbomLookupResponse lookup(byte[] content) {
-        ParsedCycloneDxSbom sbom = parser.parse(content);
+        ParsedSbom sbom = parser.parse(content);
         List<String> cves = sbom.vulnerabilities().stream()
-                .map(ParsedCycloneDxSbom.DeclaredVulnerability::cve)
+                .map(ParsedSbom.DeclaredVulnerability::cve)
                 .toList();
         var intelligence = cves.isEmpty() ? null : vulnerabilityLookup.lookup(cves);
         return new SbomLookupResponse(
                 Instant.now(),
-                "CycloneDX JSON",
+                sbom.format(),
                 sbom.specVersion(),
                 sbom.componentCount(),
                 sbom.vulnerabilities().size(),
-                sbom.vulnerabilities(),
+                sbom.vulnerabilities().stream().map(SbomLookupResponse.DeclaredVulnerability::from).toList(),
                 intelligence,
                 COVERAGE_NOTE
         );

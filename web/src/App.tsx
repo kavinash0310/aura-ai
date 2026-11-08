@@ -877,7 +877,7 @@ export default function App() {
     event.preventDefault();
     if (!connected || !sbomFile) return;
     if (sbomFile.size > 2 * 1024 * 1024) {
-      setError("CycloneDX JSON SBOM files must be 2 MB or smaller.");
+      setError("SBOM JSON files must be 2 MB or smaller.");
       return;
     }
     setSbomBusy(true);
@@ -904,7 +904,7 @@ export default function App() {
       mimeType = "application/json;charset=utf-8";
     } else {
       const findings = new Map((sbomLookup.intelligence?.results ?? []).map((finding) => [finding.cve, finding]));
-      const columns = ["cve", "affectedBomRefs", "componentNames", "componentVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes"];
+      const columns = ["cve", "affectedPackageReferences", "componentNames", "componentVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes"];
       const rows = sbomLookup.vulnerabilities.map((vulnerability) => {
         const finding = findings.get(vulnerability.cve);
         const nvd = nvdLookups[vulnerability.cve];
@@ -1358,14 +1358,14 @@ export default function App() {
             </div>}
 
             <div className="sbom-divider" />
-            <div className="sbom-heading"><div><h3>CycloneDX SBOM review</h3><p>Enrich CVEs already listed in a CycloneDX JSON file.</p></div><span className="panel-tag">MAX 2 MB</span></div>
+            <div className="sbom-heading"><div><h3>SBOM review</h3><p>Review CycloneDX 1.3–1.7 or SPDX 2.3 JSON inventories.</p></div><span className="panel-tag">MAX 2 MB</span></div>
             <form className="sbom-form" onSubmit={analyzeSbom}>
-              <label className="field-label" htmlFor="sbom-file">CycloneDX JSON file</label>
+              <label className="field-label" htmlFor="sbom-file">CycloneDX or SPDX JSON file</label>
               <input
                 id="sbom-file"
                 className="text-input sbom-file-input"
                 type="file"
-                accept=".json,application/json"
+                accept=".json,.spdx,application/json"
                 onChange={(event) => {
                   setSbomFile(event.currentTarget.files?.[0] ?? null);
                   setSbomLookup(null);
@@ -1403,10 +1403,10 @@ export default function App() {
                     <div className="cyber-finding-rank">{finding ? String(finding.priorityRank).padStart(2, "0") : "—"}</div>
                     <div className="cyber-finding-main">
                       <div className="cyber-finding-heading"><a href={`https://nvd.nist.gov/vuln/detail/${encodeURIComponent(declared.cve)}`} target="_blank" rel="noopener noreferrer">{declared.cve} ↗</a><span className={finding?.knownExploited ? "kev-badge kev-badge-active" : "kev-badge"}>{finding?.knownExploited ? "CISA KEV" : finding?.knownExploited === false ? "Not in KEV" : "KEV unavailable"}</span></div>
-                      <p className="cyber-product">Affected BOM references: {visibleRefs.join(" · ") || "None declared"}{declared.affectedBomRefs.length > visibleRefs.length ? ` · and ${declared.affectedBomRefs.length - visibleRefs.length} more` : ""}</p>
+                      <p className="cyber-product">Affected package references: {visibleRefs.join(" · ") || "None declared"}{declared.affectedBomRefs.length > visibleRefs.length ? ` · and ${declared.affectedBomRefs.length - visibleRefs.length} more` : ""}</p>
                       {visibleComponents.map((component) => <p className="sbom-component" key={component.bomRef}><strong>{component.name || component.bomRef}</strong>{component.version ? ` · ${component.version}` : ""}{component.purl ? ` · ${component.purl}` : ""}</p>)}
                       {declared.affectedComponents.length > visibleComponents.length && <p className="sbom-component">Showing {visibleComponents.length} of {declared.affectedComponents.length} resolved components. Download the full JSON or CSV for the complete list.</p>}
-                      {declared.affectedBomRefs.length > declared.affectedComponents.length && <p className="sbom-component">Some references did not resolve to a component in this file.</p>}
+                      {declared.affectedBomRefs.length > declared.affectedComponents.length && <p className="sbom-component">Some package references did not resolve to a component in this file.</p>}
                       {finding && <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>Priority <strong>{finding.priorityRank}</strong></span></div>}
                       <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy} onClick={() => void loadNvd(declared.cve)}>{nvdBusyCve === declared.cve ? "Loading NVD…" : nvdLookups[declared.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
                       {nvdLookups[declared.cve] && <NvdDetails data={nvdLookups[declared.cve]} />}
