@@ -2,7 +2,7 @@
 
 ## Purpose
 
-An owner can enter one specific claim and ask AURA to compare it with up to 20 currently visible public search results. This is a user-directed assessment of selected snippets, not a fact-check, a general-purpose search, a person profile, or a truth verdict. AURA does not generate claims, expand the search, fetch pages, or include private library documents for this action.
+An owner can enter one specific claim and ask AURA to compare it with up to 20 checked public search results after filtering. The UI checks the first 20 visible sources by default and lets the owner change that selection. This is a user-directed assessment of selected snippets, not a fact-check, a general-purpose search, a person profile, or a truth verdict. AURA does not generate claims, expand the search, fetch pages, or include private library documents for this action.
 
 ## Data flow
 
@@ -31,7 +31,7 @@ Spring requires an authenticated completed or partially completed job. It resolv
 ## Contract and validation
 
 - Authenticated endpoint: `POST /api/v1/research-jobs/{id}/compare`.
-- Input: one nonblank user-written claim of at most 500 characters and one to 20 distinct source IDs from the specified saved job.
+- Input: one nonblank user-written claim of at most 500 characters and one to 20 distinct checked source IDs from the specified saved job.
 - Assessment: `SUPPORTED`, `CHALLENGED`, `MIXED`, or `INSUFFICIENT`, always relative to the supplied snippets.
 - Evidence: at most eight items, each labeled `SUPPORTS`, `CHALLENGES`, `CONTEXT`, or `UNCLEAR`, with one to five exact source IDs.
 - Output includes bounded explanation/limitations and citations built from the server's selected-source records.

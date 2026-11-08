@@ -156,6 +156,7 @@ export default function App() {
   const [job, setJob] = useState<ResearchJob | null>(null);
   const [search, setSearch] = useState<SearchResponse | null>(null);
   const [sources, setSources] = useState<ResearchSource[]>([]);
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [researchReport, setResearchReport] = useState<ResearchReportResponse | null>(null);
   const [claimDraft, setClaimDraft] = useState("");
   const [claimComparison, setClaimComparison] = useState<ClaimComparisonResponse | null>(null);
@@ -196,6 +197,7 @@ export default function App() {
   const [sbomBusy, setSbomBusy] = useState(false);
 
   const credentials = useMemo<Credentials>(() => ({ username, password }), [username, password]);
+  const selectedSources = sources.filter((source) => selectedSourceIds.includes(source.id)).slice(0, 20);
   const researchPageMatches = useMemo(
     () => researchPage ? findResearchPageTextMatches(researchPage.text, pageSearchQuery) : null,
     [researchPage, pageSearchQuery],
@@ -239,6 +241,7 @@ export default function App() {
     setError("");
     setSearch(null);
     setSources([]);
+    setSelectedSourceIds([]);
     setResearchReport(null);
     setClaimComparison(null);
     setClaimDraft("");
@@ -263,6 +266,7 @@ export default function App() {
       });
       setSearch(response);
       setSources(response.results);
+      setSelectedSourceIds(response.results.slice(0, 20).map((source) => source.id));
       const completedJob = {
         ...currentJob,
         status: response.status,
@@ -299,6 +303,7 @@ export default function App() {
     setMode(item.mode);
     setSearch(null);
     setSources([]);
+    setSelectedSourceIds([]);
     setResearchReport(null);
     setClaimComparison(null);
     setDraftFilters(emptyFilters);
@@ -309,6 +314,7 @@ export default function App() {
         const response = await listSources(credentials, item.id, emptyFilters);
         setSearch(response);
         setSources(response.results);
+        setSelectedSourceIds(response.results.slice(0, 20).map((source) => source.id));
       }
     } catch (caught) {
       setError(errorMessage(caught));
@@ -327,6 +333,7 @@ export default function App() {
         setJob(null);
         setSearch(null);
         setSources([]);
+        setSelectedSourceIds([]);
         setResearchReport(null);
         setClaimComparison(null);
         setCanRetry(false);
@@ -345,6 +352,7 @@ export default function App() {
       const response = await listSources(credentials, job.id, draftFilters);
       setAppliedFilters({ ...draftFilters });
       setSources(response.results);
+      setSelectedSourceIds(response.results.slice(0, 20).map((source) => source.id));
       setResearchReport(null);
       setClaimComparison(null);
     } catch (caught) {
@@ -376,8 +384,7 @@ export default function App() {
   }
 
   async function createResearchReport() {
-    if (!job || sources.length === 0) return;
-    const selectedSources = sources.slice(0, 20);
+    if (!job || selectedSources.length === 0) return;
     setReportBusy(true);
     setResearchReport(null);
     setError("");
@@ -396,8 +403,7 @@ export default function App() {
   }
 
   async function compareClaim() {
-    if (!job || sources.length === 0 || !claimDraft.trim()) return;
-    const selectedSources = sources.slice(0, 20);
+    if (!job || selectedSources.length === 0 || !claimDraft.trim()) return;
     setClaimBusy(true);
     setClaimComparison(null);
     setError("");
@@ -797,6 +803,12 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
+  function toggleSourceSelection(sourceId: string) {
+    setSelectedSourceIds((current) => current.includes(sourceId)
+      ? current.filter((id) => id !== sourceId)
+      : current.length < 20 ? [...current, sourceId] : current);
+  }
+
   function downloadVulnerabilityLookup(format: "json" | "csv") {
     if (!vulnerabilityLookup) return;
     let content: string;
@@ -924,6 +936,7 @@ export default function App() {
     setJob(null);
     setSearch(null);
     setSources([]);
+    setSelectedSourceIds([]);
     setResearchReport(null);
     setClaimComparison(null);
     setClaimDraft("");
@@ -1115,7 +1128,7 @@ export default function App() {
                 <div className="results-heading">
                   <div><div className="section-kicker">YOUR EVIDENCE</div><h2>Research results{search ? <span className="result-total">{sources.length}</span> : null}</h2></div>
                   {search && <div className="export-actions" aria-label="Research actions and downloads">
-                    <button type="button" onClick={() => void createResearchReport()} disabled={!connected || reportBusy || claimBusy || sources.length === 0}>{reportBusy ? "Generating…" : `✳ Report (${Math.min(sources.length, 20)})`}</button>
+                    <button type="button" onClick={() => void createResearchReport()} disabled={!connected || reportBusy || claimBusy || selectedSources.length === 0}>{reportBusy ? "Generating…" : `✳ Report (${selectedSources.length})`}</button>
                     <button type="button" onClick={() => void exportResults("csv")} disabled={Boolean(exporting)}>{exporting === "csv" ? "Preparing…" : "↓ CSV"}</button>
                     <button type="button" onClick={() => void exportResults("json")} disabled={Boolean(exporting)}>{exporting === "json" ? "Preparing…" : "↓ JSON"}</button>
                     <button type="button" onClick={() => void exportResults("md")} disabled={Boolean(exporting)}>{exporting === "md" ? "Preparing…" : "↓ MD"}</button>
@@ -1140,12 +1153,12 @@ export default function App() {
                   </form>
                   {search.coverageNote && <p className="coverage-note"><span>ⓘ</span> {search.coverageNote}</p>}
                   {search.providerRuns?.length > 0 && <p className="report-scope-note">Provider outcomes: {search.providerRuns.map((run) => `“${run.query}” → ${providerLabel(run.provider)} ${run.status.toLowerCase()} · ${run.resultCount} results${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>}
-                  <p className="report-scope-note">A report or claim comparison uses up to 20 visible results after filtering. Their metadata and snippets go to your configured local model only after you choose an action. AURA never fetches pages automatically; Read page sends one unauthenticated HTTPS request after you choose it. Fetched text stays in browser memory and is excluded from reports and comparisons.</p>
+                  <p className="report-scope-note">A report or claim comparison uses up to 20 checked results after filtering. AURA checks the first 20 by default; change the source checkboxes below. Their metadata and snippets go to your configured local model only after you choose an action. Read page sends one unauthenticated HTTPS request only after you choose it. Fetched text stays in browser memory and is excluded from reports and comparisons.</p>
                   <section className="claim-comparison-panel" aria-label="Compare a claim against selected sources">
-                    <div className="claim-comparison-intro"><div className="section-kicker">EVIDENCE TOOL</div><h3>Compare a claim</h3><p>Enter one statement to compare with up to 20 visible source snippets. This is an AI assessment of those excerpts, not a fact-check.</p></div>
+                    <div className="claim-comparison-intro"><div className="section-kicker">EVIDENCE TOOL</div><h3>Compare a claim</h3><p>Enter one statement to compare with up to 20 sources you checked below. This is an AI assessment of those excerpts, not a fact-check.</p></div>
                     <label className="sr-only" htmlFor="claim-to-compare">Claim to compare</label>
                     <textarea id="claim-to-compare" maxLength={500} rows={2} value={claimDraft} onChange={(event) => setClaimDraft(event.target.value)} placeholder="Type a specific claim to assess against the sources above" disabled={!connected || claimBusy || reportBusy} />
-                    <div className="claim-comparison-actions"><span>{claimDraft.length}/500 · first {Math.min(sources.length, 20)} visible sources</span><button type="button" onClick={() => void compareClaim()} disabled={!connected || claimBusy || reportBusy || sources.length === 0 || !claimDraft.trim()}>{claimBusy ? "Comparing…" : "Compare claim"}</button></div>
+                    <div className="claim-comparison-actions"><span>{claimDraft.length}/500 · {selectedSources.length}/20 sources selected</span><button type="button" onClick={() => void compareClaim()} disabled={!connected || claimBusy || reportBusy || selectedSources.length === 0 || !claimDraft.trim()}>{claimBusy ? "Comparing…" : "Compare claim"}</button></div>
                   </section>
                   {claimComparison && <section className="research-report claim-comparison-result" aria-label="AI claim comparison result">
                     <div className="report-heading"><div><div className="section-kicker">LOCAL AI ASSESSMENT · {claimComparison.assessment}</div><h3>{assessmentLabel(claimComparison.assessment)}</h3><p>{claimComparison.provider} · {claimComparison.model} · {formatDate(claimComparison.generatedAt)}</p></div><div className="report-download-actions"><button className="nvd-lookup-button" type="button" onClick={() => downloadClaimComparison("md")}>↓ Markdown</button><button className="nvd-lookup-button" type="button" onClick={() => downloadClaimComparison("json")}>↓ JSON</button></div></div>
@@ -1178,10 +1191,10 @@ export default function App() {
                     <div className="report-citations"><strong>Candidate sources</strong>{researchReport.citations.map((citation, index) => <a key={citation.id} href={citation.url} target="_blank" rel="noopener noreferrer">[{index + 1}] {citation.title} · {citation.domain}</a>)}</div>
                     <p className="coverage-note"><span>ⓘ</span> {researchReport.coverageNote}</p>
                   </section>}
-                  {sources.length > 0 ? <div className="source-list">{sources.map((source) => <article className="source-card" key={source.id}>
+                  {sources.length > 0 ? <><div className="source-selection-bar"><span>{selectedSources.length} of {sources.length} visible sources selected for AI actions (maximum 20)</span><div><button type="button" onClick={() => setSelectedSourceIds(sources.slice(0, 20).map((source) => source.id))}>Select first 20</button><button type="button" onClick={() => setSelectedSourceIds([])}>Clear</button></div></div><div className="source-list">{sources.map((source) => <article className="source-card" key={source.id}>
                     <div className="source-monogram" aria-hidden="true">{sourceInitial(source.domain)}</div>
                     <div className="source-content">
-                      <div className="source-meta"><span className={`type-pill type-${source.kind.toLowerCase()}`}>{kindLabel(source.kind)}</span><span className="source-domain">{source.domain}</span><span className="source-date">{formatDate(source.publishedAt)}</span></div>
+                      <div className="source-meta"><label className="source-select"><input type="checkbox" checked={selectedSourceIds.includes(source.id)} onChange={() => toggleSourceSelection(source.id)} disabled={!selectedSourceIds.includes(source.id) && selectedSourceIds.length >= 20} aria-label={`Include ${source.title} in AI actions`} /><span>Use</span></label><span className={`type-pill type-${source.kind.toLowerCase()}`}>{kindLabel(source.kind)}</span><span className="source-domain">{source.domain}</span><span className="source-date">{formatDate(source.publishedAt)}</span></div>
                       <h3><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}<span aria-hidden="true"> ↗</span></a></h3>
                       {source.searchQuery && <p className="source-query-label">Matched query: {source.searchQuery}</p>}
                       {source.description && <p>{source.description}</p>}
@@ -1209,7 +1222,7 @@ export default function App() {
                       <div className="publisher-line">{providerLabel(source.provider)}<span>·</span> {source.publisher || source.domain}<span>·</span> Retrieved {formatDate(source.retrievedAt)}</div>
                     </div>
                     <span className="source-rank">{String(source.rank).padStart(2, "0")}</span>
-                  </article>)}</div> : <div className="empty-results"><span>⌕</span><strong>No sources match these filters</strong><p>Try clearing a filter or widening the date range.</p></div>}
+                  </article>)}</div></> : <div className="empty-results"><span>⌕</span><strong>No sources match these filters</strong><p>Try clearing a filter or widening the date range.</p></div>}
                 </>}
                 {!search && job && <div className="empty-results welcome-results"><span>{job.status === "FAILED" ? "!" : "◷"}</span><strong>{job.status === "FAILED" ? "This search did not finish" : job.status === "SEARCHING" ? "This search is still running" : "This brief has not been searched yet"}</strong><p>{job.status === "FAILED" ? `The saved failure code is ${job.failureCode ?? "unavailable"}. Start a new brief to try again.` : job.status === "SEARCHING" ? "Reload this brief in a moment to see whether the provider returned." : "If the provider key was just configured, press Start research to retry this saved brief."}</p>{job.providerRuns && job.providerRuns.length > 0 && <p>Provider outcomes: {job.providerRuns.map((run) => `${providerLabel(run.provider)} ${run.status.toLowerCase()}${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>}</div>}
                 {!search && !job && <div className="empty-results welcome-results"><span>✳</span><strong>Your sources will appear here</strong><p>Start a research brief to gather public links, filter them, and download your findings.</p></div>}

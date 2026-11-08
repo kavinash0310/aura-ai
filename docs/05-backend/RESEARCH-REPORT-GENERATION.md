@@ -2,7 +2,7 @@
 
 ## What this adds
 
-An owner can ask AURA to draft a report from sources already saved in a completed research brief. The UI uses the first 20 results currently visible after filters are applied. The report is generated only on click, appears in the current UI session, and can be downloaded as Markdown or as a structured JSON snapshot.
+An owner can ask AURA to draft a report from sources already saved in a completed research brief. The UI checks the first 20 results currently visible after filters by default and lets the owner change the selection. The report is generated only on click, appears in the current UI session, and can be downloaded as Markdown or as a structured JSON snapshot.
 
 This is a first model integration slice. It uses selected provider snippets only; it does not include page snapshots explicitly read through the separate page-reading action, include the private document library, persist model prose, or establish that a linked page supports every generated claim.
 
