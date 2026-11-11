@@ -652,7 +652,12 @@ export default function App() {
       "",
       "## Findings",
       "",
-      ...researchReport.findings.map((finding) => `- ${escapeMarkdown(finding.text)}${cite(finding.sourceIds)}`),
+      ...researchReport.findings.flatMap((finding) => [
+        `- ${escapeMarkdown(finding.text)}${cite(finding.sourceIds)}`,
+        ...(finding.evidenceQuotes ?? []).map((evidenceQuote) =>
+          `  - Matched provider snippet: “${escapeMarkdown(evidenceQuote.quote)}”${cite([evidenceQuote.sourceId])}`,
+        ),
+      ]),
       "",
       "## Limitations",
       "",
@@ -1402,11 +1407,18 @@ export default function App() {
                       const citationNumber = researchReport.citations.findIndex((item) => item.id === id) + 1;
                       return citation ? <a key={id} href={citation.url} target="_blank" rel="noopener noreferrer" title={citation.title}> [{citationNumber}]</a> : null;
                     })}</p>
-                    {researchReport.findings.length > 0 && <div className="report-findings"><strong>Findings</strong>{researchReport.findings.map((finding, index) => <p key={`${index}-${finding.text}`}>{finding.text}{finding.sourceIds.map((id) => {
-                      const citation = researchReport.citations.find((item) => item.id === id);
-                      const citationNumber = researchReport.citations.findIndex((item) => item.id === id) + 1;
-                      return citation ? <a key={id} href={citation.url} target="_blank" rel="noopener noreferrer" title={citation.title}> [{citationNumber}]</a> : null;
-                    })}</p>)}</div>}
+                    {researchReport.findings.length > 0 && <div className="report-findings"><strong>Findings</strong>{researchReport.findings.map((finding, index) => <div className="report-finding" key={`${index}-${finding.text}`}>
+                      <p>{finding.text}{finding.sourceIds.map((id) => {
+                        const citation = researchReport.citations.find((item) => item.id === id);
+                        const citationNumber = researchReport.citations.findIndex((item) => item.id === id) + 1;
+                        return citation ? <a key={id} href={citation.url} target="_blank" rel="noopener noreferrer" title={citation.title}> [{citationNumber}]</a> : null;
+                      })}</p>
+                      {finding.evidenceQuotes?.map((evidenceQuote) => {
+                        const citation = researchReport.citations.find((item) => item.id === evidenceQuote.sourceId);
+                        const citationNumber = researchReport.citations.findIndex((item) => item.id === evidenceQuote.sourceId) + 1;
+                        return citation ? <blockquote className="report-evidence-quote" key={`${evidenceQuote.sourceId}-${evidenceQuote.quote}`}>Matched text in provider snippet: “{evidenceQuote.quote}” <a href={citation.url} target="_blank" rel="noopener noreferrer" title={citation.title}>[{citationNumber}]</a></blockquote> : null;
+                      })}
+                    </div>)}</div>}
                     {researchReport.limitations.length > 0 && <div className="report-findings"><strong>Limitations</strong>{researchReport.limitations.map((limitation, index) => <p key={`${index}-${limitation}`}>{limitation}</p>)}</div>}
                     <div className="report-citations"><strong>Candidate sources</strong>{researchReport.citations.map((citation, index) => <a key={citation.id} href={citation.url} target="_blank" rel="noopener noreferrer">[{index + 1}] {citation.title} · {citation.domain}</a>)}</div>
                     <p className="coverage-note"><span>ⓘ</span> {researchReport.coverageNote}</p>

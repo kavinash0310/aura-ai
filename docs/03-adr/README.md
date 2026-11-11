@@ -18,6 +18,7 @@ ADRs capture trade-offs, not feature completion.
 - 0014 Local npm SemVer applicability from OSV evidence
 - 0015 Local-model suggestions for reviewed search angles
 - 0016 Browser-origin guard for the local API
+- 0017 Quote anchors matched to provider snippets
 
 ## Template
 
