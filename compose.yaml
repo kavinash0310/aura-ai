@@ -34,11 +34,32 @@ services:
       AURA_BLUESKY_ENABLED: ${AURA_BLUESKY_ENABLED:-true}
       AURA_OPENALEX_API_KEY: ${AURA_OPENALEX_API_KEY:-}
       AURA_NVD_API_KEY: ${AURA_NVD_API_KEY:-}
+      AURA_MANAGEMENT_ADDRESS: 0.0.0.0
     ports:
       - "127.0.0.1:8080:8080"
+    networks:
+      - default
+      - observability
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    profiles: ["observability"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - aura-prometheus-data:/prometheus
+    networks:
+      - observability
+    depends_on:
+      - api
     restart: unless-stopped
 
   ai:
@@ -66,3 +87,8 @@ services:
 
 volumes:
   aura-postgres-data:
+  aura-prometheus-data:
+
+networks:
+  observability:
+    internal: true

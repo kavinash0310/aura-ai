@@ -20,7 +20,7 @@
 5. `AURA_NVD_API_KEY` is optional. The workspace requests one exact CVE from NVD only after you click “Load NVD details”; the optional key is sent in a header. No request runs automatically. The NVD response is cached in memory for six hours, up to 500 CVEs, and is not persisted.
 6. Start with `docker compose up --build`.
 7. Open the workspace at 127.0.0.1:3000. Enter the local Basic Auth credentials from `.env`; they remain in page memory and clear on reload or disconnect. Recent briefs can be reopened from the sidebar; deleting a brief removes its saved source rows.
-8. Spring API binds to 127.0.0.1:8080. GET `/api/v1/health` is public; other routes use local HTTP Basic credentials. The web container proxies `/api` requests to Spring on the internal Compose network.
+8. Spring API binds to 127.0.0.1:8080. GET `/api/v1/health` is public; other routes use local HTTP Basic credentials. The management listener is on container port 8081 and is not published to the host; the optional Prometheus service reaches it over an internal network. The web container proxies `/api` requests to Spring on the normal Compose network.
 9. AI service binds to 127.0.0.1:8001. GET `/api/v1/health` is public and reports service identity only. The report, claim-comparison, and query-plan routes are internal-token protected; they are disabled unless the local Ollama provider is configured.
 10. Optional local report and claim-comparison setup: install Ollama and at least one local model; set `AURA_AI_MODEL_PROVIDER=ollama`, `AURA_AI_OLLAMA_MODEL` to the installed name, and `AURA_AI_OLLAMA_BASE_URL` to the local Ollama origin. Generate a separate random `AURA_AI_INTERNAL_TOKEN`. Keep the model endpoint reachable only from trusted local services. No request goes to Ollama until the owner clicks Report, Compare claim, or Suggest with local AI. Query-angle generation sends only the topic to Ollama and does not search public providers. AURA sends the selected query/claim, source titles, URLs, and provider snippets for up to 20 checked sources; the first 20 visible sources are checked by default. It does not send document-library text or page snapshots from the separate Read page action.
 11. Direct API: create a research job, explicitly call its `/search` route, then use `/sources` filters, `/report` with selected source IDs, or `/export?format=json|csv|md`. See the API contract for examples and limits.
@@ -39,6 +39,7 @@
 - API logs: docker compose logs -f api
 - AI-service logs: docker compose logs -f ai
 - Database logs: docker compose logs -f db
+- Optional API health/Prometheus monitoring: `docker compose --profile observability up --build -d`; open <http://127.0.0.1:9090> and see [`OBSERVABILITY.md`](OBSERVABILITY.md)
 - Create a verified database backup: `pwsh -NoProfile -File .\scripts\Backup-AuraDatabase.ps1`
 - Preview expired backup cleanup: `pwsh -NoProfile -File .\scripts\Remove-ExpiredAuraBackups.ps1`
 
