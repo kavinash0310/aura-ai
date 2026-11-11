@@ -3,6 +3,8 @@ param(
     [Parameter(Mandatory)]
     [string]$OutputDirectory,
 
+    [string]$AgeRecipient,
+
     [ValidateRange(1, 3650)]
     [int]$RetentionDays = 30,
 
@@ -17,7 +19,11 @@ $retentionScript = Join-Path $PSScriptRoot 'Remove-ExpiredAuraBackups.ps1'
 
 Push-Location $repoRoot
 try {
-    $backupOutput = & $backupScript -OutputDirectory $OutputDirectory
+    $backupArguments = @{ OutputDirectory = $OutputDirectory }
+    if (-not [string]::IsNullOrWhiteSpace($AgeRecipient)) {
+        $backupArguments.AgeRecipient = $AgeRecipient
+    }
+    $backupOutput = & $backupScript @backupArguments
     $backupOutputItems = @($backupOutput | Where-Object { $_ -is [string] })
     $backupPath = if ($backupOutputItems.Count -gt 0) {
         [string]$backupOutputItems[-1]

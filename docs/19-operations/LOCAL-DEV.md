@@ -31,7 +31,7 @@
 16. For frontend checks, change to `web` and run `npm ci`, `npm test`, then `npm run build`.
 17. For Python checks, change into `ai-service` and run `uv sync --locked --all-groups`, `uv run pytest`, and `uv run ruff check src tests`.
 18. Back up or restore the local PostgreSQL data with the PowerShell scripts in [`DATABASE-BACKUP-RESTORE.md`](DATABASE-BACKUP-RESTORE.md). A restore replaces the current database and needs the explicit `-ConfirmRestore` switch.
-19. For optional daily backups on Windows, register the Task Scheduler task with `pwsh -NoProfile -File .\scripts\Register-AuraBackupSchedule.ps1`. It runs only in the signed-in user's session and prunes only verified backups older than the configured retention while keeping the minimum set. Review the backup/restore runbook before enabling it.
+19. For optional daily backups on Windows, register the Task Scheduler task with `pwsh -NoProfile -File .\scripts\Register-AuraBackupSchedule.ps1`. It runs only in the signed-in user's session and prunes only verified backups older than the configured retention while keeping the minimum set. To encrypt archives, install `age` and pass a native public key with `-AgeRecipient`; the scheduled task never needs the private identity. Review the [backup/restore runbook](DATABASE-BACKUP-RESTORE.md) before enabling it.
 
 ## Useful commands
 
