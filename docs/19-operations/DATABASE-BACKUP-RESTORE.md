@@ -95,6 +95,19 @@ The script checks the manifest filename, size, and SHA-256 digest, then asks Pos
 
 To restore the pre-restore safety copy, pass its archive path and `-ConfirmRestore` to the same script. Do not run `docker compose down -v` during recovery; that removes the database volume and is not part of logical restore.
 
+## Run a recovery drill
+
+The drill restores a trusted `.dump` or `.dump.age` archive into a uniquely named temporary database in the Compose PostgreSQL container. It checks the latest successful Flyway version and the core `research_jobs` table, then removes only the database it created. It does not stop the API or change the live AURA database.
+
+```powershell
+pwsh -NoProfile -File .\scripts\Invoke-AuraBackupRestoreDrill.ps1 `
+  -BackupPath '.\backups\aura-db-20261108T120000Z-1234abcd.dump'
+```
+
+For an encrypted archive, also pass `-AgeIdentityFile "$env:LOCALAPPDATA\Aura\backup-identity.txt"`. The archive and manifest checks run before the temporary database is created. The database service must be running.
+
+The drill exercises archive decryption, PostgreSQL restore, schema presence, and cleanup. It does not simulate host loss, validate every row, or prove the backup author's identity. The temporary database uses the Compose PostgreSQL data volume; dropping it is not secure erasure. Keep that volume encrypted and restore only trusted archives. If cleanup reports a failure, inspect the named drill database and remove it manually before relying on the result.
+
 ## Scope and limits
 
 - A backup contains all data in the PostgreSQL database, including imported document text and research history. Treat it as sensitive even though it excludes `.env` secrets and original PDF files.
@@ -102,5 +115,6 @@ To restore the pre-restore safety copy, pass its archive path and `-ConfirmResto
 - Keep the archive and manifest paired. Restore refuses a missing, mismatched, or modified manifest.
 - Backup output is plaintext unless `-AgeRecipient` is explicitly supplied. Git ignores the default `backups/` directory, but that does not protect plaintext archives or temporary files from other local users, malware, or disk loss.
 - Age-encrypted backups can be copied off-device, but AURA does not perform remote uploads. Keep the private identity separate and verify a restore before depending on the backup.
+- Recovery drills create a temporary database in the Compose PostgreSQL volume. Cleanup is logical rather than secure erasure; use encrypted storage and inspect any cleanup warning.
 - Scheduling is optional and only works while the interactive Windows user session and Docker Desktop are available.
 - Practice restoring to a disposable environment before relying on a backup for an important recovery.
