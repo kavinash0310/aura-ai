@@ -4,16 +4,20 @@ import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 from urllib.error import HTTPError, URLError
-from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from aura_ai_service.config import Settings, get_settings
+from aura_ai_service.model_providers import (
+    ModelCompletion,
+    OllamaCallResult,
+    OllamaStructuredProvider,
+)
+from aura_ai_service.model_providers import call_ollama as _call_ollama
 from aura_ai_service.redaction import redact_payload
 
 logger = logging.getLogger("aura.ai_service")
@@ -338,30 +342,6 @@ class DocumentQuestionResponse(BaseModel):
     model_run: ModelRunTelemetry = Field(alias="modelRun")
 
 
-@dataclass(frozen=True)
-class OllamaCallResult:
-    content: str
-    total_duration_ns: int | None = None
-    prompt_eval_count: int | None = None
-    eval_count: int | None = None
-
-
-class _NoRedirectHandler(HTTPRedirectHandler):
-    def redirect_request(
-        self,
-        request: Request,
-        response: object,
-        code: int,
-        message: str,
-        headers: object,
-        new_url: str,
-    ) -> None:
-        return None
-
-
-MAX_OLLAMA_RESPONSE_BYTES = 64 * 1024
-
-
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or get_settings()
 
@@ -384,6 +364,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.model_lock = asyncio.Semaphore(1)
+    app.state.local_model = (
+        OllamaStructuredProvider(
+            base_url=resolved_settings.ollama_base_url,
+            model=resolved_settings.ollama_model,
+            timeout_seconds=resolved_settings.ollama_timeout_seconds,
+            transport=_call_ollama,
+        )
+        if resolved_settings.model_provider == "ollama"
+        else None
+    )
 
     @app.get("/api/v1/health", response_model=HealthResponse, tags=["operations"])
     async def health() -> HealthResponse:
@@ -432,29 +422,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
             {"role": "user", "content": json.dumps(prompt_payload, ensure_ascii=False)},
         ]
-        ollama_payload = json.dumps(
-            {
-                "model": resolved_settings.ollama_model,
-                "messages": messages,
-                "format": ResearchQueryPlanContent.model_json_schema(),
-                "stream": False,
-                "options": {"temperature": 0.2, "num_predict": 350},
-            },
-            ensure_ascii=False,
-        ).encode("utf-8")
-
         try:
             await asyncio.wait_for(app.state.model_lock.acquire(), timeout=2)
         except TimeoutError:
             raise HTTPException(status_code=503, detail="The local model is already busy") from None
         try:
             ollama_result = await asyncio.to_thread(
-                _call_ollama,
-                resolved_settings.ollama_base_url,
-                ollama_payload,
-                resolved_settings.ollama_timeout_seconds,
+                app.state.local_model.generate_structured,
+                messages,
+                response_schema=ResearchQueryPlanContent.model_json_schema(),
+                temperature=0.2,
+                max_tokens=350,
             )
-            plan = ResearchQueryPlanContent.model_validate_json(_result_content(ollama_result))
+            plan = ResearchQueryPlanContent.model_validate_json(ollama_result.content)
         except ValidationError as error:
             logger.warning(
                 "local_query_plan_invalid_output",
@@ -541,17 +521,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
             {"role": "user", "content": json.dumps(prompt_payload, ensure_ascii=False)},
         ]
-        ollama_payload = json.dumps(
-            {
-                "model": resolved_settings.ollama_model,
-                "messages": messages,
-                "format": ResearchReportContent.model_json_schema(by_alias=True),
-                "stream": False,
-                "options": {"temperature": 0.1, "num_predict": 1400},
-            },
-            ensure_ascii=False,
-        ).encode("utf-8")
-
         try:
             await asyncio.wait_for(app.state.model_lock.acquire(), timeout=2)
         except TimeoutError:
@@ -560,12 +529,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from None
         try:
             ollama_result = await asyncio.to_thread(
-                _call_ollama,
-                resolved_settings.ollama_base_url,
-                ollama_payload,
-                resolved_settings.ollama_timeout_seconds,
+                app.state.local_model.generate_structured,
+                messages,
+                response_schema=ResearchReportContent.model_json_schema(by_alias=True),
+                temperature=0.1,
+                max_tokens=1400,
             )
-            report = ResearchReportContent.model_validate_json(_result_content(ollama_result))
+            report = ResearchReportContent.model_validate_json(ollama_result.content)
         except ValidationError as error:
             logger.warning(
                 "local_report_invalid_output", extra={"error_type": type(error).__name__}
@@ -679,17 +649,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
             {"role": "user", "content": json.dumps(prompt_payload, ensure_ascii=False)},
         ]
-        ollama_payload = json.dumps(
-            {
-                "model": resolved_settings.ollama_model,
-                "messages": messages,
-                "format": DocumentQuestionContent.model_json_schema(by_alias=True),
-                "stream": False,
-                "options": {"temperature": 0.1, "num_predict": 1100},
-            },
-            ensure_ascii=False,
-        ).encode("utf-8")
-
         try:
             await asyncio.wait_for(app.state.model_lock.acquire(), timeout=2)
         except TimeoutError:
@@ -698,12 +657,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from None
         try:
             ollama_result = await asyncio.to_thread(
-                _call_ollama,
-                resolved_settings.ollama_base_url,
-                ollama_payload,
-                resolved_settings.ollama_timeout_seconds,
+                app.state.local_model.generate_structured,
+                messages,
+                response_schema=DocumentQuestionContent.model_json_schema(by_alias=True),
+                temperature=0.1,
+                max_tokens=1100,
             )
-            answer = DocumentQuestionContent.model_validate_json(_result_content(ollama_result))
+            answer = DocumentQuestionContent.model_validate_json(ollama_result.content)
         except ValidationError as error:
             logger.warning(
                 "local_document_question_invalid_output", extra={"error_type": type(error).__name__}
@@ -830,17 +790,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
             {"role": "user", "content": json.dumps(prompt_payload, ensure_ascii=False)},
         ]
-        ollama_payload = json.dumps(
-            {
-                "model": resolved_settings.ollama_model,
-                "messages": messages,
-                "format": ClaimComparisonContent.model_json_schema(by_alias=True),
-                "stream": False,
-                "options": {"temperature": 0.1, "num_predict": 1400},
-            },
-            ensure_ascii=False,
-        ).encode("utf-8")
-
         try:
             await asyncio.wait_for(app.state.model_lock.acquire(), timeout=2)
         except TimeoutError:
@@ -849,12 +798,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from None
         try:
             ollama_result = await asyncio.to_thread(
-                _call_ollama,
-                resolved_settings.ollama_base_url,
-                ollama_payload,
-                resolved_settings.ollama_timeout_seconds,
+                app.state.local_model.generate_structured,
+                messages,
+                response_schema=ClaimComparisonContent.model_json_schema(by_alias=True),
+                temperature=0.1,
+                max_tokens=1400,
             )
-            comparison = ClaimComparisonContent.model_validate_json(_result_content(ollama_result))
+            comparison = ClaimComparisonContent.model_validate_json(ollama_result.content)
         except ValidationError as error:
             logger.warning(
                 "local_claim_comparison_invalid_output", extra={"error_type": type(error).__name__}
@@ -996,51 +946,15 @@ def _normalize_quote(value: str) -> str:
     return " ".join(value.split()).casefold()
 
 
-def _call_ollama(base_url: str, body: bytes, timeout_seconds: int) -> OllamaCallResult:
-    request = Request(
-        f"{base_url}/api/chat",
-        data=body,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        method="POST",
-    )
-    opener = build_opener(_NoRedirectHandler)
-    with opener.open(request, timeout=timeout_seconds) as response:
-        raw = response.read(MAX_OLLAMA_RESPONSE_BYTES + 1)
-    if len(raw) > MAX_OLLAMA_RESPONSE_BYTES:
-        raise ValueError("Local model response exceeded the size limit")
-    outer = json.loads(raw)
-    if not isinstance(outer, dict):
-        raise ValueError("Local model returned an invalid response envelope")
-    message = outer.get("message")
-    if not isinstance(message, dict):
-        raise ValueError("Local model response is missing its message")
-    content = message.get("content")
-    if not isinstance(content, str) or not content:
-        raise ValueError("Local model returned no report content")
-    return OllamaCallResult(
-        content=content,
-        total_duration_ns=_optional_nonnegative_int(outer.get("total_duration")),
-        prompt_eval_count=_optional_nonnegative_int(outer.get("prompt_eval_count")),
-        eval_count=_optional_nonnegative_int(outer.get("eval_count")),
-    )
-
-
-def _optional_nonnegative_int(value: object) -> int | None:
-    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 2**63 - 1:
-        return value
-    return None
-
-
-def _result_content(result: OllamaCallResult | str) -> str:
-    # The string form keeps older internal test doubles compatible when metrics are absent.
-    return result.content if isinstance(result, OllamaCallResult) else result
-
-
 def _model_run_telemetry(
     prompt_version: str,
-    result: OllamaCallResult | str,
+    result: ModelCompletion | OllamaCallResult | str,
 ) -> ModelRunTelemetry:
-    if isinstance(result, OllamaCallResult):
+    if isinstance(result, ModelCompletion):
+        duration_ms = result.duration_ms
+        prompt_token_count = result.prompt_token_count
+        output_token_count = result.output_token_count
+    elif isinstance(result, OllamaCallResult):
         duration_ms = (
             result.total_duration_ns // 1_000_000
             if result.total_duration_ns is not None
