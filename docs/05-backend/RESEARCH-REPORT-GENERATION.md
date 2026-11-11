@@ -30,6 +30,8 @@ sequenceDiagram
 
 Java remains the authority for user authentication, job state, and source ownership. Python has no database or search credentials. A separate random `AURA_AI_INTERNAL_TOKEN` protects the internal route. The Python service's model provider defaults to `disabled`; no hosted fallback is implemented.
 
+The four current structured AI actions share a small `StructuredModelProvider` interface. Their routes retain the prompts, JSON schemas, input redaction, response validation, citations, and per-action generation bounds. The Ollama adapter owns the Ollama request format and translates its duration/token counters into provider-neutral completion metadata. Calls still run through the single-process model semaphore and the configured local endpoint allowlist. Adding another provider requires a separately reviewed adapter and explicit configuration; the interface does not enable hosted inference or grant a provider access to tools, files, or search.
+
 ## Contract and bounds
 
 - Endpoint: authenticated `POST /api/v1/research-jobs/{id}/report`.
@@ -68,13 +70,14 @@ The Python service rejects source IDs not present in its request. Findings may a
 - `backend/.../ResearchReportService.java`: completed-job check, source ownership, field truncation, input construction.
 - `backend/.../AiReportClient.java`: internal token and timeout-bound Java-to-Python call.
 - `ai-service/src/aura_ai_service/config.py`: disabled-by-default model and local endpoint validation.
-- `ai-service/src/aura_ai_service/main.py` and `redaction.py`: request validation, versioned prompt constants, pre-inference credential-pattern masking, bounded Ollama call, output validation, citation membership, quote-to-redacted-snippet matching, and content-free usage logging.
+- `ai-service/src/aura_ai_service/main.py` and `redaction.py`: request validation, versioned prompt constants, pre-inference credential-pattern masking, output validation, citation membership, quote-to-redacted-snippet matching, and content-free usage logging.
+- `ai-service/src/aura_ai_service/model_providers.py`: provider-neutral structured completion contract and the bounded, redirect-blocking Ollama adapter/transport.
 
 ## Testing and next evaluation
 
-The backend API tests should cover authentication, source ownership, 20-source bounds, and the Java/Python request payload. Python tests cover internal-token rejection, disabled/unavailable model behavior, valid response construction, and invented-source rejection. UI tests cover explicit invocation, sent IDs, linked citations, Markdown/JSON download behavior, and JSON evidence metadata without page text.
+The backend API tests should cover authentication, source ownership, 20-source bounds, and the Java/Python request payload. Python tests cover internal-token rejection, disabled/unavailable model behavior, valid response construction, invented-source rejection, provider request mapping, usage-counter normalization, response-size bounds, and generation limits. UI tests cover explicit invocation, sent IDs, linked citations, Markdown/JSON download behavior, and JSON evidence metadata without page text.
 
-The next AI quality work is a curated fixture set of source snippets with expected claims and source IDs. Measure citation membership and semantic support separately: membership is deterministic; semantic entailment needs human-reviewed examples and should not be presented as proven solely by another model's score.
+The next AI quality work is a curated fixture set of source snippets with expected claims and source IDs. Measure citation membership and semantic support separately: membership is deterministic; semantic entailment needs human-reviewed examples and should not be presented as proven solely by another model's score. The provider interface currently has only the local Ollama adapter; it is an extension seam, not evidence that additional model backends have been evaluated.
 
 ## Learning and interview prompts
 
