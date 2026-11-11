@@ -43,7 +43,9 @@ Java remains the authority for user authentication, job state, and source owners
 
 ## Model-run audit metadata
 
-Report, claim-comparison, and query-plan responses identify their prompt templates (`research-report-v2`, `claim-comparison-v1`, and `research-query-plan-v1`) and expose Ollama's total generation duration in milliseconds plus prompt and output token counts when the configured Ollama build returns them. The values come from Ollama's response fields [`total_duration`, `prompt_eval_count`, and `eval_count`](https://docs.ollama.com/api/chat). A missing or invalid metric is returned as `null` and does not fail report generation. The UI displays available values; JSON and Markdown downloads preserve the prompt version and available counters.
+Report, claim-comparison, and query-plan responses identify their prompt templates (`research-report-v3`, `claim-comparison-v3`, and `research-query-plan-v2`) and expose Ollama's total generation duration in milliseconds plus prompt and output token counts when the configured Ollama build returns them. The values come from Ollama's response fields [`total_duration`, `prompt_eval_count`, and `eval_count`](https://docs.ollama.com/api/chat). A missing or invalid metric is returned as `null` and does not fail report generation. The UI displays available values; JSON and Markdown downloads preserve the prompt version and available counters.
+
+Before any of these local model calls, the AI service redacts common credential patterns from every text value in the request, including the user topic/claim, source title/description, publisher, and URL. It masks PEM private-key blocks, Bearer/Basic tokens, common provider-formatted API keys, and values assigned to credential-like names such as `api_key`, `access_token`, `password`, and `client_secret`. The response coverage note shows counts by category and the number of affected fields without repeating the matched values in that audit note. Quote validation runs against the redacted source text; citation links still come from the server's original source records. The detector is pattern-based and cannot guarantee that every secret is found; original user inputs remain available only to the local application and are not sent to hosted models.
 
 The AI service writes a completion log with operation, configured model name, prompt version, duration, and token counts. It does not log the prompt, claim, source snippets, generated report, or generated comparison. These logs are operational telemetry, not a durable per-user audit database. Prompt versions are maintained in code and must be incremented when the system prompt, output schema, or generation settings change. They identify the template, not an immutable model artifact or a reproducibility guarantee.
 
@@ -66,7 +68,7 @@ The Python service rejects source IDs not present in its request. Findings may a
 - `backend/.../ResearchReportService.java`: completed-job check, source ownership, field truncation, input construction.
 - `backend/.../AiReportClient.java`: internal token and timeout-bound Java-to-Python call.
 - `ai-service/src/aura_ai_service/config.py`: disabled-by-default model and local endpoint validation.
-- `ai-service/src/aura_ai_service/main.py`: request validation, versioned prompt constants, bounded Ollama call, output validation, citation membership, quote-to-snippet matching, and content-free usage logging.
+- `ai-service/src/aura_ai_service/main.py` and `redaction.py`: request validation, versioned prompt constants, pre-inference credential-pattern masking, bounded Ollama call, output validation, citation membership, quote-to-redacted-snippet matching, and content-free usage logging.
 
 ## Testing and next evaluation
 

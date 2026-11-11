@@ -230,6 +230,7 @@ export default function App() {
   const [subject, setSubject] = useState("");
   const [additionalQueries, setAdditionalQueries] = useState<string[]>([]);
   const [suggestedQueries, setSuggestedQueries] = useState<string[]>([]);
+  const [queryPlanNote, setQueryPlanNote] = useState("");
   const [queryPlanBusy, setQueryPlanBusy] = useState(false);
   const [mode, setMode] = useState<ResearchMode>("GENERAL");
   const [searchProvider, setSearchProvider] = useState<SearchProviderChoice>("");
@@ -334,6 +335,7 @@ export default function App() {
     queryPlanGeneration.current += 1;
     setQueryPlanBusy(false);
     setSuggestedQueries([]);
+    setQueryPlanNote("");
     setSearching(true);
     setError("");
     setSearch(null);
@@ -396,11 +398,13 @@ export default function App() {
     const generation = ++queryPlanGeneration.current;
     const requestedTopic = subject.trim();
     setQueryPlanBusy(true);
+    setQueryPlanNote("");
     setError("");
     try {
       const plan = await suggestResearchQueries(credentials, requestedTopic);
       if (generation !== queryPlanGeneration.current) return;
       setSuggestedQueries(plan.suggestions);
+      setQueryPlanNote(plan.note);
       if (plan.suggestions.length === 0) setError("The local model did not return a useful search angle. You can enter one yourself.");
     } catch (caught) {
       if (generation === queryPlanGeneration.current) setError(errorMessage(caught));
@@ -1352,6 +1356,7 @@ export default function App() {
                       queryPlanGeneration.current += 1;
                       setQueryPlanBusy(false);
                       setSuggestedQueries([]);
+                      setQueryPlanNote("");
                       setSubject(event.target.value);
                     }} placeholder="e.g. recent developments in passkey adoption" required />
                     <span className="character-count">{subject.length}/300</span>
@@ -1363,6 +1368,7 @@ export default function App() {
                       {queryPlanBusy ? "Asking local model…" : "Suggest with local AI"}
                     </button>
                     <p className="query-plan-disclosure">Uses only the configured local Ollama model. Suggestions are drafts; review or edit them before Start research. This step does not contact search providers.</p>
+                    {queryPlanNote && <p className="query-plan-disclosure" aria-live="polite">{queryPlanNote}</p>}
                     {suggestedQueries.length > 0 && <ul className="suggested-query-list" aria-label="Suggested search angles">
                       {suggestedQueries.map((query) => <li key={query}><span>{query}</span><button type="button" aria-label={`Add suggestion: ${query}`} disabled={additionalQueries.length >= 2} onClick={() => addSuggestedQuery(query)}>Add</button></li>)}
                     </ul>}

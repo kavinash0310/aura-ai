@@ -92,7 +92,7 @@ def test_query_plan_suggests_distinct_angles_and_returns_model_telemetry(monkeyp
     assert response.status_code == 200
     assert response.json()["suggestions"] == ["public agency statement"]
     assert response.json()["modelRun"] == {
-        "promptVersion": "research-query-plan-v1",
+        "promptVersion": "research-query-plan-v2",
         "durationMs": 1200,
         "promptTokenCount": 321,
         "outputTokenCount": 42,
@@ -100,6 +100,38 @@ def test_query_plan_suggests_distinct_angles_and_returns_model_telemetry(monkeyp
     assert "search providers" in response.json()["note"]
     messages = captured["payload"]["messages"]
     assert "user will review and edit every suggestion" in messages[0]["content"]
+
+
+def test_query_plan_redacts_credentials_before_local_model_inference(monkeypatch) -> None:
+    from aura_ai_service import main
+
+    captured: dict[str, object] = {}
+
+    def fake_call(_base_url, payload, _timeout):
+        captured["payload"] = json.loads(payload)
+        return main.OllamaCallResult(content=json.dumps({"suggestions": ["official timeline"]}))
+
+    monkeypatch.setattr(main, "_call_ollama", fake_call)
+    app = create_app(
+        Settings(
+            internal_token=TOKEN,
+            model_provider="ollama",
+            ollama_base_url="http://localhost:11434",
+            ollama_model="test-model",
+        )
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/research/query-plan",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            json={"topic": "passkey adoption api_key=topic-secret-value"},
+        )
+
+    assert response.status_code == 200
+    prompt = json.loads(captured["payload"]["messages"][1]["content"])
+    assert "topic-secret-value" not in json.dumps(prompt)
+    assert prompt["topic"] == "passkey adoption api_key=[REDACTED]"
+    assert "1 value(s) across 1 text field(s) were masked" in response.json()["note"]
 
 
 def test_query_plan_requires_internal_token_and_local_model() -> None:
@@ -156,6 +188,10 @@ def test_report_returns_only_validated_source_citations(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["provider"] == "ollama"
+    assert response.json()["coverageNote"].startswith("AI-generated")
+    assert response.json()["coverageNote"].endswith(
+        "This pattern-based check cannot guarantee detection of every secret."
+    )
     assert response.json()["summarySourceIds"] == [SOURCE_ID]
     assert response.json()["citations"] == [
         {
@@ -167,6 +203,110 @@ def test_report_returns_only_validated_source_citations(monkeypatch) -> None:
         }
     ]
     assert "not included" in response.json()["coverageNote"]
+
+
+def test_report_redacts_credentials_before_local_model_inference(monkeypatch) -> None:
+    from aura_ai_service import main
+
+    captured: dict[str, object] = {}
+
+    def fake_call(_base_url, payload, _timeout):
+        captured["payload"] = json.loads(payload)
+        return main.OllamaCallResult(content=report_content())
+
+    monkeypatch.setattr(main, "_call_ollama", fake_call)
+    app = create_app(
+        Settings(
+            internal_token=TOKEN,
+            model_provider="ollama",
+            ollama_base_url="http://localhost:11434",
+            ollama_model="test-model",
+        )
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/research/report",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            json={
+                "query": "public API key=topic-secret-value-123",
+                "sources": [
+                    {
+                        "id": SOURCE_ID,
+                        "title": "Passkey overview",
+                        "url": "https://a.example/?access_token=url-secret-value-123",
+                        "domain": "a.example",
+                        "kind": "WEB",
+                        "description": (
+                            "Bearer source-secret-token-123 and ghp_12345678901234567890"
+                        ),
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    prompt = json.loads(captured["payload"]["messages"][1]["content"])
+    prompt_text = json.dumps(prompt)
+    assert "topic-secret-value-123" not in prompt_text
+    assert "url-secret-value-123" not in prompt_text
+    assert "source-secret-token-123" not in prompt_text
+    assert "ghp_12345678901234567890" not in prompt_text
+    assert response.json()["coverageNote"].startswith("AI-generated")
+    assert "4 value(s) across 3 text field(s) were masked" in response.json()["coverageNote"]
+    assert "named credential values: 2" in response.json()["coverageNote"]
+    assert "authorization tokens: 1" in response.json()["coverageNote"]
+    assert "provider-formatted keys: 1" in response.json()["coverageNote"]
+
+
+def test_claim_comparison_redacts_sensitive_input_and_returns_safe_claim(monkeypatch) -> None:
+    from aura_ai_service import main
+
+    captured: dict[str, object] = {}
+    comparison = json.dumps(
+        {
+            "assessment": "INSUFFICIENT",
+            "explanation": "The selected excerpts do not directly address the claim.",
+            "evidence": [],
+            "limitations": ["The provider snippets were not independently verified."],
+        }
+    )
+
+    def fake_call(_base_url, payload, _timeout):
+        captured["payload"] = json.loads(payload)
+        return main.OllamaCallResult(content=comparison)
+
+    monkeypatch.setattr(main, "_call_ollama", fake_call)
+    app = create_app(
+        Settings(
+            internal_token=TOKEN,
+            model_provider="ollama",
+            ollama_base_url="http://localhost:11434",
+            ollama_model="test-model",
+        )
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/research/compare",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            json={
+                "claim": "api_key=claim-secret-value-123 is a passkey",
+                "sources": [
+                    {
+                        "id": SOURCE_ID,
+                        "title": "Passkey overview",
+                        "url": "https://a.example/passkeys",
+                        "domain": "a.example",
+                        "kind": "WEB",
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    prompt = json.loads(captured["payload"]["messages"][1]["content"])
+    assert "claim-secret-value-123" not in json.dumps(prompt)
+    assert response.json()["claim"] == "api_key=[REDACTED] is a passkey"
+    assert "1 value(s) across 1 text field(s) were masked" in response.json()["coverageNote"]
 
 
 def test_report_rejects_model_citations_outside_selected_source_set(monkeypatch) -> None:

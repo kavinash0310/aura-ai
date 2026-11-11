@@ -35,8 +35,8 @@ describe("AURA research workspace", () => {
         provider: "ollama",
         model: "local-test-model",
         suggestions: ["official public response"],
-        modelRun: { promptVersion: "research-query-plan-v1", durationMs: 100, promptTokenCount: 10, outputTokenCount: 5 },
-        note: "Draft only; no search providers contacted.",
+        modelRun: { promptVersion: "research-query-plan-v2", durationMs: 100, promptTokenCount: 10, outputTokenCount: 5 },
+        note: "Draft only; no search providers contacted. Credential pattern check: 1 value across 1 text field was masked. Pattern-based check cannot guarantee detection of every secret.",
       }), { status: 200 }));
 
     render(<App />);
@@ -48,6 +48,7 @@ describe("AURA research workspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Suggest with local AI" }));
     expect(await screen.findByText("official public response")).toBeInTheDocument();
+    expect(screen.getByText(/Credential pattern check: 1 value across 1 text field was masked/)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[3]?.[0]).toBe("/api/v1/research/query-plan");
     expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ topic: "topic" });
@@ -606,7 +607,7 @@ describe("AURA research workspace", () => {
         summarySourceIds: [source.id], findings: [{ text: "A report covers passkeys.", sourceIds: [source.id] }],
         limitations: ["Only one source was selected."],
         citations: [{ id: source.id, title: source.title, url: source.url, domain: source.domain, kind: source.kind }],
-        coverageNote: "Model-generated; pages were not fetched.",
+        coverageNote: "Model-generated; pages were not fetched. Credential pattern check before local model inference: 0 value(s) across 0 text field(s) were masked (no credential-like values matched). This pattern-based check cannot guarantee detection of every secret.",
       }), { status: 200 }));
 
     render(<App />);
@@ -621,6 +622,7 @@ describe("AURA research workspace", () => {
 
     expect(await screen.findByRole("heading", { name: "Passkey adoption" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "[1] Passkey adoption report · example.com" })).toHaveAttribute("href", source.url);
+    expect(screen.getByText(/Credential pattern check before local model inference/)).toBeInTheDocument();
     expect(JSON.parse(String(fetchMock.mock.calls[5]?.[1]?.body))).toEqual({ sourceIds: [source.id] });
 
     vi.spyOn(window, "setTimeout").mockImplementation(() => 1);
@@ -643,6 +645,7 @@ describe("AURA research workspace", () => {
       report: { model: "test-model", summarySourceIds: [source.id] },
     });
     expect(downloaded.report).not.toHaveProperty("pageText");
+    expect(downloaded.report.coverageNote).toContain("pattern-based check cannot guarantee detection");
     expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 });
