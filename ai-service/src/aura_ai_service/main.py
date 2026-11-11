@@ -479,7 +479,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not _report_quotes_match_sources(report, request.sources):
             logger.warning("local_report_invalid_evidence_quote")
             raise HTTPException(
-                status_code=502, detail="The model returned an evidence quote not present in the selected snippet"
+                status_code=502,
+                detail="The model returned an evidence quote not present in the selected snippet",
             )
 
         citation_by_id = {
@@ -502,7 +503,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             citations=list(citation_by_id.values()),
             coverage_note=(
                 "AI-generated from only the selected search-result metadata and provider snippets. "
-                "Evidence quotes, when present, are matched against the selected source title or provider description; "
+                "Evidence quotes, when present, are matched against the selected source title "
+                "or provider description; "
                 "Page snapshots explicitly read in the UI are not included. "
                 "A matching excerpt does not prove that the linked page supports the finding. "
                 "Citation links identify candidate sources. Coverage is partial."
@@ -647,7 +649,9 @@ def _report_quotes_match_sources(
                 return False
             quote = _normalize_quote(evidence_quote.quote)
             candidates = (source.title, source.description or "")
-            if not quote or not any(quote in _normalize_quote(candidate) for candidate in candidates):
+            if not quote or not any(
+                quote in _normalize_quote(candidate) for candidate in candidates
+            ):
                 return False
     return True
 
