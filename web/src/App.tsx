@@ -180,7 +180,7 @@ function OsvDetails({ data, inventoryComponents = [] }: { data: OsvLookupRespons
     </div>}
     {data.affectedPackages.length > 0 && <details className="nvd-applicability">
       <summary>Packages listed by OSV ({data.affectedPackages.length}{data.affectedPackagesTruncated ? "+" : ""})</summary>
-      <p className="nvd-note">OSV package versions and ranges are source evidence. AURA matches exact affected-version strings for any ecosystem and compares complete npm SemVer 2 ranges locally.</p>
+      <p className="nvd-note">OSV package versions and ranges are source evidence. AURA matches exact affected-version strings for any ecosystem and compares complete npm SemVer 2 or canonical Go module SemVer ranges locally. Go versions need the v prefix; module paths and pseudo-version ancestry are not validated.</p>
       {data.affectedPackages.map((item, index) => <p className="sbom-component" key={`${item.ecosystem}-${item.name}-${index}`}>
         <strong>{item.name || "Unnamed package"}</strong>{item.ecosystem ? ` · ${item.ecosystem}` : ""}{item.purl ? ` · ${item.purl}` : ""}
         {item.versionRanges.map((range, rangeIndex) => <span key={`${range}-${rangeIndex}`}> · {range}</span>)}
