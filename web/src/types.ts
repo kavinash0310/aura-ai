@@ -172,7 +172,7 @@ export interface ModelRunTelemetry {
 
 export interface ResearchQueryPlanResponse {
   generatedAt: string;
-  provider: "ollama";
+  provider: "ollama" | "rules";
   model: string;
   suggestions: string[];
   modelRun: ModelRunTelemetry;

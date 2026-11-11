@@ -10,7 +10,7 @@ Public liveness response: `{ "status": "UP", "service": "aura-api" }`.
 
 ### GET `/api/v1/health` (Python AI service, port 8001 on loopback)
 
-Public response: `{ "status": "UP", "service": "aura-ai-service", "version": "0.1.0" }`. OpenAPI and interactive docs are disabled. The service has no database or public-search route. Its report, claim-comparison, and query-plan routes require the internal bearer token and are disabled unless local Ollama is explicitly configured.
+Public response: `{ "status": "UP", "service": "aura-ai-service", "version": "0.1.0" }`. OpenAPI and interactive docs are disabled. The service has no database or public-search route. Its report, claim-comparison, and document-answer routes require the internal bearer token and are disabled unless local Ollama is explicitly configured. Query planning also requires the bearer token; it uses local Ollama when enabled and deterministic local rules when disabled or unavailable.
 
 ### GET `/api/v1/session`
 
@@ -67,7 +67,7 @@ The response includes a title, summary, findings, model-generated limitations, t
 
 ### POST `/api/v1/research/query-plan`
 
-Requires local-owner Basic Auth. Request: `{ "topic": "Example public topic" }`; topic is required and at most 300 characters. Spring sends the topic to the internal Python service using the shared bearer token. If local Ollama is enabled, it returns at most two distinct suggestions and model-run metadata. It makes no public search request and does not create or persist a job. The UI displays drafts with an explicit **Add** action; the owner can edit them and must still click **Start research** before selected public providers receive any query. If local AI is disabled or unavailable, the request returns `503 AI_SERVICE_UNAVAILABLE`; manual query entry remains available.
+Requires local-owner Basic Auth. Request: `{ "topic": "Example public topic" }`; topic is required and at most 300 characters. Spring sends the topic to the internal Python service using the shared bearer token. If local Ollama is enabled and available, it returns at most two distinct suggestions and model-run metadata. Otherwise, deterministic local rules produce two bounded, generic angle drafts; the response identifies `provider: "rules"` and contains no model timing or token counts. The rules append fixed public-source/timeline phrases and do not detect sensitive personal details. The route makes no public search request and does not create or persist a job. The UI displays drafts with an explicit **Add** action; the owner can edit them and must still click **Start research** before selected public providers receive any query. Manual query entry remains available regardless of the AI-service/model configuration.
 
 The Java-to-Python call uses `AURA_AI_INTERNAL_TOKEN`, which must be a separate random secret. Python accepts only Ollama at `localhost`, `host.docker.internal`, `ollama`, or a private IP on port 11434. `AURA_AI_MODEL_PROVIDER` defaults to `disabled`. Local model configuration is described in the local development guide.
 

@@ -472,7 +472,7 @@ export default function App() {
       if (generation !== queryPlanGeneration.current) return;
       setSuggestedQueries(plan.suggestions);
       setQueryPlanNote(plan.note);
-      if (plan.suggestions.length === 0) setError("The local model did not return a useful search angle. You can enter one yourself.");
+      if (plan.suggestions.length === 0) setError("AURA did not create a search angle. You can enter one yourself.");
     } catch (caught) {
       if (generation === queryPlanGeneration.current) setError(errorMessage(caught));
     } finally {
@@ -1515,9 +1515,9 @@ export default function App() {
                   <div className="query-planner">
                     <div className="query-planner-heading"><div><strong>Search angles</strong><span>Add up to two focused versions of the topic.</span></div><span>{plannedQueries.length}/3 queries</span></div>
                     <button className="add-query-button" type="button" onClick={() => void suggestSearchAngles()} disabled={!connected || !subject.trim() || queryPlanBusy}>
-                      {queryPlanBusy ? "Asking local model…" : "Suggest with local AI"}
+                      {queryPlanBusy ? "Drafting suggestions…" : "Suggest search angles"}
                     </button>
-                    <p className="query-plan-disclosure">Uses only the configured local Ollama model. Suggestions are drafts; review or edit them before Start research. This step does not contact search providers.</p>
+                    <p className="query-plan-disclosure">Uses configured local Ollama when available; otherwise simple local rules add generic angles. The rules cannot detect sensitive personal details, so review every query before starting. This step does not contact search providers.</p>
                     {queryPlanNote && <p className="query-plan-disclosure" aria-live="polite">{queryPlanNote}</p>}
                     {suggestedQueries.length > 0 && <ul className="suggested-query-list" aria-label="Suggested search angles">
                       {suggestedQueries.map((query) => <li key={query}><span>{query}</span><button type="button" aria-label={`Add suggestion: ${query}`} disabled={additionalQueries.length >= 2} onClick={() => addSuggestedQuery(query)}>Add</button></li>)}

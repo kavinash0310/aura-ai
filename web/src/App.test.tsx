@@ -25,18 +25,18 @@ describe("AURA research workspace", () => {
     expect(window.sessionStorage.length).toBe(0);
   });
 
-  it("lets the owner review a local-model search suggestion before searching", async () => {
+  it("lets the owner review a deterministic search suggestion before searching", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
       .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response("[]", { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         generatedAt: "2026-11-08T00:00:00Z",
-        provider: "ollama",
-        model: "local-test-model",
+        provider: "rules",
+        model: "aura-query-plan-rules-v1",
         suggestions: ["official public response"],
-        modelRun: { promptVersion: "research-query-plan-v2", durationMs: 100, promptTokenCount: 10, outputTokenCount: 5 },
-        note: "Draft only; no search providers contacted. Credential pattern check: 1 value across 1 text field was masked. Pattern-based check cannot guarantee detection of every secret.",
+        modelRun: { promptVersion: "research-query-plan-rules-v1", durationMs: null, promptTokenCount: null, outputTokenCount: null },
+        note: "Draft only; deterministic local rules were used. Credential pattern check: 1 value across 1 text field was masked.",
       }), { status: 200 }));
 
     render(<App />);
@@ -46,9 +46,10 @@ describe("AURA research workspace", () => {
     await screen.findByText("Connected securely");
     fireEvent.change(screen.getByLabelText("Research question or topic"), { target: { value: "topic" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Suggest with local AI" }));
+    fireEvent.click(screen.getByRole("button", { name: "Suggest search angles" }));
     expect(await screen.findByText("official public response")).toBeInTheDocument();
     expect(screen.getByText(/Credential pattern check: 1 value across 1 text field was masked/)).toBeInTheDocument();
+    expect(screen.getByText(/deterministic local rules were used/)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[3]?.[0]).toBe("/api/v1/research/query-plan");
     expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({ topic: "topic" });

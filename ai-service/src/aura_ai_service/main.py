@@ -26,6 +26,8 @@ REPORT_PROMPT_VERSION = "research-report-v3"
 CLAIM_COMPARISON_PROMPT_VERSION = "claim-comparison-v3"
 QUERY_PLAN_PROMPT_VERSION = "research-query-plan-v2"
 DOCUMENT_QUESTION_PROMPT_VERSION = "document-question-v1"
+QUERY_PLAN_RULES_VERSION = "research-query-plan-rules-v1"
+QUERY_PLAN_RULES_MODEL = "aura-query-plan-rules-v1"
 
 
 class HealthResponse(BaseModel):
@@ -143,7 +145,7 @@ class ResearchQueryPlanResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     generated_at: datetime = Field(alias="generatedAt")
-    provider: Literal["ollama"]
+    provider: Literal["ollama", "rules"]
     model: str
     suggestions: list[str]
     model_run: ModelRunTelemetry = Field(alias="modelRun")
@@ -398,65 +400,69 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         if not token or not hmac.compare_digest(provided, token):
             raise HTTPException(status_code=401, detail="Internal service authentication failed")
-        if resolved_settings.model_provider != "ollama":
-            raise HTTPException(
-                status_code=503,
-                detail="Local query planning model is not configured",
-            )
-
         prompt_payload, redaction = redact_payload(request.model_dump(mode="json"))
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "Suggest up to two short, distinct public-web search queries that explore "
-                    "useful angles on the supplied research topic. Return only the required JSON. "
-                    "Do not answer the topic, add factual claims, or use private or sensitive "
-                    "personal data, exact home addresses, credentials, or real-time location. "
-                    "Focus on public sources such as official statements, timelines, evidence, "
-                    "and independent analysis when relevant. The user will review and edit every "
-                    "suggestion; no search is performed by this request. Credential-like values "
-                    "replaced with [REDACTED] were removed before inference; "
-                    "do not reconstruct them."
-                ),
-            },
-            {"role": "user", "content": json.dumps(prompt_payload, ensure_ascii=False)},
-        ]
-        try:
-            await asyncio.wait_for(app.state.model_lock.acquire(), timeout=2)
-        except TimeoutError:
-            raise HTTPException(status_code=503, detail="The local model is already busy") from None
-        try:
-            ollama_result = await asyncio.to_thread(
-                app.state.local_model.generate_structured,
-                messages,
-                response_schema=ResearchQueryPlanContent.model_json_schema(),
-                temperature=0.2,
-                max_tokens=350,
-            )
-            plan = ResearchQueryPlanContent.model_validate_json(ollama_result.content)
-        except ValidationError as error:
-            logger.warning(
-                "local_query_plan_invalid_output",
-                extra={"error_type": type(error).__name__},
-            )
-            raise HTTPException(
-                status_code=502,
-                detail="The local model returned an invalid query plan",
-            ) from None
-        except (HTTPError, URLError, TimeoutError, OSError, ValueError) as error:
-            logger.warning(
-                "local_query_plan_generation_failed",
-                extra={"error_type": type(error).__name__},
-            )
-            raise HTTPException(
-                status_code=503,
-                detail="The configured local model is unavailable",
-            ) from None
-        finally:
-            app.state.model_lock.release()
+        topic = prompt_payload["topic"]
+        plan = _deterministic_query_plan(topic)
+        provider = "rules"
+        model = QUERY_PLAN_RULES_MODEL
+        model_run = ModelRunTelemetry(
+            prompt_version=QUERY_PLAN_RULES_VERSION,
+            duration_ms=None,
+            prompt_token_count=None,
+            output_token_count=None,
+        )
 
-        topic_key = " ".join(request.topic.casefold().split())
+        if resolved_settings.model_provider == "ollama":
+            messages = [
+                {
+                    "role": "system",
+                    "content": (
+                        "Suggest up to two short, distinct public-web search queries that explore "
+                        "useful angles on the supplied research topic. Return only the required "
+                        "JSON. Do not answer the topic, add factual claims, or use private or "
+                        "sensitive personal data, exact home addresses, credentials, or real-time "
+                        "location. Focus on public sources such as official statements, timelines, "
+                        "evidence, and independent analysis when relevant. The user will review "
+                        "and edit every suggestion; no search is performed by this request. "
+                        "Credential-like values replaced with [REDACTED] were removed before "
+                        "inference; do not reconstruct them."
+                    ),
+                },
+                {"role": "user", "content": json.dumps(prompt_payload, ensure_ascii=False)},
+            ]
+            try:
+                await asyncio.wait_for(app.state.model_lock.acquire(), timeout=2)
+            except TimeoutError:
+                logger.warning("local_query_plan_model_busy_using_rules")
+            else:
+                try:
+                    ollama_result = await asyncio.to_thread(
+                        app.state.local_model.generate_structured,
+                        messages,
+                        response_schema=ResearchQueryPlanContent.model_json_schema(),
+                        temperature=0.2,
+                        max_tokens=350,
+                    )
+                    plan = ResearchQueryPlanContent.model_validate_json(ollama_result.content)
+                except ValidationError as error:
+                    logger.warning(
+                        "local_query_plan_invalid_output_using_rules",
+                        extra={"error_type": type(error).__name__},
+                    )
+                except (HTTPError, URLError, TimeoutError, OSError, ValueError) as error:
+                    logger.warning(
+                        "local_query_plan_generation_failed_using_rules",
+                        extra={"error_type": type(error).__name__},
+                    )
+                else:
+                    provider = "ollama"
+                    model = resolved_settings.ollama_model
+                    model_run = _model_run_telemetry(QUERY_PLAN_PROMPT_VERSION, ollama_result)
+                    _log_model_run("research_query_plan", model, model_run)
+                finally:
+                    app.state.model_lock.release()
+
+        topic_key = " ".join(topic.casefold().split())
         seen = {topic_key}
         suggestions: list[str] = []
         for value in plan.suggestions:
@@ -466,17 +472,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 seen.add(key)
                 suggestions.append(suggestion)
 
-        model_run = _model_run_telemetry(QUERY_PLAN_PROMPT_VERSION, ollama_result)
-        _log_model_run("research_query_plan", resolved_settings.ollama_model, model_run)
+        if not suggestions and provider == "ollama":
+            logger.warning("local_query_plan_empty_after_filter_using_rules")
+            plan = _deterministic_query_plan(topic)
+            suggestions = plan.suggestions
+            provider = "rules"
+            model = QUERY_PLAN_RULES_MODEL
+            model_run = ModelRunTelemetry(
+                prompt_version=QUERY_PLAN_RULES_VERSION,
+                duration_ms=None,
+                prompt_token_count=None,
+                output_token_count=None,
+            )
+
+        fallback_note = (
+            " Deterministic local rules were used; no model output was used."
+            if provider == "rules"
+            else ""
+        )
         return ResearchQueryPlanResponse(
             generated_at=datetime.now(UTC),
-            provider="ollama",
-            model=resolved_settings.ollama_model,
+            provider=provider,
+            model=model,
             suggestions=suggestions,
             model_run=model_run,
             note=(
                 "Draft suggestions only. Review and edit them before the separate Start "
-                "research action; this request did not contact search providers. "
+                "research action; this request did not contact search providers."
+                + fallback_note
+                + " "
                 + redaction.note()
             ),
         )
@@ -970,6 +994,21 @@ def _model_run_telemetry(
         prompt_token_count=prompt_token_count,
         output_token_count=output_token_count,
     )
+
+
+def _deterministic_query_plan(topic: str) -> ResearchQueryPlanContent:
+    normalized_topic = " ".join(topic.split())
+    suggestions: list[str] = []
+    seen = {normalized_topic.casefold()}
+    for suffix in ("official sources", "timeline and independent analysis"):
+        topic_limit = max(0, 300 - len(suffix) - 1)
+        bounded_topic = normalized_topic[:topic_limit].rstrip()
+        suggestion = f"{bounded_topic} {suffix}" if bounded_topic else suffix
+        key = suggestion.casefold()
+        if key not in seen:
+            seen.add(key)
+            suggestions.append(suggestion)
+    return ResearchQueryPlanContent(suggestions=suggestions)
 
 
 def _log_model_run(operation: str, model: str, model_run: ModelRunTelemetry) -> None:

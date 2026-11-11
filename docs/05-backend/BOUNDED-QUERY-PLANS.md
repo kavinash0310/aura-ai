@@ -2,9 +2,9 @@
 
 ## Purpose
 
-One search phrase can miss useful public sources. The owner can enter up to two focused angles or explicitly ask the configured local Ollama model to draft suggestions. The owner reviews each suggestion, chooses whether to add it, previews the complete plan, and explicitly starts one search. AURA sends no query to public search providers until the owner clicks **Start research**.
+One search phrase can miss useful public sources. The owner can enter up to two focused angles or ask AURA to draft suggestions. It uses the configured local Ollama model when available and falls back to two bounded rule-based angles when it is disabled or unavailable. The owner reviews each suggestion, chooses whether to add it, previews the complete plan, and explicitly starts one search. AURA sends no query to public search providers until the owner clicks **Start research**.
 
-The local query-plan endpoint sends only the topic to the local Ollama service. It returns at most two short suggestions, does not use search tools, and does not call a public search provider. If the local model is disabled or unavailable, the owner can continue entering angles manually. Suggestions are drafts and may be irrelevant or unsuitable; the owner must review or edit them before adding them to a plan.
+The query-plan endpoint sends a redacted topic only to the local Ollama service when that model is enabled. Its fallback applies local string rules to the redacted topic and makes no model request. Both paths return at most two short suggestions, do not use search tools, and do not call a public search provider. Suggestions are drafts and may be irrelevant or unsuitable; the owner must review or edit them before adding them to a plan. Responses identify `ollama` or `rules` and use an algorithm version with null timing/token fields for the latter.
 
 ```mermaid
 sequenceDiagram
@@ -15,12 +15,17 @@ sequenceDiagram
     participant Ollama as Local model
     participant Search as Selected public providers
 
-    Owner->>UI: Click Suggest with local AI
+    Owner->>UI: Click Suggest search angles
     UI->>API: Authenticated topic request
     API->>AI: Topic and internal bearer token
-    AI->>Ollama: Bounded prompt; no tools or search access
-    Ollama-->>AI: Up to two JSON query drafts
-    AI-->>API: Validated suggestions and telemetry
+    alt Ollama available
+      AI->>Ollama: Bounded prompt; no tools or search access
+      Ollama-->>AI: Up to two JSON query drafts
+      AI-->>API: Validated suggestions and telemetry
+    else Disabled or unavailable
+      AI->>AI: Apply local query-angle rules
+      AI-->>API: Rule-based drafts; no model telemetry
+    end
     API-->>UI: Draft suggestions
     Owner->>UI: Review, add, and edit a draft
     Owner->>UI: Separately click Start research
@@ -47,9 +52,9 @@ Each successful provider/query batch and its `SUCCEEDED` audit row commit togeth
 ## Trust and safety boundary
 
 - The owner chooses every submitted query angle. Local model suggestions are optional drafts and are never submitted automatically.
-- The query-plan action sends the topic only to the configured local Ollama endpoint; it makes no public search request.
+- When enabled, the query-plan action sends the redacted topic only to the configured local Ollama endpoint; the rules fallback uses the redacted topic locally and makes no network request.
 - The owner must add a suggestion to the editable query list and separately click **Start research** before any public provider receives it.
-- The local prompt asks for public-topic angles and excludes private/sensitive personal data, exact home addresses, credentials, and real-time location; this prompt is not a substitute for owner review.
+- The local prompt asks for public-topic angles and excludes private/sensitive personal data, exact home addresses, credentials, and real-time location; this prompt is not a substitute for owner review. The deterministic fallback only appends generic source/timeline terms and does not detect sensitive personal details. Review every query before starting public search.
 - At most three query strings are accepted by the API, independent of UI limits.
 - Each query is sent only to the providers explicitly selected or the existing Automatic choice.
 - All configured sources executes each angle against every enabled provider, with the call count and per-query result cap disclosed in the UI.
@@ -71,7 +76,7 @@ Each successful provider/query batch and its `SUCCEEDED` audit row commit togeth
 - `web/src/api.ts` and `web/src/types.ts`: request and response contracts.
 - `backend/src/main/java/ai/aura/api/api/ResearchQueryPlanController.java`: authenticated, bounded Spring endpoint.
 - `backend/src/main/java/ai/aura/api/application/AiReportClient.java`: internal bearer-token call to the AI service.
-- `ai-service/src/aura_ai_service/main.py`: strict local-model output schema, prompt version, deduplication, and content-free telemetry.
+- `ai-service/src/aura_ai_service/main.py`: strict local-model output schema, bounded deterministic fallback, output deduplication, provider/version response metadata, and content-free telemetry.
 - `backend/src/main/java/ai/aura/api/application/ResearchSearchService.java`: plan normalization and bounded sequential execution.
 - `backend/src/main/java/ai/aura/api/application/ResearchJobService.java`: per-provider/query audit and source writes.
 - `backend/src/main/resources/db/migration/common/V8__record_bounded_query_plans.sql`: backfill and schema change.
