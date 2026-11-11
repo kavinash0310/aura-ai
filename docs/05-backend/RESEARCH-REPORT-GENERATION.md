@@ -72,12 +72,13 @@ The Python service rejects source IDs not present in its request. Findings may a
 - `ai-service/src/aura_ai_service/config.py`: disabled-by-default model and local endpoint validation.
 - `ai-service/src/aura_ai_service/main.py` and `redaction.py`: request validation, versioned prompt constants, pre-inference credential-pattern masking, output validation, citation membership, quote-to-redacted-snippet matching, and content-free usage logging.
 - `ai-service/src/aura_ai_service/model_providers.py`: provider-neutral structured completion contract and the bounded, redirect-blocking Ollama adapter/transport.
+- `ai-service/scripts/evaluate_reports.py` and `ai-service/evaluation/research-report-cases.jsonl`: offline synthetic checks for schema validity, citation membership, exact quote matching, and the boundary between those checks and semantic support.
 
 ## Testing and next evaluation
 
 The backend API tests should cover authentication, source ownership, 20-source bounds, and the Java/Python request payload. Python tests cover internal-token rejection, disabled/unavailable model behavior, valid response construction, invented-source rejection, provider request mapping, usage-counter normalization, response-size bounds, and generation limits. UI tests cover explicit invocation, sent IDs, linked citations, Markdown/JSON download behavior, and JSON evidence metadata without page text.
 
-The next AI quality work is a curated fixture set of source snippets with expected claims and source IDs. Measure citation membership and semantic support separately: membership is deterministic; semantic entailment needs human-reviewed examples and should not be presented as proven solely by another model's score. The provider interface currently has only the local Ollama adapter; it is an extension seam, not evidence that additional model backends have been evaluated.
+CI runs `ai-service/scripts/evaluate_reports.py` against synthetic source/report fixtures. It checks output shape, source-ID membership, and exact quote anchors; one fixture has valid IDs and an exact quote while contradicting the source, to show that these checks do not establish semantic support. Semantic labels are fixture annotations, not model scores. Next, curate human-reviewed examples and measure semantic support separately; do not present another model's score as proof. The provider interface currently has only the local Ollama adapter; it is an extension seam, not evidence that additional model backends have been evaluated.
 
 ## Learning and interview prompts
 
