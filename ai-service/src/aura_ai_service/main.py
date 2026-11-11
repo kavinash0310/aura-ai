@@ -14,12 +14,13 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from aura_ai_service.config import Settings, get_settings
+from aura_ai_service.redaction import redact_payload
 
 logger = logging.getLogger("aura.ai_service")
 
-REPORT_PROMPT_VERSION = "research-report-v2"
-CLAIM_COMPARISON_PROMPT_VERSION = "claim-comparison-v2"
-QUERY_PLAN_PROMPT_VERSION = "research-query-plan-v1"
+REPORT_PROMPT_VERSION = "research-report-v3"
+CLAIM_COMPARISON_PROMPT_VERSION = "claim-comparison-v3"
+QUERY_PLAN_PROMPT_VERSION = "research-query-plan-v2"
 
 
 class HealthResponse(BaseModel):
@@ -310,7 +311,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail="Local query planning model is not configured",
             )
 
-        prompt_payload = request.model_dump(mode="json")
+        prompt_payload, redaction = redact_payload(request.model_dump(mode="json"))
         messages = [
             {
                 "role": "system",
@@ -321,7 +322,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "personal data, exact home addresses, credentials, or real-time location. "
                     "Focus on public sources such as official statements, timelines, evidence, "
                     "and independent analysis when relevant. The user will review and edit every "
-                    "suggestion; no search is performed by this request."
+                    "suggestion; no search is performed by this request. Credential-like values "
+                    "replaced with [REDACTED] were removed before inference; "
+                    "do not reconstruct them."
                 ),
             },
             {"role": "user", "content": json.dumps(prompt_payload, ensure_ascii=False)},
@@ -390,7 +393,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             model_run=model_run,
             note=(
                 "Draft suggestions only. Review and edit them before the separate Start "
-                "research action; this request did not contact search providers."
+                "research action; this request did not contact search providers. "
+                + redaction.note()
             ),
         )
 
@@ -409,7 +413,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail="Local report model is not configured")
 
         source_ids = {source.id for source in request.sources}
-        prompt_payload = request.model_dump(mode="json", by_alias=True)
+        prompt_payload, redaction = redact_payload(request.model_dump(mode="json", by_alias=True))
+        model_sources = _redacted_sources(request.sources, prompt_payload["sources"])
         messages = [
             {
                 "role": "system",
@@ -425,6 +430,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "repair a quote. These anchors are checked against the "
                     "provided snippet, not the linked page. If "
                     "evidence is weak or conflicting, say so in limitations. "
+                    "Credential-like values replaced with [REDACTED] were removed "
+                    "before inference; do not guess or reconstruct them. "
                     "Do not infer private or sensitive personal information. "
                     "Return only the required JSON structure."
                 ),
@@ -485,7 +492,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=502, detail="The model returned an invalid source citation"
             )
 
-        if not _report_quotes_match_sources(report, request.sources):
+        if not _report_quotes_match_sources(report, model_sources):
             logger.warning("local_report_invalid_evidence_quote")
             raise HTTPException(
                 status_code=502,
@@ -516,7 +523,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "or provider description; "
                 "Page snapshots explicitly read in the UI are not included. "
                 "A matching excerpt does not prove that the linked page supports the finding. "
-                "Citation links identify candidate sources. Coverage is partial."
+                "Citation links identify candidate sources. Coverage is partial. "
+                + redaction.note()
             ),
         )
 
@@ -539,7 +547,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail="Local report model is not configured")
 
         source_ids = {source.id for source in request.sources}
-        prompt_payload = request.model_dump(mode="json", by_alias=True)
+        prompt_payload, redaction = redact_payload(request.model_dump(mode="json", by_alias=True))
+        model_sources = _redacted_sources(request.sources, prompt_payload["sources"])
         messages = [
             {
                 "role": "system",
@@ -558,6 +567,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "Missing evidence does not show that a claim is false. Describe conflicts "
                     "and source limits. For private individuals, do not assess sensitive "
                     "details or unverified wrongdoing; use INSUFFICIENT. "
+                    "Credential-like values replaced with [REDACTED] were removed "
+                    "before inference; do not guess or reconstruct them. "
                     "Do not infer private or sensitive personal information. "
                     "Return only the required JSON structure."
                 ),
@@ -618,7 +629,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=502, detail="The model returned an invalid source citation"
             )
 
-        if not _claim_quotes_match_sources(comparison.evidence, request.sources):
+        if not _claim_quotes_match_sources(comparison.evidence, model_sources):
             logger.warning("local_claim_comparison_invalid_evidence_quote")
             raise HTTPException(
                 status_code=502,
@@ -641,7 +652,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             provider="ollama",
             model=resolved_settings.ollama_model,
             model_run=model_run,
-            claim=request.claim,
+            claim=prompt_payload["claim"],
             assessment=comparison.assessment,
             explanation=comparison.explanation,
             evidence=comparison.evidence,
@@ -652,11 +663,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "Evidence quotes, when present, are matched against the selected source title "
                 "or provider description; a match does not prove semantic support. "
                 "Pages were not independently checked, and this is not a fact-check verdict. "
-                "Page snapshots explicitly read in the UI are not included."
+                "Page snapshots explicitly read in the UI are not included. "
+                + redaction.note()
             ),
         )
 
     return app
+
+
+def _redacted_sources(
+    sources: list[ReportSource],
+    redacted_payloads: list[dict[str, object]],
+) -> list[ReportSource]:
+    text_fields = ("title", "url", "domain", "description", "publisher")
+    return [
+        source.model_copy(update={field: redacted[field] for field in text_fields})
+        for source, redacted in zip(sources, redacted_payloads, strict=True)
+    ]
 
 
 def _report_quotes_match_sources(

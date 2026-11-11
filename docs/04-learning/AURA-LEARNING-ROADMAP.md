@@ -28,7 +28,8 @@ Explain keyword vs semantic search and the lifecycle.
 ## Phase 4 — Model integration
 Learn inference, context windows, structured outputs, prompt injection, tool calls, token/cost/latency.
 Implemented first slice: one explicit local Ollama report path over up to 20 selected search-result snippets, with JSON Schema output, an internal bearer token, local/private URL validation, single-request serialization, source-ID membership validation, no hosted fallback, and Markdown download. Reports are not stored and uploaded documents are excluded.
-Still needed: reusable provider interface, prompt versions, redaction review, latency/token tracking, semantic citation evaluation, curated quality fixtures, optional hosted adapter, and deterministic fallback.
+Implemented: explicit local-only report, claim-comparison, and query-planning calls use versioned prompts, schema validation, citation checks, and timing/token counters. A deterministic secret-pattern pass redacts common credential strings across model-bound text fields and shows counts in the response coverage note without returning matches.
+Still needed: reusable provider interface, redaction false-negative evaluation, semantic citation evaluation, curated quality fixtures, optional hosted adapter, and deterministic fallback.
 Review local-only no-egress behavior, untrusted output fields, and retry rules.
 
 ## Phase 5 — Public research
