@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from typing import Protocol
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-
 MAX_OLLAMA_RESPONSE_BYTES = 64 * 1024
 
 

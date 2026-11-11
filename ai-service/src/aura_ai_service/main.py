@@ -16,8 +16,8 @@ from aura_ai_service.model_providers import (
     ModelCompletion,
     OllamaCallResult,
     OllamaStructuredProvider,
-    call_ollama as _call_ollama,
 )
+from aura_ai_service.model_providers import call_ollama as _call_ollama
 from aura_ai_service.redaction import redact_payload
 
 logger = logging.getLogger("aura.ai_service")
