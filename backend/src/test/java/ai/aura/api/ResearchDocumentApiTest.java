@@ -96,6 +96,42 @@ class ResearchDocumentApiTest {
     }
 
     @Test
+    void importsCsvAndJsonAsSearchableExtractedText() throws Exception {
+        MockMultipartFile csv = new MockMultipartFile("file", "evidence.csv", "text/csv",
+                "indicator,notes\nCVE-2026-12345,\"AURA, local research\"\n".getBytes(StandardCharsets.UTF_8));
+        String csvLocation = mockMvc.perform(multipart("/api/v1/documents").file(csv)
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.mediaType").value("text/csv; charset=utf-8"))
+                .andReturn().getResponse().getHeader("Location");
+        mockMvc.perform(get(csvLocation).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value(org.hamcrest.Matchers.containsString(
+                        "Row 2: [\"CVE-2026-12345\", \"AURA, local research\"]")));
+
+        MockMultipartFile json = new MockMultipartFile("file", "evidence.json", "application/json",
+                "{\"finding\":{\"id\":\"CVE-2026-54321\"}}".getBytes(StandardCharsets.UTF_8));
+        String jsonLocation = mockMvc.perform(multipart("/api/v1/documents").file(json)
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.mediaType").value("application/json; charset=utf-8"))
+                .andReturn().getResponse().getHeader("Location");
+        mockMvc.perform(get(jsonLocation).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value("$[\"finding\"][\"id\"]: \"CVE-2026-54321\"\n"));
+    }
+
+    @Test
+    void rejectsJsonWithTrailingContent() throws Exception {
+        MockMultipartFile malformed = new MockMultipartFile("file", "evidence.json", "application/json",
+                "{} {}".getBytes(StandardCharsets.UTF_8));
+        mockMvc.perform(multipart("/api/v1/documents").file(malformed)
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("The JSON file is malformed or contains trailing data."));
+    }
+
+    @Test
     void importsPdfTextAndReturnsPageCitations() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "research.pdf", "application/pdf",
                 pdfWithPages("AURA source on the first page.", "Evidence about AURA on the second page."));

@@ -21,7 +21,7 @@ Review the report route's typed Java-to-Python contract, bearer-token boundary, 
 ## Phase 3 — Documents and retrieval
 Learn encodings, parser risk, metadata, chunking/offsets, tokenization, inverted indexes, embeddings, vector similarity, access filters.
 Implement explicit upload validation → parser → normalized text → chunks → PostgreSQL FTS → retrieval → citations. Benchmark before pgvector.
-Implemented first slice: authenticated UTF-8 `.txt`/`.md` upload up to 1 MB plus text-based PDF extraction up to 100 pages and 250,000 characters, normalized/extracted text storage, SHA-256 metadata, exact-phrase search with character/page citations, preview/download, and deletion. Original PDF bytes are not retained; scanned PDFs need OCR, which is not enabled. Versioning, more parsers, chunking, and semantic retrieval remain future work.
+Implemented first slice: authenticated UTF-8 `.txt`/`.md`/`.csv`/`.json` uploads up to 1 MB plus text-based PDF extraction up to 100 pages and 250,000 characters. CSV is capped at 10,000 rows and 200 columns per row; JSON at 50,000 nodes and 64 levels; structured extracted text at 250,000 characters. Normalized/extracted text, SHA-256 metadata, exact-phrase search with character/page citations, preview/download, and deletion are implemented. Original PDF/CSV/JSON bytes are not retained; scanned PDFs need OCR, which is not enabled. Versioning, HTML parsing, chunking, and semantic retrieval remain future work.
 Review: How does chunk size alter context/recall? What if retrieval is irrelevant? How is citation tied to page/offset?
 Explain keyword vs semantic search and the lifecycle.
 

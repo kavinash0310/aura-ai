@@ -75,13 +75,15 @@ describe("AURA research workspace", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ ...document, content: "AURA notes for citation testing." }), { status: 200 }));
 
     render(<App />);
+    expect(screen.getByLabelText("Choose a .txt, .md, .pdf, .csv, or .json file"))
+      .toHaveAttribute("accept", expect.stringContaining(".csv"));
     fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
     fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
     await screen.findByText("Connected securely");
 
     const file = new File(["AURA notes for citation testing."], "notes.md", { type: "text/markdown" });
-    fireEvent.change(screen.getByLabelText("Choose a .txt, .md, or .pdf file"), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText("Choose a .txt, .md, .pdf, .csv, or .json file"), { target: { files: [file] } });
     fireEvent.change(screen.getByLabelText("Title (optional)"), { target: { value: "Local notes" } });
     fireEvent.click(screen.getByRole("button", { name: /Import document/ }));
     await screen.findByText(/notes\.md · 32 characters/);
