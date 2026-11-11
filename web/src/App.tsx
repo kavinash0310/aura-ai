@@ -890,7 +890,8 @@ export default function App() {
     if (item.content == null) return;
     const isExtractedText = item.mediaType === "application/pdf"
       || item.mediaType.startsWith("text/csv")
-      || item.mediaType.startsWith("application/json");
+      || item.mediaType.startsWith("application/json")
+      || item.mediaType.startsWith("text/html");
     const url = URL.createObjectURL(new Blob([item.content], {
       type: isExtractedText ? "text/plain;charset=utf-8" : item.mediaType,
     }));
@@ -1507,12 +1508,12 @@ export default function App() {
           <section className="panel documents-panel" id="documents" aria-labelledby="documents-title">
             <div className="panel-heading">
               <div className="step-number">03</div>
-              <div><h2 id="documents-title">Document library</h2><p>Store and search selected text, Markdown, PDF, CSV, and JSON documents.</p></div>
+              <div><h2 id="documents-title">Document library</h2><p>Store and search selected text, Markdown, PDF, CSV, JSON, and HTML documents.</p></div>
               <span className="panel-tag">MAX 1 MB</span>
             </div>
             <form className="document-upload-form" onSubmit={importDocument}>
-              <label className="field-label" htmlFor="document-file">Choose a .txt, .md, .pdf, .csv, or .json file</label>
-              <input key={documentInputKey} id="document-file" className="text-input sbom-file-input" type="file" accept=".txt,.md,.pdf,.csv,.json,text/plain,text/markdown,application/pdf,text/csv,application/json" onChange={(event) => setDocumentFile(event.currentTarget.files?.[0] ?? null)} />
+              <label className="field-label" htmlFor="document-file">Choose a .txt, .md, .pdf, .csv, .json, or .html file</label>
+              <input key={documentInputKey} id="document-file" className="text-input sbom-file-input" type="file" accept=".txt,.md,.pdf,.csv,.json,.html,.htm,text/plain,text/markdown,application/pdf,text/csv,application/json,text/html" onChange={(event) => setDocumentFile(event.currentTarget.files?.[0] ?? null)} />
               <label className="field-label document-title-label" htmlFor="document-title">Title (optional)</label>
               <input id="document-title" className="text-input" maxLength={300} value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} placeholder="Use the file name if left blank" />
               <div className="cyber-form-footer">
@@ -1521,7 +1522,7 @@ export default function App() {
                   {documentUploading ? <><span className="spinner" /> Importing</> : <>Import document <span aria-hidden="true">↗</span></>}
                 </button>
               </div>
-              <p className="cyber-egress-note">AURA stores extracted text in its local database with a SHA‑256 text hash. Search returns exact phrase and character citations; documents are not sent to Brave or an AI model. PDF extraction is limited to 100 pages and 250,000 characters; CSV to 10,000 rows and 200 columns per row; JSON to 50,000 nodes and 64 levels. Scanned PDFs are unsupported because OCR is not enabled. PDF, CSV, and JSON downloads contain extracted searchable text.</p>
+              <p className="cyber-egress-note">AURA stores extracted text in its local database with a SHA‑256 text hash. Search returns exact phrase and character citations; documents are not sent to Brave or an AI model. PDF extraction is limited to 100 pages and 250,000 characters; CSV to 10,000 rows and 200 columns per row; JSON to 50,000 nodes and 64 levels; HTML to 50,000 parser nodes and 64 levels. Structured extracted text is capped at 250,000 characters. Scanned PDFs are unsupported because OCR is not enabled. PDF, CSV, JSON, and HTML downloads contain extracted searchable text.</p>
             </form>
 
             <form className="document-search-form" onSubmit={searchDocumentLibrary}>
@@ -1537,7 +1538,7 @@ export default function App() {
               <button type="button" className="document-open-button" onClick={() => void openDocument(item.id)} disabled={openingDocumentId === item.id}>{openingDocumentId === item.id ? "Opening…" : item.title}</button>
               <span>{item.originalFilename} · {item.characterCount.toLocaleString()} characters · {item.contentHash.slice(0, 12)}…</span>
               <button type="button" className="history-delete" aria-label={`Delete document ${item.title}`} onClick={() => void removeDocument(item)}>×</button>
-            </article>)}</div> : <div className="empty-results"><strong>No documents imported</strong><p>Upload a UTF‑8 text, Markdown, CSV, JSON, or text-based PDF file to start a private library.</p></div>}
+            </article>)}</div> : <div className="empty-results"><strong>No documents imported</strong><p>Upload a UTF‑8 text, Markdown, CSV, JSON, HTML, or text-based PDF file to start a private library.</p></div>}
             {openedDocument && <div className="document-preview" aria-live="polite">
               <div className="document-list-heading"><strong>{openedDocument.title}</strong><div><button className="document-open-button" type="button" onClick={() => downloadDocument(openedDocument)}>Download</button><button className="document-open-button" type="button" onClick={() => setOpenedDocument(null)}>Close</button></div></div>
               <p>{openedDocument.originalFilename} · SHA‑256 {openedDocument.contentHash} · {openedDocument.characterCount.toLocaleString()} characters</p>

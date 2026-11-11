@@ -33,14 +33,17 @@ public class ResearchDocumentService {
     private final ResearchDocumentSearch documentSearch;
     private final PdfTextExtractor pdfTextExtractor;
     private final StructuredDocumentTextExtractor structuredDocumentTextExtractor;
+    private final HtmlDocumentTextExtractor htmlDocumentTextExtractor;
 
     public ResearchDocumentService(ResearchDocumentRepository repository, ResearchDocumentSearch documentSearch,
                                    PdfTextExtractor pdfTextExtractor,
-                                   StructuredDocumentTextExtractor structuredDocumentTextExtractor) {
+                                   StructuredDocumentTextExtractor structuredDocumentTextExtractor,
+                                   HtmlDocumentTextExtractor htmlDocumentTextExtractor) {
         this.repository = repository;
         this.documentSearch = documentSearch;
         this.pdfTextExtractor = pdfTextExtractor;
         this.structuredDocumentTextExtractor = structuredDocumentTextExtractor;
+        this.htmlDocumentTextExtractor = htmlDocumentTextExtractor;
     }
 
     @Transactional
@@ -48,7 +51,7 @@ public class ResearchDocumentService {
         if (repository.count() >= MAX_DOCUMENTS) {
             throw new InvalidDocumentException("The local library holds up to 100 documents. Delete one before importing another.");
         }
-        if (file == null || file.isEmpty()) throw new InvalidDocumentException("Choose a non-empty .txt, .md, .pdf, .csv, or .json file.");
+        if (file == null || file.isEmpty()) throw new InvalidDocumentException("Choose a non-empty .txt, .md, .pdf, .csv, .json, or .html file.");
         if (file.getSize() > MAX_FILE_BYTES) throw new InvalidDocumentException("Document files must be 1 MB or smaller.");
         String filename = safeFilename(file.getOriginalFilename());
         String extension = extension(filename);
@@ -58,7 +61,8 @@ public class ResearchDocumentService {
             case "pdf" -> "application/pdf";
             case "csv" -> "text/csv; charset=utf-8";
             case "json" -> "application/json; charset=utf-8";
-            default -> throw new InvalidDocumentException("Only UTF-8 .txt, .md, .csv, .json, and text-based .pdf files are supported.");
+            case "html", "htm" -> "text/html; charset=utf-8";
+            default -> throw new InvalidDocumentException("Only UTF-8 .txt, .md, .csv, .json, .html, and text-based .pdf files are supported.");
         };
         byte[] bytes;
         try {
@@ -71,6 +75,7 @@ public class ResearchDocumentService {
             case "pdf" -> pdfTextExtractor.extract(bytes);
             case "csv" -> structuredDocumentTextExtractor.extractCsv(decodeUtf8(bytes));
             case "json" -> structuredDocumentTextExtractor.extractJson(decodeUtf8(bytes));
+            case "html", "htm" -> htmlDocumentTextExtractor.extract(decodeUtf8(bytes));
             default -> decodeUtf8(bytes).replace("\r\n", "\n").replace('\r', '\n');
         };
         if (content.isBlank() || content.codePoints().anyMatch(character -> Character.isISOControl(character)
