@@ -61,8 +61,10 @@ jobs:
         run: uv sync --locked --all-groups
       - name: Verify AI service
         run: uv run pytest
+      - name: Evaluate synthetic redaction fixtures
+        run: uv run python scripts/evaluate_redaction.py
       - name: Check Python style
-        run: uv run ruff check src tests
+        run: uv run ruff check src tests scripts
 
   verify-web:
     runs-on: ubuntu-latest

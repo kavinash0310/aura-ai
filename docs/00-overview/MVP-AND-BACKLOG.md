@@ -47,7 +47,8 @@ Deliver explicit uploads, type/size validation, parser adapters, metadata, conte
 ### M4 — LLM integration
 Add provider interface, local and optional hosted adapters, structured output, prompt versions, redaction, token/latency tracking, deterministic fallback, evaluation.
 **Delivered first slice:** Explicit local Ollama query planning, cited reports, and claim comparison use structured validation, source-ID and quote checks, prompt versions, and content-free usage counters. Before model inference, a deterministic pattern check masks common authorization tokens, provider-formatted keys, private-key blocks, and values assigned to credential-like names; report notes show category and field counts without exposing matches. This applies to the topic, claim, and selected source text fields. A hosted fallback is not configured.
-**Still needed:** reusable provider interface, broader redaction evaluation, semantic citation evaluation, curated quality fixtures, and deterministic fallback.
+**Delivered evaluation slice:** CI runs an offline evaluator over synthetic supported-pattern, benign-text, and known-blind-spot fixtures. It reports supported-pattern recall, benign-text specificity, and which listed blind spots were detected, without printing fixture text or values. The fixture set measures only its listed examples and is not evidence of real-world secret-detection coverage.
+**Still needed:** reusable provider interface, broader redaction evaluation, semantic citation evaluation, report-quality fixtures, and deterministic fallback.
 **Accept when:** local-only mode cannot silently egress; outputs validate; evaluations are recorded.
 
 ### M5 — Public research

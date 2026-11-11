@@ -16,7 +16,10 @@ _CREDENTIAL_VALUE = (
     r"(?:\"[^\"\r\n]{4,}\"|'[^'\r\n]{4,}'|"
     r"(?:(?:Bearer|Basic)\s+)?[^\s,;&\"']{4,})"
 )
-_AUTH_TOKEN = r"\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}"
+_AUTH_TOKEN = (
+    r"\b(?:Bearer|Basic)\s+(?!(?:authorization|authentication|scheme|credentials?)\b)"
+    r"[A-Za-z0-9._~+/=-]{8,}"
+)
 _PROVIDER_TOKEN = (
     r"(?:AKIA|ASIA)[0-9A-Z]{16}"
     r"|gh[pousr]_[A-Za-z0-9_]{20,}"

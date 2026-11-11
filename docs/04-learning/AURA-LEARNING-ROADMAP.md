@@ -29,7 +29,8 @@ Explain keyword vs semantic search and the lifecycle.
 Learn inference, context windows, structured outputs, prompt injection, tool calls, token/cost/latency.
 Implemented first slice: one explicit local Ollama report path over up to 20 selected search-result snippets, with JSON Schema output, an internal bearer token, local/private URL validation, single-request serialization, source-ID membership validation, no hosted fallback, and Markdown download. Reports are not stored and uploaded documents are excluded.
 Implemented: explicit local-only report, claim-comparison, and query-planning calls use versioned prompts, schema validation, citation checks, and timing/token counters. A deterministic secret-pattern pass redacts common credential strings across model-bound text fields and shows counts in the response coverage note without returning matches.
-Still needed: reusable provider interface, redaction false-negative evaluation, semantic citation evaluation, curated quality fixtures, optional hosted adapter, and deterministic fallback.
+Implemented: CI runs a local synthetic redaction evaluation that reports supported-pattern recall, benign-text specificity, and known blind-spot detection without printing fixture contents. It is a small controlled fixture set, not an estimate of real-world secret-detection coverage.
+Still needed: reusable provider interface, semantic citation evaluation, curated report-quality fixtures, optional hosted adapter, and deterministic fallback.
 Review local-only no-egress behavior, untrusted output fields, and retry rules.
 
 ## Phase 5 — Public research
