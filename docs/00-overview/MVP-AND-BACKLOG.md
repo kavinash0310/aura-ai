@@ -74,5 +74,6 @@ Add persisted steps, typed tools, retries/backoff, cancellation, approval, audit
 ### M8 — Workspace and production readiness
 Add React pages, observability, security review, backup/restore, packaging, runbooks.
 **Delivered first slice:** Windows PowerShell scripts create PostgreSQL custom-format backups with archive inspection, SHA-256 manifests, and Git-ignored local output. Restore verifies the paired manifest and archive, creates a pre-restore safety backup, stops a running API, and applies the archive transactionally only after the explicit `-ConfirmRestore` flag. See the [database backup/restore runbook](../19-operations/DATABASE-BACKUP-RESTORE.md).
-**Still needed:** automated scheduling and retention, backup encryption/off-device handling, recovery drills, broader production observability, packaging, and a security review.
+**Delivered next slice:** A Spring Security filter rejects requests with an unapproved browser `Origin` or cross-site Fetch Metadata. Exact loopback UI origins are configurable; nonbrowser API clients without browser metadata continue to use Basic Auth normally. The [threat model](../02-architecture/THREAT-MODEL.md) records remaining CSRF limits.
+**Still needed:** automated scheduling and retention, backup encryption/off-device handling, recovery drills, broader production observability, packaging, and a full security review.
 **Accept when:** setup, report flow, auth boundaries, recovery, and limitations are demonstrated from a clean environment.
