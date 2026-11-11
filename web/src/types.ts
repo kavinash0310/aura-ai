@@ -164,6 +164,7 @@ export interface ClaimComparisonEvidence {
   stance: "SUPPORTS" | "CHALLENGES" | "CONTEXT" | "UNCLEAR";
   text: string;
   sourceIds: string[];
+  evidenceQuotes?: ResearchReportEvidenceQuote[];
 }
 
 export interface ClaimComparisonCitation {

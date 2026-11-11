@@ -18,7 +18,7 @@ from aura_ai_service.config import Settings, get_settings
 logger = logging.getLogger("aura.ai_service")
 
 REPORT_PROMPT_VERSION = "research-report-v2"
-CLAIM_COMPARISON_PROMPT_VERSION = "claim-comparison-v1"
+CLAIM_COMPARISON_PROMPT_VERSION = "claim-comparison-v2"
 QUERY_PLAN_PROMPT_VERSION = "research-query-plan-v1"
 
 
@@ -173,6 +173,15 @@ class ClaimEvidence(BaseModel):
     stance: Literal["SUPPORTS", "CHALLENGES", "CONTEXT", "UNCLEAR"]
     text: Annotated[str, Field(min_length=1, max_length=600)]
     source_ids: Annotated[list[str], Field(alias="sourceIds", min_length=1, max_length=5)]
+    evidence_quotes: list[EvidenceQuote] = Field(
+        default_factory=list, alias="evidenceQuotes", max_length=1
+    )
+
+    @model_validator(mode="after")
+    def evidence_quote_must_use_a_cited_source(self) -> "ClaimEvidence":
+        if any(item.source_id not in self.source_ids for item in self.evidence_quotes):
+            raise ValueError("Evidence quote source IDs must also be cited by the evidence item")
+        return self
 
 
 class ClaimComparisonContent(BaseModel):
@@ -541,6 +550,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "Label evidence SUPPORTED, CHALLENGED, MIXED, or INSUFFICIENT. "
                     "Labels apply only to supplied snippets; they are not fact-check verdicts. "
                     "Give each evidence item one stance and cite exact source IDs. "
+                    "For each evidence item, optionally provide one short evidence quote copied "
+                    "exactly from the cited source title or description and identify its source. "
+                    "Never invent or repair a quote. AURA checks quotes against the supplied "
+                    "snippet, not against the linked page. "
                     "Use INSUFFICIENT when excerpts do not directly address the claim. "
                     "Missing evidence does not show that a claim is false. Describe conflicts "
                     "and source limits. For private individuals, do not assess sensitive "
@@ -605,6 +618,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=502, detail="The model returned an invalid source citation"
             )
 
+        if not _claim_quotes_match_sources(comparison.evidence, request.sources):
+            logger.warning("local_claim_comparison_invalid_evidence_quote")
+            raise HTTPException(
+                status_code=502,
+                detail="The model returned an evidence quote not present in the selected snippet",
+            )
+
         citation_by_id = {
             source.id: ClaimComparisonCitation(
                 id=source.id,
@@ -629,6 +649,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             citations=list(citation_by_id.values()),
             coverage_note=(
                 "AI assessment of only the selected search-result metadata and provider snippets. "
+                "Evidence quotes, when present, are matched against the selected source title "
+                "or provider description; a match does not prove semantic support. "
                 "Pages were not independently checked, and this is not a fact-check verdict. "
                 "Page snapshots explicitly read in the UI are not included."
             ),
@@ -644,16 +666,39 @@ def _report_quotes_match_sources(
     source_by_id = {source.id: source for source in sources}
     for finding in report.findings:
         for evidence_quote in finding.evidence_quotes:
-            source = source_by_id.get(evidence_quote.source_id)
-            if source is None:
-                return False
-            quote = _normalize_quote(evidence_quote.quote)
-            candidates = (source.title, source.description or "")
-            if not quote or not any(
-                quote in _normalize_quote(candidate) for candidate in candidates
-            ):
+            matches = _quote_matches_source(
+                evidence_quote.source_id,
+                evidence_quote.quote,
+                source_by_id,
+            )
+            if not matches:
                 return False
     return True
+
+
+def _claim_quotes_match_sources(
+    evidence_items: list[ClaimEvidence],
+    sources: list[ReportSource],
+) -> bool:
+    source_by_id = {source.id: source for source in sources}
+    return all(
+        _quote_matches_source(item.source_id, item.quote, source_by_id)
+        for evidence_item in evidence_items
+        for item in evidence_item.evidence_quotes
+    )
+
+
+def _quote_matches_source(
+    source_id: str,
+    quote_value: str,
+    source_by_id: dict[str, ReportSource],
+) -> bool:
+    source = source_by_id.get(source_id)
+    if source is None:
+        return False
+    quote = _normalize_quote(quote_value)
+    candidates = (source.title, source.description or "")
+    return bool(quote) and any(quote in _normalize_quote(candidate) for candidate in candidates)
 
 
 def _normalize_quote(value: str) -> str:
