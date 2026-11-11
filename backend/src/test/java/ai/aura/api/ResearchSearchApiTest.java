@@ -30,6 +30,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -252,6 +254,85 @@ class ResearchSearchApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.results.length()").value(3))
                 .andExpect(jsonPath("$.providerRuns[1].status").value("FAILED"));
+    }
+
+    @Test
+    void ownerCanExplicitlyRetryOnlyTheLatestFailedProviderAttempt() throws Exception {
+        UUID id = createJob("retryable-query");
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"provider\":\"all\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PARTIAL"))
+                .andExpect(jsonPath("$.providerRuns[1].attempt").value(1))
+                .andExpect(jsonPath("$.providerRuns[1].status").value("FAILED"));
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id
+                        + "/providers/secondary/queries/1/retry").param("attempt", "1"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id
+                        + "/providers/secondary/queries/1/retry")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .param("attempt", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.providerResultCount").value(4))
+                .andExpect(jsonPath("$.providerRuns.length()").value(3))
+                .andExpect(jsonPath("$.providerRuns[1].status").value("FAILED"))
+                .andExpect(jsonPath("$.providerRuns[2].attempt").value(2))
+                .andExpect(jsonPath("$.providerRuns[2].status").value("SUCCEEDED"));
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id
+                        + "/providers/secondary/queries/1/retry")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .param("attempt", "1"))
+                .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(sources.countByResearchJobId(id)).isEqualTo(4);
+        org.assertj.core.api.Assertions.assertThat(providerRuns.findByResearchJobIdOrderByRunOrderAsc(id))
+                .extracting(run -> run.getAttempt())
+                .containsExactly(1, 1, 2);
+    }
+
+    @Test
+    void explicitProviderRetryStopsAfterThreeTotalAttempts() throws Exception {
+        UUID id = createJob("multi-source-fails");
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id + "/search")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"provider\":\"all\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PARTIAL"));
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id
+                        + "/providers/secondary/queries/1/retry")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .param("attempt", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providerRuns[2].attempt").value(2))
+                .andExpect(jsonPath("$.providerRuns[2].status").value("FAILED"));
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id
+                        + "/providers/secondary/queries/1/retry")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .param("attempt", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providerRuns[3].attempt").value(3))
+                .andExpect(jsonPath("$.providerRuns[3].status").value("FAILED"));
+
+        mockMvc.perform(post("/api/v1/research-jobs/" + id
+                        + "/providers/secondary/queries/1/retry")
+                        .with(httpBasic(USERNAME, PASSWORD))
+                        .param("attempt", "3"))
+                .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(providerRuns.findByResearchJobIdOrderByRunOrderAsc(id))
+                .extracting(run -> run.getAttempt())
+                .containsExactly(1, 1, 2, 3);
     }
 
     @Test
@@ -503,7 +584,8 @@ class ResearchSearchApiTest {
         UUID id = createJob("legacy interrupted search");
         jobs.beginSearch(id, ResearchFilters.defaults(), "test", List.of("test"), List.of("legacy interrupted search"));
         jobs.startProviderRun(id, "test", 1);
-        var legacyRun = providerRuns.findByResearchJobIdAndProviderAndQueryOrder(id, "test", 1).orElseThrow();
+        var legacyRun = providerRuns.findByResearchJobIdAndProviderAndQueryOrderAndAttempt(id, "test", 1, 1)
+                .orElseThrow();
         legacyRun.succeed(1, Instant.now());
         providerRuns.save(legacyRun);
 
@@ -599,6 +681,7 @@ class ResearchSearchApiTest {
 
         @Bean
         SearchProvider secondaryTestSearchProvider() {
+            ConcurrentHashMap<String, AtomicInteger> callsByQuery = new ConcurrentHashMap<>();
             return new SearchProvider() {
                 @Override
                 public String name() {
@@ -613,6 +696,10 @@ class ResearchSearchApiTest {
                 @Override
                 public List<ProviderSource> search(String query, ResearchFilters filters) {
                     if (query.equals("multi-source-fails") || query.equals("all-providers-fail")) {
+                        throw new SearchProviderException("SEARCH_PROVIDER_RATE_LIMITED", true);
+                    }
+                    if (query.equals("retryable-query")
+                            && callsByQuery.computeIfAbsent(query, ignored -> new AtomicInteger()).incrementAndGet() == 1) {
                         throw new SearchProviderException("SEARCH_PROVIDER_RATE_LIMITED", true);
                     }
                     return List.of(new ProviderSource(

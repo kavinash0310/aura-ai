@@ -39,6 +39,7 @@ The document library keeps stable version snapshots: each upload has its own ID 
 
 Bluesky connector details and its current limits are documented in [BLUESKY-SEARCH.md](docs/05-backend/BLUESKY-SEARCH.md).
 Provider outcome persistence and partial-result behavior are explained in [PROVIDER-OUTCOME-AUDIT.md](docs/05-backend/PROVIDER-OUTCOME-AUDIT.md).
+An owner can explicitly retry a failed provider/query with its saved query and filters. AURA stores each attempt, allows up to three total attempts, and does not retry automatically.
 The query planner limits a search to three visible angles and retains query provenance; local Ollama may suggest up to two drafts, but the owner must add/review them and start the search separately; see [BOUNDED-QUERY-PLANS.md](docs/05-backend/BOUNDED-QUERY-PLANS.md).
 
 ## Local development

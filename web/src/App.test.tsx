@@ -161,8 +161,8 @@ describe("AURA research workspace", () => {
         country: null, language: null, freshness: null, requestedLimit: 10,
         providerResultCount: 1, searchedAt: "2026-11-07T00:00:00Z", results: [source],
         providerRuns: [
-          { provider: "gdelt", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-07T00:00:00Z", completedAt: "2026-11-07T00:00:01Z" },
-          { provider: "bluesky", status: "FAILED", resultCount: 0, failureCode: "SEARCH_PROVIDER_RATE_LIMITED", startedAt: "2026-11-07T00:00:01Z", completedAt: "2026-11-07T00:00:02Z" },
+          { provider: "gdelt", queryOrder: 1, attempt: 1, query: "passkeys", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-07T00:00:00Z", completedAt: "2026-11-07T00:00:01Z" },
+          { provider: "bluesky", queryOrder: 1, attempt: 1, query: "passkeys", status: "FAILED", resultCount: 0, failureCode: "SEARCH_PROVIDER_RATE_LIMITED", startedAt: "2026-11-07T00:00:01Z", completedAt: "2026-11-07T00:00:02Z" },
         ],
         coverageNote: "Partial coverage: some providers did not return results.",
       }), { status: 200 }))
@@ -171,8 +171,8 @@ describe("AURA research workspace", () => {
         country: null, language: null, freshness: null, requestedLimit: 10,
         providerResultCount: 1, searchedAt: "2026-11-07T00:00:00Z", results: [source],
         providerRuns: [
-          { provider: "gdelt", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-07T00:00:00Z", completedAt: "2026-11-07T00:00:01Z" },
-          { provider: "bluesky", status: "FAILED", resultCount: 0, failureCode: "SEARCH_PROVIDER_RATE_LIMITED", startedAt: "2026-11-07T00:00:01Z", completedAt: "2026-11-07T00:00:02Z" },
+          { provider: "gdelt", queryOrder: 1, attempt: 1, query: "passkeys", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-07T00:00:00Z", completedAt: "2026-11-07T00:00:01Z" },
+          { provider: "bluesky", queryOrder: 1, attempt: 1, query: "passkeys", status: "FAILED", resultCount: 0, failureCode: "SEARCH_PROVIDER_RATE_LIMITED", startedAt: "2026-11-07T00:00:01Z", completedAt: "2026-11-07T00:00:02Z" },
         ],
         coverageNote: "Partial coverage: some providers did not return results.",
       }), { status: 200 }));
@@ -198,7 +198,7 @@ describe("AURA research workspace", () => {
     expect(resultLink).toHaveAttribute("rel", "noopener noreferrer");
     expect(screen.getAllByText("GDELT").length).toBeGreaterThan(0);
     expect(screen.getByText("Partial results")).toBeInTheDocument();
-    expect(screen.getByText(/Bluesky failed · 0 results · SEARCH_PROVIDER_RATE_LIMITED/)).toBeInTheDocument();
+    expect(screen.getByText(/Bluesky attempt 1 failed · 0 results · SEARCH_PROVIDER_RATE_LIMITED/)).toBeInTheDocument();
     const searchRequest = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/api/v1/research-jobs/job-1/search"));
     expect(JSON.parse(String(searchRequest?.[1]?.body))).toMatchObject({ provider: "all" });
 
@@ -211,6 +211,63 @@ describe("AURA research workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(7));
     expect(fetchMock.mock.calls[6]?.[0]).toContain("provider=gdelt");
+  });
+
+  it("retries a failed provider only after the owner selects its retry action", async () => {
+    const source = {
+      id: "source-retry-1", provider: "gdelt", searchQuery: "topic", kind: "NEWS", rank: 1,
+      title: "Existing result", url: "https://example.com/existing", domain: "example.com",
+      description: "A saved provider result.", publisher: "Example", publishedAt: null,
+      retrievedAt: "2026-11-11T00:00:00Z",
+    };
+    const failed = {
+      provider: "bluesky", queryOrder: 1, attempt: 1, query: "topic", status: "FAILED",
+      resultCount: 0, failureCode: "SEARCH_PROVIDER_RATE_LIMITED", startedAt: "2026-11-11T00:00:00Z",
+      completedAt: "2026-11-11T00:00:01Z",
+    };
+    const completedRun = { ...failed, attempt: 2, status: "SUCCEEDED", resultCount: 1, failureCode: null };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response("[]", { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: "job-retry", subject: "topic", mode: "GENERAL", status: "REQUESTED",
+        createdAt: "2026-11-11T00:00:00Z", searchProvider: null, searchResultCount: 0,
+      }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        jobId: "job-retry", query: "topic", status: "PARTIAL", provider: "all",
+        country: null, language: null, freshness: null, requestedLimit: 10, providerResultCount: 1,
+        searchedAt: "2026-11-11T00:00:01Z", results: [source],
+        providerRuns: [{ ...failed, provider: "gdelt", status: "SUCCEEDED", resultCount: 1, failureCode: null }, failed],
+        coverageNote: "Partial coverage.",
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        jobId: "job-retry", query: "topic", status: "COMPLETED", provider: "all",
+        country: null, language: null, freshness: null, requestedLimit: 10, providerResultCount: 2,
+        searchedAt: "2026-11-11T00:00:03Z", results: [source],
+        providerRuns: [
+          { ...failed, provider: "gdelt", status: "SUCCEEDED", resultCount: 1, failureCode: null },
+          failed,
+          completedRun,
+        ],
+        coverageNote: "Search complete.",
+      }), { status: 200 }));
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /Connect to API/ }));
+    await screen.findByText("Connected securely");
+    fireEvent.change(screen.getByLabelText("Research question or topic"), { target: { value: "topic" } });
+    fireEvent.change(screen.getByLabelText("Search source"), { target: { value: "all" } });
+    fireEvent.click(screen.getByRole("button", { name: /Start research/ }));
+
+    const retryButton = await screen.findByRole("button", { name: "Retry Bluesky query 1 (1/3)" });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/retry"))).toBe(false);
+    fireEvent.click(retryButton);
+    await waitFor(() => expect(screen.getByText("Complete")).toBeInTheDocument());
+    expect(fetchMock.mock.calls[5]?.[0]).toBe("/api/v1/research-jobs/job-retry/providers/bluesky/queries/1/retry?attempt=1");
+    expect(screen.queryByRole("button", { name: /Retry Bluesky query/ })).not.toBeInTheDocument();
   });
 
   it("reads one selected HTTPS source only after the user requests it", async () => {
@@ -280,7 +337,7 @@ describe("AURA research workspace", () => {
         jobId: savedJob.id, query: savedJob.subject, status: "COMPLETED", provider: "brave",
         country: null, language: null, freshness: null, requestedLimit: 10,
         providerResultCount: 1, searchedAt: "2026-11-06T00:00:00Z", results: [savedSource],
-        providerRuns: [{ provider: "brave", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-06T00:00:00Z", completedAt: "2026-11-06T00:00:01Z" }],
+        providerRuns: [{ provider: "brave", queryOrder: 1, attempt: 1, query: "old research brief", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-06T00:00:00Z", completedAt: "2026-11-06T00:00:01Z" }],
         coverageNote: "Partial provider coverage.",
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
@@ -598,7 +655,7 @@ describe("AURA research workspace", () => {
         jobId: "job-report", query: "passkey adoption", status: "COMPLETED", provider: "brave",
         country: null, language: null, freshness: null, requestedLimit: 10, providerResultCount: 1,
         searchedAt: "2026-11-07T00:00:00Z", results: [source],
-        providerRuns: [{ provider: "brave", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-07T00:00:00Z", completedAt: "2026-11-07T00:00:01Z" }],
+        providerRuns: [{ provider: "brave", queryOrder: 1, attempt: 1, query: "passkey adoption", status: "SUCCEEDED", resultCount: 1, failureCode: null, startedAt: "2026-11-07T00:00:00Z", completedAt: "2026-11-07T00:00:01Z" }],
         coverageNote: "Partial provider coverage.",
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({

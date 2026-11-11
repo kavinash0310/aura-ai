@@ -54,7 +54,13 @@ public record ResearchSearchResponse(
             List<ProviderRunResponse> providerRuns
     ) {
         if (status == ResearchJobStatus.PARTIAL) {
-            String failedProviders = providerRuns.stream()
+            java.util.Map<String, ProviderRunResponse> latestAttempts = new java.util.LinkedHashMap<>();
+            for (ProviderRunResponse run : providerRuns) {
+                String key = run.provider() + ":" + run.queryOrder();
+                latestAttempts.merge(key, run, (current, candidate) ->
+                        candidate.attempt() > current.attempt() ? candidate : current);
+            }
+            String failedProviders = latestAttempts.values().stream()
                     .filter(run -> run.status() == ai.aura.api.domain.ResearchProviderRunStatus.FAILED
                             || run.status() == ai.aura.api.domain.ResearchProviderRunStatus.SKIPPED)
                     .map(ProviderRunResponse::provider)

@@ -24,6 +24,7 @@ import {
   listSources,
   searchDocuments,
   runResearch,
+  retryResearchProvider,
   suggestResearchQueries,
   uploadDocument,
   uploadDocumentVersion,
@@ -38,6 +39,7 @@ import type {
   ResearchDocumentSearchHit,
   DocumentQuestionResponse,
   ResearchMode,
+  ProviderRun,
   SearchProviderChoice,
   ResearchSource,
   ResearchReportResponse,
@@ -95,6 +97,12 @@ function kindLabel(kind: ResearchSource["kind"]): string {
 
 function providerLabel(provider: string): string {
   return provider === "brave" ? "Brave" : provider === "gdelt" ? "GDELT" : provider === "bluesky" ? "Bluesky" : provider === "openalex" ? "OpenAlex" : provider === "all" ? "All configured sources" : provider;
+}
+
+function isLatestProviderAttempt(run: ProviderRun, runs: ProviderRun[]): boolean {
+  return !runs.some((candidate) => candidate.provider === run.provider
+    && candidate.queryOrder === run.queryOrder
+    && candidate.attempt > run.attempt);
 }
 
 function assessmentLabel(assessment: ClaimComparisonResponse["assessment"]): string {
@@ -259,6 +267,7 @@ export default function App() {
   const [draftFilters, setDraftFilters] = useState<ResultFilters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<ResultFilters>(emptyFilters);
   const [searching, setSearching] = useState(false);
+  const [retryingProviderRun, setRetryingProviderRun] = useState<string | null>(null);
   const [openingJobId, setOpeningJobId] = useState<string | null>(null);
   const [filtering, setFiltering] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
@@ -396,6 +405,58 @@ export default function App() {
       }
     } finally {
       setSearching(false);
+    }
+  }
+
+  async function retryProviderRun(run: ProviderRun) {
+    if (!connected || !job || job.status === "SEARCHING" || retryingProviderRun) return;
+    const currentJob = job;
+    const runKey = `${currentJob.id}:${run.provider}:${run.queryOrder}:${run.attempt}`;
+    setRetryingProviderRun(runKey);
+    setError("");
+    try {
+      const response = await retryResearchProvider(
+        credentials,
+        currentJob.id,
+        run.provider,
+        run.queryOrder,
+        run.attempt,
+      );
+      setSearch(response);
+      setSources(response.results);
+      setSelectedSourceIds(response.results.slice(0, 20).map((source) => source.id));
+      setDraftFilters(emptyFilters);
+      setAppliedFilters(emptyFilters);
+      setResearchReport(null);
+      setClaimComparison(null);
+      const updatedJob = {
+        ...currentJob,
+        status: response.status,
+        searchProvider: response.provider,
+        searchResultCount: response.providerResultCount,
+        providerRuns: response.providerRuns,
+      };
+      setJob(updatedJob);
+      setJobs((current) => current.map((item) => item.id === updatedJob.id ? updatedJob : item));
+    } catch (caught) {
+      setError(errorMessage(caught));
+      try {
+        const updatedJobs = await listResearchJobs(credentials);
+        setJobs(updatedJobs);
+        const updatedJob = updatedJobs.find((item) => item.id === currentJob.id);
+        if (updatedJob) {
+          setJob(updatedJob);
+          setSearch((current) => current && current.jobId === updatedJob.id ? {
+            ...current,
+            status: updatedJob.status,
+            providerRuns: updatedJob.providerRuns ?? current.providerRuns,
+          } : current);
+        }
+      } catch {
+        // Keep the provider error visible if refreshing history also fails.
+      }
+    } finally {
+      setRetryingProviderRun(null);
     }
   }
 
@@ -1554,7 +1615,15 @@ export default function App() {
                     <button className="filter-button" type="submit" disabled={filtering}>{filtering ? "…" : "Apply"}</button>
                   </form>
                   {search.coverageNote && <p className="coverage-note"><span>ⓘ</span> {search.coverageNote}</p>}
-                  {search.providerRuns?.length > 0 && <p className="report-scope-note">Provider outcomes: {search.providerRuns.map((run) => `“${run.query}” → ${providerLabel(run.provider)} ${run.status.toLowerCase()} · ${run.resultCount} results${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>}
+                  {search.providerRuns?.length > 0 && <>
+                    <p className="report-scope-note">Provider outcomes: {search.providerRuns.map((run) => `“${run.query}” → ${providerLabel(run.provider)} attempt ${run.attempt} ${run.status.toLowerCase()} · ${run.resultCount} results${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>
+                    {search.providerRuns.filter((run) => run.status === "FAILED" && run.attempt < 3 && isLatestProviderAttempt(run, search.providerRuns)).map((run) => {
+                      const key = `${job.id}:${run.provider}:${run.queryOrder}:${run.attempt}`;
+                      return <button className="nvd-lookup-button" type="button" key={key} onClick={() => void retryProviderRun(run)} disabled={!connected || searching || Boolean(retryingProviderRun)}>
+                        {retryingProviderRun === key ? "Retrying…" : `Retry ${providerLabel(run.provider)} query ${run.queryOrder} (${run.attempt}/3)`}
+                      </button>;
+                    })}
+                  </>}
                   <p className="report-scope-note">A report or claim comparison uses up to 20 checked results after filtering. AURA checks the first 20 by default; change the source checkboxes below. Their metadata and snippets go to your configured local model only after you choose an action. Read page sends one unauthenticated HTTPS request only after you choose it. Fetched text stays in browser memory and is excluded from reports and comparisons.</p>
                   <section className="claim-comparison-panel" aria-label="Compare a claim against selected sources">
                     <div className="claim-comparison-intro"><div className="section-kicker">EVIDENCE TOOL</div><h3>Compare a claim</h3><p>Enter one statement to compare with up to 20 sources you checked below. This is an AI assessment of those excerpts, not a fact-check.</p></div>
@@ -1640,7 +1709,15 @@ export default function App() {
                     <span className="source-rank">{String(source.rank).padStart(2, "0")}</span>
                   </article>)}</div></> : <div className="empty-results"><span>⌕</span><strong>No sources match these filters</strong><p>Try clearing a filter or widening the date range.</p></div>}
                 </>}
-                {!search && job && <div className="empty-results welcome-results"><span>{job.status === "FAILED" ? "!" : "◷"}</span><strong>{job.status === "FAILED" ? "This search did not finish" : job.status === "SEARCHING" ? "This search is still running" : "This brief has not been searched yet"}</strong><p>{job.status === "FAILED" ? `The saved failure code is ${job.failureCode ?? "unavailable"}. Start a new brief to try again.` : job.status === "SEARCHING" ? "Reload this brief in a moment to see whether the provider returned." : "If the provider key was just configured, press Start research to retry this saved brief."}</p>{job.providerRuns && job.providerRuns.length > 0 && <p>Provider outcomes: {job.providerRuns.map((run) => `${providerLabel(run.provider)} ${run.status.toLowerCase()}${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>}</div>}
+                {!search && job && <div className="empty-results welcome-results"><span>{job.status === "FAILED" ? "!" : "◷"}</span><strong>{job.status === "FAILED" ? "This search did not finish" : job.status === "SEARCHING" ? "This search is still running" : "This brief has not been searched yet"}</strong><p>{job.status === "FAILED" ? `The saved failure code is ${job.failureCode ?? "unavailable"}. Retry an individual failed provider below, or start a new brief.` : job.status === "SEARCHING" ? "Reload this brief in a moment to see whether the provider returned." : "If the provider key was just configured, press Start research to retry this saved brief."}</p>{job.providerRuns && job.providerRuns.length > 0 && <>
+                  <p>Provider outcomes: {job.providerRuns.map((run) => `${providerLabel(run.provider)} attempt ${run.attempt} ${run.status.toLowerCase()}${run.failureCode ? ` · ${run.failureCode}` : ""}`).join("  |  ")}</p>
+                  {job.providerRuns.filter((run) => run.status === "FAILED" && run.attempt < 3 && isLatestProviderAttempt(run, job.providerRuns ?? [])).map((run) => {
+                    const key = `${job.id}:${run.provider}:${run.queryOrder}:${run.attempt}`;
+                    return <button className="nvd-lookup-button" type="button" key={key} onClick={() => void retryProviderRun(run)} disabled={!connected || searching || Boolean(retryingProviderRun)}>
+                      {retryingProviderRun === key ? "Retrying…" : `Retry ${providerLabel(run.provider)} query ${run.queryOrder} (${run.attempt}/3)`}
+                    </button>;
+                  })}
+                </>}</div>}
                 {!search && !job && <div className="empty-results welcome-results"><span>✳</span><strong>Your sources will appear here</strong><p>Start a research brief to gather public links, filter them, and download your findings.</p></div>}
               </section>
             </div>

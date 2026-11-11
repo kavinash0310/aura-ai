@@ -42,7 +42,8 @@ Review coverage definition, contradiction retention, and why search cannot prove
 ## Phase 6 — Controlled workflow
 Learn state machines, leases, idempotency, backoff, audit, approval, typed tools.
 Implemented first slice: public search commits each successful provider's source rows and audit outcome atomically. A single-backend startup recovery marks interrupted calls failed, uncalled providers skipped, and derives the job's terminal status without repeating requests.
-Still needed: persisted workflow steps, leases/heartbeats for multi-instance execution, retries/backoff, cancellation, approval, and broader error recovery.
+Implemented next slice: the owner can explicitly retry one latest failed provider/query up to three total attempts. Query text and filters come from the saved job, each attempt remains separately auditable, and only the latest attempt determines current coverage. The user click authorizes the repeated public request; there is no automatic retry.
+Still needed: multi-instance leases/heartbeats, asynchronous retry scheduling, cancellation, and broader error recovery.
 Review replay, retries, terminal failures, and policy boundary.
 
 ## Phase 7 — Cyber intelligence and operations

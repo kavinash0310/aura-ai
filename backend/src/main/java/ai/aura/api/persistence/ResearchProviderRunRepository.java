@@ -15,9 +15,10 @@ public interface ResearchProviderRunRepository extends JpaRepository<ResearchPro
             Collection<UUID> researchJobIds
     );
 
-    Optional<ResearchProviderRun> findByResearchJobIdAndProviderAndQueryOrder(
+    Optional<ResearchProviderRun> findByResearchJobIdAndProviderAndQueryOrderAndAttempt(
             UUID researchJobId,
             String provider,
-            int queryOrder
+            int queryOrder,
+            int attempt
     );
 }

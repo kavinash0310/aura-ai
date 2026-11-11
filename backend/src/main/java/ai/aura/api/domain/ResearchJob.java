@@ -93,6 +93,16 @@ public class ResearchJob {
         this.failureCode = null;
     }
 
+    public void beginProviderRetry(Instant startedAt) {
+        if (status != ResearchJobStatus.PARTIAL && status != ResearchJobStatus.FAILED) {
+            throw new IllegalStateException("Only a completed partial or failed search can be retried.");
+        }
+        this.status = ResearchJobStatus.SEARCHING;
+        this.searchStartedAt = startedAt;
+        this.searchCompletedAt = null;
+        this.failureCode = null;
+    }
+
     public void completeSearch(int resultCount, Instant completedAt) {
         this.status = ResearchJobStatus.COMPLETED;
         this.searchResultCount = resultCount;

@@ -84,6 +84,53 @@ public class ResearchSearchService {
         return completed;
     }
 
+    public ResearchJob retryFailedProvider(UUID jobId, String requestedProvider, int queryOrder, int attempt) {
+        SearchProvider provider = providersByName.get(requestedProvider);
+        if (provider == null) {
+            throw new InvalidResearchFilterException("The requested provider is not supported.");
+        }
+        if (!provider.isConfigured()) {
+            throw new SearchProviderNotConfiguredException();
+        }
+        ResearchJob existingJob = jobs.get(jobId);
+        var retryRun = jobs.beginProviderRetry(jobId, requestedProvider, queryOrder, attempt);
+        jobs.startProviderRun(jobId, requestedProvider, queryOrder, retryRun.getAttempt());
+
+        SearchProviderException failure = null;
+        List<ProviderSource> providerResults = null;
+        ResearchFilters retryFilters = new ResearchFilters(
+                existingJob.getSearchCountry(),
+                existingJob.getSearchLanguage(),
+                existingJob.getSearchFreshness(),
+                existingJob.getSearchLimit() == null ? 20 : existingJob.getSearchLimit()
+        );
+        try {
+            providerResults = provider.search(retryRun.getQueryText(), retryFilters);
+        } catch (SearchProviderException exception) {
+            failure = exception;
+            jobs.failProviderRun(jobId, requestedProvider, queryOrder, retryRun.getAttempt(), exception.getCode());
+        } catch (RuntimeException exception) {
+            failure = new SearchProviderException("SEARCH_PROVIDER_FAILURE", false);
+            jobs.failProviderRun(jobId, requestedProvider, queryOrder, retryRun.getAttempt(), failure.getCode());
+        }
+
+        if (failure == null) {
+            jobs.completeProviderRun(jobId, requestedProvider, queryOrder, retryRun.getAttempt(), providerResults);
+        }
+
+        ResearchJob completed = jobs.completeSearch(jobId, failure == null ? null : failure.getCode());
+        if (completed.getStatus() == ai.aura.api.domain.ResearchJobStatus.FAILED) {
+            if (failure != null && failure.getCode().equals(completed.getFailureCode())) {
+                throw failure;
+            }
+            throw new SearchProviderException(
+                    completed.getFailureCode() == null ? "SEARCH_PROVIDER_FAILURE" : completed.getFailureCode(),
+                    false
+            );
+        }
+        return completed;
+    }
+
     private static List<String> normalizeQueries(String subject, List<String> requestedQueries) {
         String rootQuery = subject.strip();
         if (requestedQueries == null || requestedQueries.isEmpty()) {

@@ -224,6 +224,17 @@ export function runResearch(
   });
 }
 
+export function retryResearchProvider(
+  credentials: Credentials,
+  id: string,
+  provider: string,
+  queryOrder: number,
+  attempt: number,
+): Promise<SearchResponse> {
+  const path = `${jobPath(id)}/providers/${encodeURIComponent(provider)}/queries/${queryOrder}/retry?attempt=${attempt}`;
+  return request<SearchResponse>(path, credentials, { method: "POST" });
+}
+
 export function readResearchPage(credentials: Credentials, jobId: string, sourceId: string): Promise<ResearchPageResponse> {
   return request<ResearchPageResponse>(
     `${jobPath(jobId)}/sources/${encodeURIComponent(sourceId)}/page`,

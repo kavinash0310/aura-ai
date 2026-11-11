@@ -30,6 +30,9 @@ public class ResearchProviderRun {
     @Column(name = "query_order", nullable = false, updatable = false)
     private int queryOrder;
 
+    @Column(nullable = false, updatable = false)
+    private int attempt;
+
     @Column(name = "query_text", nullable = false, length = 300, updatable = false)
     private String queryText;
 
@@ -52,18 +55,34 @@ public class ResearchProviderRun {
     protected ResearchProviderRun() {
     }
 
-    private ResearchProviderRun(UUID id, UUID researchJobId, String provider, int runOrder, int queryOrder, String queryText) {
+    private ResearchProviderRun(
+            UUID id,
+            UUID researchJobId,
+            String provider,
+            int runOrder,
+            int queryOrder,
+            int attempt,
+            String queryText
+    ) {
         this.id = id;
         this.researchJobId = researchJobId;
         this.provider = provider;
         this.runOrder = runOrder;
         this.queryOrder = queryOrder;
+        this.attempt = attempt;
         this.queryText = queryText;
         this.status = ResearchProviderRunStatus.PENDING;
     }
 
-    public static ResearchProviderRun pending(UUID jobId, String provider, int runOrder, int queryOrder, String queryText) {
-        return new ResearchProviderRun(UUID.randomUUID(), jobId, provider, runOrder, queryOrder, queryText);
+    public static ResearchProviderRun pending(
+            UUID jobId,
+            String provider,
+            int runOrder,
+            int queryOrder,
+            int attempt,
+            String queryText
+    ) {
+        return new ResearchProviderRun(UUID.randomUUID(), jobId, provider, runOrder, queryOrder, attempt, queryText);
     }
 
     public void start(Instant at) {
@@ -107,6 +126,7 @@ public class ResearchProviderRun {
     public String getProvider() { return provider; }
     public int getRunOrder() { return runOrder; }
     public int getQueryOrder() { return queryOrder; }
+    public int getAttempt() { return attempt; }
     public String getQueryText() { return queryText; }
     public ResearchProviderRunStatus getStatus() { return status; }
     public int getResultCount() { return resultCount; }
