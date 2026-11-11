@@ -1,7 +1,6 @@
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from typing import Any
-
 
 _PRIVATE_KEY = (
     r"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
