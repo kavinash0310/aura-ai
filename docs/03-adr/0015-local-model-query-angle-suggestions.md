@@ -9,19 +9,21 @@ AURA already lets an owner enter up to two additional search queries and review 
 
 ## Decision
 
-Add an authenticated `POST /api/v1/research/query-plan` endpoint through Spring to the internal Python service. It accepts one bounded topic and, only when local Ollama is configured, asks it for at most two concise public-source angles. The local model receives no provider results, documents, credentials, or source pages. It has no search tool or provider route.
+Add an authenticated `POST /api/v1/research/query-plan` endpoint through Spring to the internal Python service. It accepts one bounded topic and, when local Ollama is configured, asks it for at most two concise public-source angles. When Ollama is disabled, busy, or unavailable, deterministic local rules produce bounded suggestions instead. The local model receives no provider results, documents, credentials, or source pages. It has no search tool or provider route.
 
-Suggestions are drafts. The browser shows each suggestion separately; the owner explicitly adds one, can edit it, and must still click **Start research** before the search query is sent to selected public providers. A topic change discards in-flight results and current suggestions. If the model is disabled or unavailable, manual query entry remains available.
+Suggestions are drafts. The browser shows each suggestion separately; the owner explicitly adds one, can edit it, and must still click **Start research** before the search query is sent to selected public providers. A topic change discards in-flight results and current suggestions. Manual query entry remains available. The response identifies whether Ollama or local rules produced the suggestions; the rules fallback has no model telemetry.
 
 The prompt asks the model to avoid private or sensitive personal data, exact home addresses, credentials, and real-time location. These instructions do not guarantee model output quality, so owner review is required. The public search remains bounded by the existing three-query and provider-count limits.
 
+The rules fallback only appends generic source/timeline phrases to the redacted topic; it does not detect sensitive personal information. Owner review remains necessary before the query is sent to a public provider.
+
 ## Consequences
 
-- Local Ollama may help the owner explore official statements, timelines, evidence, and independent analysis without turning search into an autonomous loop.
+- Local Ollama may help the owner explore official statements, timelines, evidence, and independent analysis. Deterministic fallback angles remain deliberately generic and do not turn search into an autonomous loop.
 - The feature adds a user-authenticated Spring route and an internal bearer-token-protected Python route.
-- Query suggestion generation shares the single-request local model semaphore with report and claim-comparison actions.
+- Ollama query suggestions share the single-request local model semaphore with report and claim-comparison actions. The rules fallback makes no model call and takes no semaphore slot.
 - Operational timing/token metadata is logged without the topic or generated queries. Draft suggestions remain in browser memory; if the owner submits them in a search, the existing workflow stores the submitted queries with that saved brief.
-- A model may still return poor or unsuitable suggestions; it does not send them anywhere, and public search needs a separate owner action.
+- Ollama may return poor or unsuitable suggestions; deterministic fallback suggestions are generic and may not fit the topic. Neither path sends a suggestion to a provider; public search needs a separate owner action.
 
 ## Rejected alternatives
 

@@ -1,4 +1,5 @@
 import json
+from urllib.error import URLError
 
 import pytest
 from fastapi.testclient import TestClient
@@ -134,7 +135,7 @@ def test_query_plan_redacts_credentials_before_local_model_inference(monkeypatch
     assert "1 value(s) across 1 text field(s) were masked" in response.json()["note"]
 
 
-def test_query_plan_requires_internal_token_and_local_model() -> None:
+def test_query_plan_requires_token_and_uses_rules_when_local_model_is_disabled() -> None:
     app = create_app(
         Settings(
             internal_token=TOKEN,
@@ -148,11 +149,67 @@ def test_query_plan_requires_internal_token_and_local_model() -> None:
         disabled = client.post(
             "/api/v1/research/query-plan",
             headers={"Authorization": f"Bearer {TOKEN}"},
-            json={"topic": "topic"},
+            json={"topic": "passkeys api_key=topic-secret-value-123"},
         )
 
     assert unauthorized.status_code == 401
-    assert disabled.status_code == 503
+    assert disabled.status_code == 200
+    assert disabled.json()["provider"] == "rules"
+    assert disabled.json()["model"] == "aura-query-plan-rules-v1"
+    assert disabled.json()["suggestions"] == [
+        "passkeys api_key=[REDACTED] official sources",
+        "passkeys api_key=[REDACTED] timeline and independent analysis",
+    ]
+    assert disabled.json()["modelRun"] == {
+        "promptVersion": "research-query-plan-rules-v1",
+        "durationMs": None,
+        "promptTokenCount": None,
+        "outputTokenCount": None,
+    }
+    assert "topic-secret-value-123" not in json.dumps(disabled.json())
+    assert "deterministic local rules" in disabled.json()["note"]
+
+
+def test_query_plan_falls_back_to_rules_when_local_model_is_unavailable(monkeypatch) -> None:
+    from aura_ai_service import main
+
+    def unavailable_model(*_args):
+        raise URLError("offline")
+
+    monkeypatch.setattr(main, "_call_ollama", unavailable_model)
+    app = create_app(
+        Settings(
+            internal_token=TOKEN,
+            model_provider="ollama",
+            ollama_base_url="http://localhost:11434",
+            ollama_model="test-model",
+        )
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/research/query-plan",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+            json={"topic": "passkey adoption"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["provider"] == "rules"
+    assert response.json()["suggestions"] == [
+        "passkey adoption official sources",
+        "passkey adoption timeline and independent analysis",
+    ]
+    assert "deterministic local rules" in response.json()["note"]
+
+
+def test_deterministic_query_plan_keeps_suggestions_within_api_limit() -> None:
+    from aura_ai_service.main import _deterministic_query_plan
+
+    plan = _deterministic_query_plan("x" * 400)
+
+    assert len(plan.suggestions) == 2
+    assert all(len(suggestion) <= 300 for suggestion in plan.suggestions)
+    assert plan.suggestions[0].endswith("official sources")
+    assert plan.suggestions[1].endswith("timeline and independent analysis")
 
 
 def test_report_returns_only_validated_source_citations(monkeypatch) -> None:

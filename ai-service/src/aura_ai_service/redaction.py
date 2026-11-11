@@ -67,7 +67,7 @@ class RedactionSummary:
         if not matched:
             matched = "no credential-like values matched"
         return (
-            f"Credential pattern check before local model inference: {self.total_matches} "
+            f"Credential pattern check before local processing: {self.total_matches} "
             f"value(s) across {self.fields_redacted} text field(s) were masked ({matched}). "
             "This pattern-based check cannot guarantee detection of every secret."
         )
