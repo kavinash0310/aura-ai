@@ -8,6 +8,7 @@ import {
   deleteResearchJob,
   downloadExport,
   generateResearchReport,
+  getDocumentVersions,
   readResearchPage,
   listResearchPageReads,
   lookupSbom,
@@ -24,6 +25,7 @@ import {
   runResearch,
   suggestResearchQueries,
   uploadDocument,
+  uploadDocumentVersion,
   validateConnection,
 } from "./api";
 import type {
@@ -271,12 +273,17 @@ export default function App() {
   const [githubAdvisoryBusyCve, setGithubAdvisoryBusyCve] = useState<string | null>(null);
   const [documents, setDocuments] = useState<ResearchDocument[]>([]);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentVersionFile, setDocumentVersionFile] = useState<File | null>(null);
   const [documentInputKey, setDocumentInputKey] = useState(0);
+  const [documentVersionInputKey, setDocumentVersionInputKey] = useState(0);
   const [documentTitle, setDocumentTitle] = useState("");
   const [documentQuery, setDocumentQuery] = useState("");
   const [documentHits, setDocumentHits] = useState<ResearchDocumentSearchHit[]>([]);
   const [openedDocument, setOpenedDocument] = useState<ResearchDocument | null>(null);
+  const [documentVersions, setDocumentVersions] = useState<ResearchDocument[] | null>(null);
   const [documentUploading, setDocumentUploading] = useState(false);
+  const [documentVersionUploading, setDocumentVersionUploading] = useState(false);
+  const [documentVersionsLoadingId, setDocumentVersionsLoadingId] = useState<string | null>(null);
   const [documentSearching, setDocumentSearching] = useState(false);
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
   const [sbomFile, setSbomFile] = useState<File | null>(null);
@@ -828,6 +835,7 @@ export default function App() {
       if (session !== workspaceSession.current) return;
       setDocuments((current) => [uploaded, ...current.filter((item) => item.id !== uploaded.id)].slice(0, 100));
       setOpenedDocument(null);
+      setDocumentVersions(null);
       setDocumentHits([]);
       setDocumentFile(null);
       setDocumentTitle("");
@@ -864,8 +872,14 @@ export default function App() {
     setOpeningDocumentId(id);
     setError("");
     try {
-      const result = await getDocument(credentials, id);
-      if (session === workspaceSession.current) setOpenedDocument(result);
+      const [result, versions] = await Promise.all([
+        getDocument(credentials, id),
+        getDocumentVersions(credentials, id),
+      ]);
+      if (session === workspaceSession.current) {
+        setOpenedDocument(result);
+        setDocumentVersions(versions);
+      }
     } catch (caught) {
       if (session === workspaceSession.current) setError(errorMessage(caught));
     } finally {
@@ -873,14 +887,73 @@ export default function App() {
     }
   }
 
+  async function loadDocumentVersions(item: ResearchDocument) {
+    if (!connected) return;
+    const session = workspaceSession.current;
+    setDocumentVersionsLoadingId(item.id);
+    setError("");
+    try {
+      const [opened, versions] = await Promise.all([
+        getDocument(credentials, item.id),
+        getDocumentVersions(credentials, item.id),
+      ]);
+      if (session === workspaceSession.current) {
+        setOpenedDocument(opened);
+        setDocumentVersions(versions);
+      }
+    } catch (caught) {
+      if (session === workspaceSession.current) setError(errorMessage(caught));
+    } finally {
+      if (session === workspaceSession.current) setDocumentVersionsLoadingId(null);
+    }
+  }
+
+  async function importDocumentVersion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!connected || !openedDocument || !documentVersionFile) return;
+    if (documentVersionFile.size > 1024 * 1024) {
+      setError("Document files must be 1 MB or smaller.");
+      return;
+    }
+    const session = workspaceSession.current;
+    setDocumentVersionUploading(true);
+    setError("");
+    try {
+      const uploaded = await uploadDocumentVersion(
+        credentials,
+        openedDocument.id,
+        documentVersionFile,
+        openedDocument.title,
+      );
+      const [currentVersion, versions] = await Promise.all([
+        getDocument(credentials, uploaded.id),
+        getDocumentVersions(credentials, uploaded.id),
+      ]);
+      if (session !== workspaceSession.current) return;
+      setDocuments((current) => [uploaded, ...current.filter((item) => item.logicalDocumentId !== uploaded.logicalDocumentId)].slice(0, 100));
+      setOpenedDocument(currentVersion);
+      setDocumentVersions(versions);
+      setDocumentHits([]);
+      setDocumentVersionFile(null);
+      setDocumentVersionInputKey((current) => current + 1);
+    } catch (caught) {
+      if (session === workspaceSession.current) setError(errorMessage(caught));
+    } finally {
+      if (session === workspaceSession.current) setDocumentVersionUploading(false);
+    }
+  }
+
   async function removeDocument(item: ResearchDocument) {
-    if (!window.confirm(`Delete “${item.title}” and its stored text?`)) return;
+    if (!window.confirm(`Delete “${item.title}” and all its stored versions?`)) return;
     setError("");
     try {
       await deleteDocument(credentials, item.id);
-      setDocuments((current) => current.filter((document) => document.id !== item.id));
+      setDocuments((current) => current.filter((document) => document.logicalDocumentId !== item.logicalDocumentId));
       setDocumentHits((current) => current.filter((hit) => hit.documentId !== item.id));
-      if (openedDocument?.id === item.id) setOpenedDocument(null);
+      if (openedDocument?.logicalDocumentId === item.logicalDocumentId) {
+        setOpenedDocument(null);
+        setDocumentVersions(null);
+      }
     } catch (caught) {
       setError(errorMessage(caught));
     }
@@ -1512,7 +1585,7 @@ export default function App() {
               <span className="panel-tag">MAX 1 MB</span>
             </div>
             <form className="document-upload-form" onSubmit={importDocument}>
-              <label className="field-label" htmlFor="document-file">Choose a .txt, .md, .pdf, .csv, .json, or .html file</label>
+              <label className="field-label" htmlFor="document-file">Choose a .txt, .md, .pdf, .csv, .json, .html, or .htm file</label>
               <input key={documentInputKey} id="document-file" className="text-input sbom-file-input" type="file" accept=".txt,.md,.pdf,.csv,.json,.html,.htm,text/plain,text/markdown,application/pdf,text/csv,application/json,text/html" onChange={(event) => setDocumentFile(event.currentTarget.files?.[0] ?? null)} />
               <label className="field-label document-title-label" htmlFor="document-title">Title (optional)</label>
               <input id="document-title" className="text-input" maxLength={300} value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} placeholder="Use the file name if left blank" />
@@ -1536,12 +1609,30 @@ export default function App() {
             <div className="document-list-heading"><strong>Your documents</strong><span>{documents.length} shown</span></div>
             {documents.length > 0 ? <div className="document-list">{documents.map((item) => <article className="document-row" key={item.id}>
               <button type="button" className="document-open-button" onClick={() => void openDocument(item.id)} disabled={openingDocumentId === item.id}>{openingDocumentId === item.id ? "Opening…" : item.title}</button>
-              <span>{item.originalFilename} · {item.characterCount.toLocaleString()} characters · {item.contentHash.slice(0, 12)}…</span>
+              <span>{item.originalFilename} · v{item.versionNumber} · {item.characterCount.toLocaleString()} characters · {item.contentHash.slice(0, 12)}…</span>
+              <button type="button" className="document-open-button" onClick={() => void loadDocumentVersions(item)} disabled={documentVersionsLoadingId === item.id}>{documentVersionsLoadingId === item.id ? "Loading…" : "History"}</button>
               <button type="button" className="history-delete" aria-label={`Delete document ${item.title}`} onClick={() => void removeDocument(item)}>×</button>
             </article>)}</div> : <div className="empty-results"><strong>No documents imported</strong><p>Upload a UTF‑8 text, Markdown, CSV, JSON, HTML, or text-based PDF file to start a private library.</p></div>}
+            {documentVersions && <div className="document-version-list" aria-label="Document version history">
+              <div className="document-list-heading"><strong>Version history</strong><span>{documentVersions.length} of up to 100 stored versions</span></div>
+              {documentVersions.map((version) => <article className="document-row" key={version.id}>
+                <button type="button" className="document-open-button" onClick={() => void openDocument(version.id)} disabled={openingDocumentId === version.id}>{openingDocumentId === version.id ? "Opening…" : `v${version.versionNumber} · ${version.originalFilename}`}</button>
+                <span>{version.uploadedAt} · {version.characterCount.toLocaleString()} characters · {version.contentHash.slice(0, 12)}…</span>
+              </article>)}
+            </div>}
             {openedDocument && <div className="document-preview" aria-live="polite">
               <div className="document-list-heading"><strong>{openedDocument.title}</strong><div><button className="document-open-button" type="button" onClick={() => downloadDocument(openedDocument)}>Download</button><button className="document-open-button" type="button" onClick={() => setOpenedDocument(null)}>Close</button></div></div>
-              <p>{openedDocument.originalFilename} · SHA‑256 {openedDocument.contentHash} · {openedDocument.characterCount.toLocaleString()} characters</p>
+              <p>{openedDocument.originalFilename} · version {openedDocument.versionNumber} · SHA‑256 {openedDocument.contentHash} · {openedDocument.characterCount.toLocaleString()} characters</p>
+              <form className="document-upload-form" onSubmit={importDocumentVersion}>
+                <label className="field-label" htmlFor="document-version-file">Upload a new version</label>
+                <input key={documentVersionInputKey} id="document-version-file" className="text-input sbom-file-input" type="file" accept=".txt,.md,.pdf,.csv,.json,.html,.htm,text/plain,text/markdown,application/pdf,text/csv,application/json,text/html" onChange={(event) => setDocumentVersionFile(event.currentTarget.files?.[0] ?? null)} />
+                <div className="cyber-form-footer">
+                  <span className="provider-note">Previous versions stay available with their original citations. Deleting a document removes every version.</span>
+                  <button className="primary-button" type="submit" disabled={!connected || documentVersionUploading || !documentVersionFile}>
+                    {documentVersionUploading ? <><span className="spinner" /> Saving version</> : <>Save new version <span aria-hidden="true">↗</span></>}
+                  </button>
+                </div>
+              </form>
               <pre>{(openedDocument.content ?? "").slice(0, 20000)}{openedDocument.characterCount > 20000 ? "\n\n[Preview limited to 20,000 characters. Download the complete file.]" : ""}</pre>
             </div>}
           </section>

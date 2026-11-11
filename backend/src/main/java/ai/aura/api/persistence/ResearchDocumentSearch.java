@@ -15,11 +15,16 @@ import java.util.List;
 @Repository
 public class ResearchDocumentSearch {
     private static final String POSTGRES_SEARCH = """
-            SELECT d.id, d.title, d.original_filename, d.media_type, d.content_hash,
-                   d.content, d.character_count, d.uploaded_at
+            SELECT d.id, d.logical_document_id, d.version_number, d.title, d.original_filename,
+                   d.media_type, d.content_hash, d.content, d.character_count, d.uploaded_at
             FROM research_documents d
             WHERE d.search_vector @@ plainto_tsquery('simple', :phrase)
               AND strpos(lower(d.content), lower(:phrase)) > 0
+              AND d.version_number = (
+                  SELECT MAX(latest.version_number)
+                  FROM research_documents latest
+                  WHERE latest.logical_document_id = d.logical_document_id
+              )
             ORDER BY ts_rank(d.search_vector, plainto_tsquery('simple', :phrase)) DESC,
                      d.uploaded_at DESC
             LIMIT :limit OFFSET :offset
@@ -50,7 +55,7 @@ public class ResearchDocumentSearch {
     @SuppressWarnings("unchecked")
     public List<ResearchDocument> searchExactPhrase(String phrase, Pageable pageable) {
         if (!postgresql || phrase.codePoints().noneMatch(Character::isLetterOrDigit)) {
-            return repository.findByContentContainingIgnoreCaseOrderByUploadedAtDesc(phrase, pageable);
+            return repository.searchLatestByPhrase(phrase, pageable);
         }
 
         return entityManager.createNativeQuery(POSTGRES_SEARCH, ResearchDocument.class)

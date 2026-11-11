@@ -24,7 +24,7 @@ import java.util.UUID;
 @Service
 public class ResearchDocumentService {
     public static final int MAX_FILE_BYTES = 1024 * 1024;
-    private static final long MAX_DOCUMENTS = 100;
+    private static final int MAX_DOCUMENTS = 100;
     private static final int MAX_TITLE_LENGTH = 300;
     private static final int MAX_FILENAME_LENGTH = 255;
     private static final int MAX_SEARCH_RESULTS = 10;
@@ -48,10 +48,32 @@ public class ResearchDocumentService {
 
     @Transactional
     public ResearchDocument importDocument(MultipartFile file, String suppliedTitle) {
-        if (repository.count() >= MAX_DOCUMENTS) {
+        ensureVersionCapacity();
+        if (repository.countLatestDocuments() >= MAX_DOCUMENTS) {
             throw new InvalidDocumentException("The local library holds up to 100 documents. Delete one before importing another.");
         }
-        if (file == null || file.isEmpty()) throw new InvalidDocumentException("Choose a non-empty .txt, .md, .pdf, .csv, .json, or .html file.");
+        PreparedDocument prepared = prepareDocument(file, suppliedTitle, null);
+        return repository.save(ResearchDocument.create(prepared.title(), prepared.filename(), prepared.mediaType(),
+                sha256(prepared.content()), prepared.content(), Instant.now()));
+    }
+
+    @Transactional
+    public ResearchDocument importVersion(UUID documentId, MultipartFile file, String suppliedTitle) {
+        ResearchDocument selectedVersion = get(documentId);
+        UUID logicalDocumentId = selectedVersion.getLogicalDocumentId();
+        repository.lockVersionGroup(logicalDocumentId)
+                .orElseThrow(() -> new ResearchDocumentNotFoundException(documentId));
+        ResearchDocument latest = repository.findByLogicalDocumentIdOrderByVersionNumberDesc(logicalDocumentId)
+                .stream().findFirst().orElseThrow(() -> new ResearchDocumentNotFoundException(documentId));
+        ensureVersionCapacity();
+        PreparedDocument prepared = prepareDocument(file, suppliedTitle, latest.getTitle());
+        return repository.save(ResearchDocument.createVersion(logicalDocumentId, latest.getVersionNumber() + 1,
+                prepared.title(), prepared.filename(), prepared.mediaType(), sha256(prepared.content()),
+                prepared.content(), Instant.now()));
+    }
+
+    private PreparedDocument prepareDocument(MultipartFile file, String suppliedTitle, String fallbackTitle) {
+        if (file == null || file.isEmpty()) throw new InvalidDocumentException("Choose a non-empty .txt, .md, .pdf, .csv, .json, .html, or .htm file.");
         if (file.getSize() > MAX_FILE_BYTES) throw new InvalidDocumentException("Document files must be 1 MB or smaller.");
         String filename = safeFilename(file.getOriginalFilename());
         String extension = extension(filename);
@@ -62,7 +84,7 @@ public class ResearchDocumentService {
             case "csv" -> "text/csv; charset=utf-8";
             case "json" -> "application/json; charset=utf-8";
             case "html", "htm" -> "text/html; charset=utf-8";
-            default -> throw new InvalidDocumentException("Only UTF-8 .txt, .md, .csv, .json, .html, and text-based .pdf files are supported.");
+            default -> throw new InvalidDocumentException("Only UTF-8 .txt, .md, .csv, .json, .html, .htm, and text-based .pdf files are supported.");
         };
         byte[] bytes;
         try {
@@ -83,17 +105,29 @@ public class ResearchDocumentService {
             throw new InvalidDocumentException("The document must contain readable text.");
         }
         String title = suppliedTitle == null || suppliedTitle.isBlank()
-                ? defaultTitle(filename)
+                ? fallbackTitle == null ? defaultTitle(filename) : fallbackTitle
                 : suppliedTitle.strip();
         if (title.length() > MAX_TITLE_LENGTH || title.chars().anyMatch(Character::isISOControl)) {
             throw new InvalidDocumentException("Document title must be 1 to 300 readable characters.");
         }
-        return repository.save(ResearchDocument.create(title, filename, mediaType, sha256(content), content, Instant.now()));
+        return new PreparedDocument(title, filename, mediaType, content);
+    }
+
+    private void ensureVersionCapacity() {
+        if (repository.count() >= MAX_DOCUMENTS) {
+            throw new InvalidDocumentException("The local library holds up to 100 document versions. Delete a document and its version history before importing another.");
+        }
     }
 
     @Transactional(readOnly = true)
     public List<ResearchDocument> list() {
-        return repository.findAllByOrderByUploadedAtDesc(PageRequest.of(0, 100));
+        return repository.findLatestDocuments(PageRequest.of(0, MAX_DOCUMENTS));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ResearchDocument> versions(UUID id) {
+        ResearchDocument document = get(id);
+        return repository.findByLogicalDocumentIdOrderByVersionNumberDesc(document.getLogicalDocumentId());
     }
 
     @Transactional(readOnly = true)
@@ -114,7 +148,7 @@ public class ResearchDocumentService {
     @Transactional
     public void delete(UUID id) {
         ResearchDocument document = get(id);
-        repository.delete(document);
+        repository.deleteByLogicalDocumentId(document.getLogicalDocumentId());
     }
 
     private static String decodeUtf8(byte[] bytes) {
@@ -156,5 +190,8 @@ public class ResearchDocumentService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is not available.", exception);
         }
+    }
+
+    private record PreparedDocument(String title, String filename, String mediaType, String content) {
     }
 }

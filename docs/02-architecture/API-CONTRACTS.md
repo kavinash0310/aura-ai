@@ -159,11 +159,19 @@ All document routes require the local owner Basic Auth account. Document upload 
 
 ### POST `/api/v1/documents`
 
-Send one `file` part and an optional `title` part as `multipart/form-data`. `.txt`, `.md`, `.csv`, `.json`, `.html`, and `.htm` files must use valid UTF-8. CSV uses RFC 4180 parsing, with limits of 10,000 rows, 200 columns per row, and 250,000 extracted characters; JSON rejects trailing values and duplicate object keys and is limited to 50,000 visited nodes, 64 levels, and 250,000 extracted characters. CSV and JSON are flattened into searchable text with row numbers or JSON paths; no formulas, scripts, references, or embedded content are executed or resolved. HTML is parsed as text with Jsoup, limited to 50,000 parser nodes and 64 open elements, and has executable, embedded, form, and explicitly hidden elements removed. HTML resources are never fetched and scripts are never executed. Text-based `.pdf` files are parsed with PDFBox; they must have a PDF signature, contain no more than 100 pages, and yield no more than 250,000 extracted characters. Scanned PDFs with no text layer and encrypted PDFs are unsupported; OCR is not enabled. Every upload is limited to 1 MB and the local library is capped at 100 documents. Filenames are reduced to a basename, text line endings are normalized to LF, empty/binary/control-heavy text is rejected, and SHA-256 is calculated over normalized or extracted UTF-8 text. Original PDF/CSV/JSON/HTML bytes are not retained: the response `mediaType` identifies the source format, while stored `content` is normalized/extracted text (PDF content has form-feed page separators). The response is `201 Created`, includes metadata and a `Location` header, and does not include content. Repeated uploads create separate document records; version history is not implemented.
+Send one `file` part and an optional `title` part as `multipart/form-data`. `.txt`, `.md`, `.csv`, `.json`, `.html`, and `.htm` files must use valid UTF-8. CSV uses RFC 4180 parsing, with limits of 10,000 rows, 200 columns per row, and 250,000 extracted characters; JSON rejects trailing values and duplicate object keys and is limited to 50,000 visited nodes, 64 levels, and 250,000 extracted characters. CSV and JSON are flattened into searchable text with row numbers or JSON paths; no formulas, scripts, references, or embedded content are executed or resolved. HTML is parsed as text with Jsoup, limited to 50,000 parser nodes and 64 open elements, and has executable, embedded, form, and explicitly hidden elements removed. HTML resources are never fetched and scripts are never executed. Text-based `.pdf` files are parsed with PDFBox; they must have a PDF signature, contain no more than 100 pages, and yield no more than 250,000 extracted characters. Scanned PDFs with no text layer and encrypted PDFs are unsupported; OCR is not enabled. Every upload is limited to 1 MB and the local library is capped at 100 stored versions. Filenames are reduced to a basename, text line endings are normalized to LF, empty/binary/control-heavy text is rejected, and SHA-256 is calculated over normalized or extracted UTF-8 text. Original PDF/CSV/JSON/HTML bytes are not retained: the response `mediaType` identifies the source format, while stored `content` is normalized/extracted text (PDF content has form-feed page separators). The response is `201 Created`, includes metadata and a `Location` header, and does not include content. Each new upload starts a logical document at version 1 with a stable document ID.
+
+### POST `/api/v1/documents/{id}/versions`
+
+Uploads a new version for the logical document containing `{id}`. The `file` part is required; `title` is optional and defaults to the existing logical document title. Returns `201 Created` and a `Location` for the new version's stable document ID. Version IDs and hashes do not change when later uploads arrive.
+
+### GET `/api/v1/documents/{id}/versions`
+
+Returns metadata for all versions of the logical document, newest first. The requested ID may identify any existing version.
 
 ### GET `/api/v1/documents`
 
-Returns up to the 100 newest documents as metadata only. There is no pagination yet.
+Returns metadata for up to the 100 newest logical documents, with each document represented by its latest version only. There is no pagination yet.
 
 ### GET `/api/v1/documents/{id}`
 
@@ -171,11 +179,11 @@ Returns metadata and full stored text for one document. The local UI previews at
 
 ### GET `/api/v1/documents/search?q=...`
 
-Searches up to 10 documents for a case-insensitive exact phrase. `q` must be 2–100 letters, numbers, spaces, periods, commas, underscores, or hyphens. PostgreSQL uses an indexed full-text query to find and rank candidates, then checks the literal phrase before returning a result. Its `simple` text-search configuration does not stem words; H2 uses the portable phrase-match fallback. Results include a bounded snippet, offsets into normalized/extracted document text, content hash, and a stable `aura-doc://{id}#chars={start}-{end}` citation. PDF hits also include the 1-based page and use `aura-doc://{id}#page={page}&chars={start}-{end}`; offsets include form-feed page separators. Chunking and semantic retrieval remain future work.
+Searches up to 10 latest document versions for a case-insensitive exact phrase. `q` must be 2–100 letters, numbers, spaces, periods, commas, underscores, or hyphens. PostgreSQL uses an indexed full-text query to find and rank candidates, then checks the literal phrase before returning a result. Its `simple` text-search configuration does not stem words; H2 uses the portable phrase-match fallback. Results include a bounded snippet, offsets into normalized/extracted document text, content hash, and a stable `aura-doc://{version-id}#chars={start}-{end}` citation. PDF hits also include the 1-based page and use `aura-doc://{version-id}#page={page}&chars={start}-{end}`; offsets include form-feed page separators. Chunking and semantic retrieval remain future work.
 
 ### DELETE `/api/v1/documents/{id}`
 
-Deletes the document and its stored text. Returns `204 No Content`; an unknown ID returns `404 RESEARCH_DOCUMENT_NOT_FOUND`.
+Deletes the selected document version and all other versions in the same logical document history. Returns `204 No Content`; an unknown ID returns `404 RESEARCH_DOCUMENT_NOT_FOUND`.
 
 Invalid content returns `400 INVALID_DOCUMENT`; requests exceeding the global multipart cap return `413 UPLOAD_TOO_LARGE`. Uploaded files are never executed. PDFs are parsed in-process with strict byte, page, and extracted-text limits; other formats are not parsed as HTML, archives, or office documents.
 
