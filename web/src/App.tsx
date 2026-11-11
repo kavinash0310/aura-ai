@@ -90,7 +90,7 @@ function kindLabel(kind: ResearchSource["kind"]): string {
 }
 
 function providerLabel(provider: string): string {
-  return provider === "brave" ? "Brave" : provider === "gdelt" ? "GDELT" : provider === "bluesky" ? "Bluesky" : provider === "all" ? "All configured sources" : provider;
+  return provider === "brave" ? "Brave" : provider === "gdelt" ? "GDELT" : provider === "bluesky" ? "Bluesky" : provider === "openalex" ? "OpenAlex" : provider === "all" ? "All configured sources" : provider;
 }
 
 function assessmentLabel(assessment: ClaimComparisonResponse["assessment"]): string {
@@ -1297,7 +1297,7 @@ export default function App() {
                     </div>)}
                     {additionalQueries.length < 2 && <button className="add-query-button" type="button" onClick={() => setAdditionalQueries((current) => current.length < 2 ? [...current, ""] : current)}>+ Add search angle</button>}
                     <p className="query-plan-preview"><strong>Plan:</strong> {plannedQueries.length ? plannedQueries.map((query, index) => `${index + 1}. ${query}`).join(" · ") : "Enter a topic to preview the plan."}</p>
-                    <p className="query-plan-disclosure">Each query is sent to the selected public provider(s). “All configured sources” can make up to 9 requests (3 queries × 3 providers); the result limit applies to each provider and query. Provider quotas or charges may apply. Results cover provider indexes, not the whole internet.</p>
+                    <p className="query-plan-disclosure">Each query is sent to the selected public provider(s). “All configured sources” can make up to 12 requests (3 queries × 4 providers); the result limit applies to each provider and query. Provider quotas or charges may apply. Results cover provider indexes, not the whole internet.</p>
                   </div>
 
                   <div className="form-row">
@@ -1316,6 +1316,7 @@ export default function App() {
                         <option value="brave">Brave · web and discussions</option>
                         <option value="gdelt">GDELT · global news</option>
                         <option value="bluesky">Bluesky · public posts</option>
+                        <option value="openalex">OpenAlex · scholarly works</option>
                       </select><span>⌄</span></div>
                     </div>
                     <div className="field-group">
@@ -1488,11 +1489,11 @@ export default function App() {
 
               <section className="source-scope panel">
                 <div className="scope-head"><span className="scope-icon">◎</span><div><h2>Source scope</h2><p>What this search can reach</p></div></div>
-                <div className="scope-provider"><span className="provider-mark">{searchProvider === "gdelt" ? "G" : searchProvider === "brave" ? "B" : searchProvider === "bluesky" ? "S" : searchProvider === "all" ? "+" : "A"}</span><div><strong>{searchProvider === "gdelt" ? "GDELT News" : searchProvider === "brave" ? "Brave Search" : searchProvider === "bluesky" ? "Bluesky Public Search" : searchProvider === "all" ? "All configured sources" : "Automatic provider"}</strong><span>{searchProvider === "gdelt" ? "Public global news" : searchProvider === "brave" ? "Web · News · Discussions" : searchProvider === "bluesky" ? "Public posts · no account connection" : searchProvider === "all" ? "Brave if keyed · GDELT + Bluesky if enabled" : "Brave when configured · otherwise GDELT"}</span></div><span className="scope-live"><i /> {connected ? "API LINKED" : "LOCAL API"}</span></div>
+                <div className="scope-provider"><span className="provider-mark">{searchProvider === "gdelt" ? "G" : searchProvider === "brave" ? "B" : searchProvider === "bluesky" ? "S" : searchProvider === "openalex" ? "O" : searchProvider === "all" ? "+" : "A"}</span><div><strong>{searchProvider === "gdelt" ? "GDELT News" : searchProvider === "brave" ? "Brave Search" : searchProvider === "bluesky" ? "Bluesky Public Search" : searchProvider === "openalex" ? "OpenAlex Scholarly Works" : searchProvider === "all" ? "All configured sources" : "Automatic provider"}</strong><span>{searchProvider === "gdelt" ? "Public global news" : searchProvider === "brave" ? "Web · News · Discussions" : searchProvider === "bluesky" ? "Public posts · no account connection" : searchProvider === "openalex" ? "Papers · abstracts when available" : searchProvider === "all" ? "Brave · GDELT · Bluesky · OpenAlex if configured" : "Brave · GDELT · Bluesky (OpenAlex is opt-in)"}</span></div><span className="scope-live"><i /> {connected ? "API LINKED" : "LOCAL API"}</span></div>
                 <div className="scope-divider" />
-                <p className="scope-copy">AURA searches selected public providers and saves each returned link. All configured sources queries Brave when its key is set, plus GDELT and Bluesky when enabled. Brave covers web, news, and discussions; GDELT covers indexed global news from at most the past three months; Bluesky returns bounded public posts. Country filters do not apply to Bluesky. Coverage is partial, not a crawl of the entire internet.</p>
-                <p className="scope-copy">Automatic uses Brave when its key is configured, then GDELT, then Bluesky if earlier providers are disabled. These public APIs need no account connection. Queries leave your computer only when you start a search.</p>
-                <div className="scope-foot"><span>⌁</span> Public Bluesky posts only · no private feeds or connected accounts</div>
+                <p className="scope-copy">AURA searches selected public providers and saves each returned link. All configured sources queries Brave when its key is set, GDELT and Bluesky when enabled, and OpenAlex when its key is set. OpenAlex returns scholarly works matched against titles, abstracts, and keywords; its country and language filters are not applied. Coverage is partial, not a crawl of the entire internet.</p>
+                <p className="scope-copy">Automatic uses Brave when configured, then GDELT, then Bluesky. OpenAlex is opt-in and runs only when selected directly or included through All configured sources. Queries leave your computer only when you start a search.</p>
+                <div className="scope-foot"><span>⌁</span> {searchProvider === "openalex" ? "Scholarly-index coverage · not general web or author-profile search" : "Public Bluesky posts only · no private feeds or connected accounts"}</div>
               </section>
 
               <section className="responsible-card">
