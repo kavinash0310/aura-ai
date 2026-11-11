@@ -24,7 +24,7 @@ Use one explicit, bounded report action. Java validates job and source ownership
 
 ## Reasons
 
-This moves the AI boundary into actual use while keeping authorization and persistence in Java. Local inference limits data egress and is compatible with the user's learning goal. A fixed workflow is simpler to audit than an agent loop. Source IDs are checked before rendering so the model cannot fabricate a link identifier, but this is explicitly weaker than semantic citation verification.
+This moves the AI boundary into actual use while keeping authorization and persistence in Java. Local inference limits data egress and is compatible with the user's learning goal. A fixed workflow is simpler to audit than an agent loop. Source IDs are checked before rendering, and later report quote anchors can be matched to selected provider snippets; neither check proves semantic support by the linked page.
 
 ## Advantages and disadvantages
 

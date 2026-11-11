@@ -114,6 +114,12 @@ export interface SearchResponse {
 export interface ResearchReportFinding {
   text: string;
   sourceIds: string[];
+  evidenceQuotes?: ResearchReportEvidenceQuote[];
+}
+
+export interface ResearchReportEvidenceQuote {
+  sourceId: string;
+  quote: string;
 }
 
 export interface ResearchReportCitation {

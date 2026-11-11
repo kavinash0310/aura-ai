@@ -34,7 +34,13 @@ public record ResearchReportResponse(
                 limitations, citations, coverageNote, null);
     }
 
-    public record Finding(String text, List<String> sourceIds) {
+    public record Finding(String text, List<String> sourceIds, List<EvidenceQuote> evidenceQuotes) {
+        public Finding(String text, List<String> sourceIds) {
+            this(text, sourceIds, List.of());
+        }
+    }
+
+    public record EvidenceQuote(String sourceId, String quote) {
     }
 
     public record Citation(String id, String title, String url, String domain, SourceType kind) {

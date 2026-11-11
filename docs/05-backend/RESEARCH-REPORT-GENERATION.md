@@ -4,7 +4,7 @@
 
 An owner can ask AURA to draft a report from sources already saved in a completed research brief. The UI checks the first 20 results currently visible after filters by default and lets the owner change the selection. The report is generated only on click, appears in the current UI session, and can be downloaded as Markdown or as a structured JSON snapshot.
 
-This is a first model integration slice. It uses selected provider snippets only; it does not include page snapshots explicitly read through the separate page-reading action, include the private document library, persist model prose, or establish that a linked page supports every generated claim.
+This is a bounded model integration slice. It uses selected provider snippets only; it does not include page snapshots explicitly read through the separate page-reading action, include the private document library, persist model prose, or establish that a linked page supports every generated claim.
 
 ## Data flow
 
@@ -35,7 +35,7 @@ Java remains the authority for user authentication, job state, and source owners
 - Endpoint: authenticated `POST /api/v1/research-jobs/{id}/report`.
 - Input: 1–20 unique source UUIDs from the specified completed job.
 - Source data: ID, title, URL, domain, type, publisher, publication time, and provider description capped at 1,200 characters.
-- Model output: bounded title, summary, 12 findings maximum, six limitations maximum, and exact source ID lists.
+- Model output: bounded title, summary, 12 findings maximum, six limitations maximum, exact source ID lists, and an optional quote anchor of up to 240 characters per finding.
 - Model response: Ollama's `/api/chat` endpoint with non-streaming JSON Schema output. See [Ollama chat API](https://docs.ollama.com/api/chat).
 - Model endpoint: `http://localhost:11434`, `http://host.docker.internal:11434`, `http://ollama:11434`, or a private IP at port 11434. No redirect is followed.
 - Report storage: none. The backend returns the result; the current browser page holds it in component state until navigation or reload; a download creates a separate user-controlled copy. The explicit JSON download includes job/query/provider/timing metadata, the candidate source metadata and snippets provided to the model, and the structured report response. It does not include page text.
@@ -43,11 +43,11 @@ Java remains the authority for user authentication, job state, and source owners
 
 ## Model-run audit metadata
 
-Report, claim-comparison, and query-plan responses identify their prompt templates (`research-report-v1`, `claim-comparison-v1`, and `research-query-plan-v1`) and exposes Ollama's total generation duration in milliseconds plus prompt and output token counts when the configured Ollama build returns them. The values come from Ollama's response fields [`total_duration`, `prompt_eval_count`, and `eval_count`](https://docs.ollama.com/api/chat). A missing or invalid metric is returned as `null` and does not fail report generation. The UI displays available values; JSON and Markdown downloads preserve the prompt version and available counters.
+Report, claim-comparison, and query-plan responses identify their prompt templates (`research-report-v2`, `claim-comparison-v1`, and `research-query-plan-v1`) and expose Ollama's total generation duration in milliseconds plus prompt and output token counts when the configured Ollama build returns them. The values come from Ollama's response fields [`total_duration`, `prompt_eval_count`, and `eval_count`](https://docs.ollama.com/api/chat). A missing or invalid metric is returned as `null` and does not fail report generation. The UI displays available values; JSON and Markdown downloads preserve the prompt version and available counters.
 
 The AI service writes a completion log with operation, configured model name, prompt version, duration, and token counts. It does not log the prompt, claim, source snippets, generated report, or generated comparison. These logs are operational telemetry, not a durable per-user audit database. Prompt versions are maintained in code and must be incremented when the system prompt, output schema, or generation settings change. They identify the template, not an immutable model artifact or a reproducibility guarantee.
 
-The Python service rejects source IDs not present in its request. That confirms referential integrity only, not that text is entailed by the cited page. The UI therefore calls the links candidate sources and displays a fixed warning that reports use provider snippets only; page snapshots read elsewhere in the UI are not included or independently verified.
+The Python service rejects source IDs not present in its request. Findings may also include one short evidence quote. When present, Python checks that the quote matches the cited source's title or provider description after normalizing case and whitespace; unmatched quotes fail the report request. This is an exact-text anchor to the provider snippet, not proof that the linked page contains the text or that the quote supports the full finding. Quotes are optional because local models do not always reproduce them reliably. The UI labels them as provider-snippet matches and preserves them in Markdown and JSON downloads. The private document library and page snapshots read elsewhere are not included.
 
 ## Safety and failure behavior
 
@@ -66,7 +66,7 @@ The Python service rejects source IDs not present in its request. That confirms 
 - `backend/.../ResearchReportService.java`: completed-job check, source ownership, field truncation, input construction.
 - `backend/.../AiReportClient.java`: internal token and timeout-bound Java-to-Python call.
 - `ai-service/src/aura_ai_service/config.py`: disabled-by-default model and local endpoint validation.
-- `ai-service/src/aura_ai_service/main.py`: request validation, versioned prompt constants, bounded Ollama call, output validation, citation membership, and content-free usage logging.
+- `ai-service/src/aura_ai_service/main.py`: request validation, versioned prompt constants, bounded Ollama call, output validation, citation membership, quote-to-snippet matching, and content-free usage logging.
 
 ## Testing and next evaluation
 
