@@ -776,7 +776,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             limitations=answer.limitations,
             model_run=model_run,
             coverage_note=(
-                f"AI-generated from only {len(request.sources)} selected document search excerpt(s). "
+                f"AI-generated from {len(request.sources)} selected document search excerpt(s). "
                 "Evidence quotes are matched against the text sent to the local model; a match "
                 "does not establish that an answer is complete or correct. "
                 + redaction.note()
