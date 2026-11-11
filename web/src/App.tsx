@@ -946,7 +946,12 @@ export default function App() {
         "",
         "## Evidence from selected snippets",
         "",
-        ...claimComparison.evidence.map((item) => `- **${stanceLabel(item.stance)}:** ${escape(item.text)}${cite(item.sourceIds)}`),
+        ...claimComparison.evidence.flatMap((item) => [
+          `- **${stanceLabel(item.stance)}:** ${escape(item.text)}${cite(item.sourceIds)}`,
+          ...(item.evidenceQuotes ?? []).map((evidenceQuote) =>
+            `  - Matched provider snippet: “${escape(evidenceQuote.quote)}”${cite([evidenceQuote.sourceId])}`,
+          ),
+        ]),
         "",
         "## Limitations",
         "",
@@ -1388,11 +1393,18 @@ export default function App() {
                   {claimComparison && <section className="research-report claim-comparison-result" aria-label="AI claim comparison result">
                     <div className="report-heading"><div><div className="section-kicker">LOCAL AI ASSESSMENT · {claimComparison.assessment}</div><h3>{assessmentLabel(claimComparison.assessment)}</h3><p>{claimComparison.provider} · {claimComparison.model} · {formatDate(claimComparison.generatedAt)}</p><p>{modelRunLabel(claimComparison.modelRun)}</p></div><div className="report-download-actions"><button className="nvd-lookup-button" type="button" onClick={() => downloadClaimComparison("md")}>↓ Markdown</button><button className="nvd-lookup-button" type="button" onClick={() => downloadClaimComparison("json")}>↓ JSON</button></div></div>
                     <p className="claim-comparison-explanation"><strong>Claim:</strong> {claimComparison.claim}<br />{claimComparison.explanation}</p>
-                    {claimComparison.evidence.length > 0 && <div className="report-findings"><strong>Evidence from selected snippets</strong>{claimComparison.evidence.map((item, index) => <p key={`${index}-${item.text}`}><span className={`claim-stance stance-${item.stance.toLowerCase()}`}>{stanceLabel(item.stance)}</span> {item.text}{item.sourceIds.map((id) => {
-                      const citation = claimComparison.citations.find((source) => source.id === id);
-                      const citationNumber = claimComparison.citations.findIndex((source) => source.id === id) + 1;
-                      return citation ? <a key={id} href={citation.url} target="_blank" rel="noopener noreferrer" title={citation.title}> [{citationNumber}]</a> : null;
-                    })}</p>)}</div>}
+                    {claimComparison.evidence.length > 0 && <div className="report-findings"><strong>Evidence from selected snippets</strong>{claimComparison.evidence.map((item, index) => <div className="report-finding" key={`${index}-${item.text}`}>
+                      <p><span className={`claim-stance stance-${item.stance.toLowerCase()}`}>{stanceLabel(item.stance)}</span> {item.text}{item.sourceIds.map((id) => {
+                        const citation = claimComparison.citations.find((source) => source.id === id);
+                        const citationNumber = claimComparison.citations.findIndex((source) => source.id === id) + 1;
+                        return citation ? <a key={id} href={citation.url} target="_blank" rel="noopener noreferrer" title={citation.title}> [{citationNumber}]</a> : null;
+                      })}</p>
+                      {item.evidenceQuotes?.map((evidenceQuote) => {
+                        const citation = claimComparison.citations.find((source) => source.id === evidenceQuote.sourceId);
+                        const citationNumber = claimComparison.citations.findIndex((source) => source.id === evidenceQuote.sourceId) + 1;
+                        return citation ? <blockquote className="report-evidence-quote" key={`${evidenceQuote.sourceId}-${evidenceQuote.quote}`}>Matched text in provider snippet: “{evidenceQuote.quote}” <a href={citation.url} target="_blank" rel="noopener noreferrer" title={citation.title}>[{citationNumber}]</a></blockquote> : null;
+                      })}
+                    </div>)}</div>}
                     {claimComparison.limitations.length > 0 && <div className="report-findings"><strong>Limitations</strong>{claimComparison.limitations.map((item, index) => <p key={`${index}-${item}`}>{item}</p>)}</div>}
                     <div className="report-citations"><strong>Candidate sources</strong>{claimComparison.citations.map((citation, index) => <a key={citation.id} href={citation.url} target="_blank" rel="noopener noreferrer">[{index + 1}] {citation.title} · {citation.domain}</a>)}</div>
                     <p className="coverage-note"><span>ⓘ</span> {claimComparison.coverageNote}</p>

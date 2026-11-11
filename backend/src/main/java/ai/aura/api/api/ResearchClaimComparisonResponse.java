@@ -34,7 +34,18 @@ public record ResearchClaimComparisonResponse(
                 limitations, citations, coverageNote, null);
     }
 
-    public record EvidenceItem(String stance, String text, List<String> sourceIds) {
+    public record EvidenceItem(
+            String stance,
+            String text,
+            List<String> sourceIds,
+            List<EvidenceQuote> evidenceQuotes
+    ) {
+        public EvidenceItem(String stance, String text, List<String> sourceIds) {
+            this(stance, text, sourceIds, List.of());
+        }
+    }
+
+    public record EvidenceQuote(String sourceId, String quote) {
     }
 
     public record Citation(String id, String title, String url, String domain, SourceType kind) {
