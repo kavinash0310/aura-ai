@@ -9,7 +9,8 @@
 {"id":"stripe-secret","group":"supported","text":"Example key sk_live_auraFixture123456","sensitive_value":"sk_live_auraFixture123456"}
 {"id":"named-credential","group":"supported","text":"session_token=aura-fixture-session-value","sensitive_value":"aura-fixture-session-value"}
 {"id":"ordinary-security-prose","group":"benign","text":"The report explains password rotation and secret storage policies without including credentials."}
-{"id":"auth-scheme-prose","group":"benign","text":"The documentation compares Bearer and Basic authorization schemes."}
+{"id":"auth-scheme-prose","group":"benign","text":"The documentation explains that the Basic authorization scheme is an HTTP authentication method."}
 {"id":"short-provider-prefix","group":"benign","text":"The sample identifier starts with AKIA but is not a key."}
 {"id":"unlabeled-jwt","group":"known_gap","text":"A token example: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fixture-signature","sensitive_value":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fixture-signature"}
 {"id":"encoded-credential-name","group":"known_gap","text":"api%5Fkey=aura-fixture-url-encoded-value","sensitive_value":"aura-fixture-url-encoded-value"}
+{"id":"all-letter-bearer-token","group":"known_gap","text":"Bearer alphabetictokenonly","sensitive_value":"alphabetictokenonly"}
