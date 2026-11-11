@@ -17,7 +17,8 @@ FIXTURE_PATH = SERVICE_ROOT / "evaluation" / "redaction-cases.jsonl"
 
 
 def load_cases() -> list[dict[str, Any]]:
-    cases = []
+    cases: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
     for line_number, line in enumerate(FIXTURE_PATH.read_text(encoding="utf-8").splitlines(), 1):
         if not line.strip():
             continue
@@ -25,11 +26,26 @@ def load_cases() -> list[dict[str, Any]]:
             case = json.loads(line)
         except json.JSONDecodeError as error:
             raise ValueError(f"Invalid JSON on fixture line {line_number}") from error
+        if not isinstance(case, dict):
+            raise ValueError(f"Fixture line {line_number} must be a JSON object")
         if case.get("group") not in {"supported", "benign", "known_gap"}:
             raise ValueError(f"Invalid fixture group on line {line_number}")
-        if not isinstance(case.get("id"), str) or not isinstance(case.get("text"), str):
-            raise ValueError(f"Fixture line {line_number} needs string id and text values")
+        case_id = case.get("id")
+        if not isinstance(case_id, str) or not case_id or case_id in seen_ids:
+            raise ValueError(f"Fixture line {line_number} has a missing or duplicate ID")
+        if not isinstance(case.get("text"), str) or not case["text"]:
+            raise ValueError(f"Fixture {case_id} needs non-empty text")
+        sensitive_value = case.get("sensitive_value")
+        if case["group"] in {"supported", "known_gap"} and (
+            not isinstance(sensitive_value, str)
+            or not sensitive_value
+            or sensitive_value not in case["text"]
+        ):
+            raise ValueError(f"Fixture {case_id} needs a sensitive value")
+        seen_ids.add(case_id)
         cases.append(case)
+    if not cases:
+        raise ValueError("No redaction fixtures were found")
     return cases
 
 
@@ -38,6 +54,7 @@ def evaluate(cases: list[dict[str, Any]]) -> dict[str, Any]:
     missed_ids: list[str] = []
     changed_benign_ids: list[str] = []
     detected_gap_ids: list[str] = []
+    unexpected_gap_ids: list[str] = []
 
     for case in cases:
         text = case["text"]
@@ -63,6 +80,7 @@ def evaluate(cases: list[dict[str, Any]]) -> dict[str, Any]:
         elif changed:
             counts["known_gaps_detected"] += 1
             detected_gap_ids.append(case["id"])
+            unexpected_gap_ids.append(case["id"])
         else:
             counts["known_gaps_not_detected"] += 1
 
@@ -89,6 +107,7 @@ def evaluate(cases: list[dict[str, Any]]) -> dict[str, Any]:
             "detected": counts["known_gaps_detected"],
             "notDetected": counts["known_gaps_not_detected"],
             "caseIdsDetected": detected_gap_ids,
+            "unexpectedResultCaseIds": unexpected_gap_ids,
         },
         "limitations": (
             "Synthetic fixtures measure only listed patterns; they do not estimate "
@@ -102,7 +121,14 @@ def main() -> int:
     print(json.dumps(report, indent=2, sort_keys=True))
     supported = report["supportedPatterns"]
     benign = report["benignText"]
-    return 0 if supported["missed"] == 0 and benign["changed"] == 0 else 1
+    blind_spots = report["knownBlindSpots"]
+    return (
+        0
+        if supported["missed"] == 0
+        and benign["changed"] == 0
+        and not blind_spots["unexpectedResultCaseIds"]
+        else 1
+    )
 
 
 if __name__ == "__main__":

@@ -11,5 +11,12 @@
 {"id":"ordinary-security-prose","group":"benign","text":"The report explains password rotation and secret storage policies without including credentials."}
 {"id":"auth-scheme-prose","group":"benign","text":"The documentation explains that the Basic authorization scheme is an HTTP authentication method."}
 {"id":"short-provider-prefix","group":"benign","text":"The sample identifier starts with AKIA but is not a key."}
+{"id":"short-openai-prefix","group":"benign","text":"The sk-proj label appears in a documentation example."}
+{"id":"short-model-token-prefix","group":"benign","text":"The hf_ prefix is mentioned in the public guide."}
 {"id":"unlabeled-jwt","group":"known_gap","text":"A token example: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fixture-signature","sensitive_value":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fixture-signature"}
 {"id":"encoded-credential-name","group":"known_gap","text":"api%5Fkey=aura-fixture-url-encoded-value","sensitive_value":"aura-fixture-url-encoded-value"}
+{"id":"unlabeled-base64-secret","group":"known_gap","text":"Example token value auraFixtureBase64UnknownMaterial0123456789","sensitive_value":"auraFixtureBase64UnknownMaterial0123456789"}
+{"id":"openai-project-key","group":"supported","text":"Synthetic key sk-proj-auraFixture0123456789abcdef0123456789","sensitive_value":"sk-proj-auraFixture0123456789abcdef0123456789"}
+{"id":"anthropic-key","group":"supported","text":"Synthetic key sk-ant-api03-auraFixture0123456789abcdef0123456789","sensitive_value":"sk-ant-api03-auraFixture0123456789abcdef0123456789"}
+{"id":"google-oauth-client-secret","group":"supported","text":"Synthetic secret GOCSPX-auraFixture0123456789abcdef","sensitive_value":"GOCSPX-auraFixture0123456789abcdef"}
+{"id":"huggingface-token","group":"supported","text":"Synthetic token hf_auraFixture0123456789abcdefghijklmnopqrs","sensitive_value":"hf_auraFixture0123456789abcdefghijklmnopqrs"}
