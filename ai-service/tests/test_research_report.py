@@ -167,7 +167,7 @@ def test_query_plan_requires_token_and_uses_rules_when_local_model_is_disabled()
         "outputTokenCount": None,
     }
     assert "topic-secret-value-123" not in json.dumps(disabled.json())
-    assert "deterministic local rules" in disabled.json()["note"]
+    assert "Deterministic local rules" in disabled.json()["note"]
 
 
 def test_query_plan_falls_back_to_rules_when_local_model_is_unavailable(monkeypatch) -> None:
@@ -198,7 +198,7 @@ def test_query_plan_falls_back_to_rules_when_local_model_is_unavailable(monkeypa
         "passkey adoption official sources",
         "passkey adoption timeline and independent analysis",
     ]
-    assert "deterministic local rules" in response.json()["note"]
+    assert "Deterministic local rules" in response.json()["note"]
 
 
 def test_deterministic_query_plan_keeps_suggestions_within_api_limit() -> None:
