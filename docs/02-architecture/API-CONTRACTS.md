@@ -155,7 +155,7 @@ Only reviewed advisories are requested. Each returned record must repeat the exa
 
 ## Personal document library
 
-All document routes require the local owner Basic Auth account. Document upload is an explicit local action; file contents are stored in PostgreSQL and are not sent to Brave, FIRST, CISA, NVD, or an AI model.
+All document routes require the local owner Basic Auth account. Document upload is an explicit local action; file contents are stored in PostgreSQL and are not sent to Brave, FIRST, CISA, or NVD. They are not sent to an AI model unless the owner explicitly invokes the bounded `/answer` action described below; that route sends only selected phrase-search excerpts to the configured local model.
 
 ### POST `/api/v1/documents`
 
@@ -180,6 +180,28 @@ Returns metadata and full stored text for one document. The local UI previews at
 ### GET `/api/v1/documents/search?q=...`
 
 Searches up to 10 latest document versions for a case-insensitive exact phrase. `q` must be 2–100 letters, numbers, spaces, periods, commas, underscores, or hyphens. PostgreSQL uses an indexed full-text query to find and rank candidates, then checks the literal phrase before returning a result. Its `simple` text-search configuration does not stem words; H2 uses the portable phrase-match fallback. Results include a bounded snippet, offsets into normalized/extracted document text, content hash, and a stable `aura-doc://{version-id}#chars={start}-{end}` citation. PDF hits also include the 1-based page and use `aura-doc://{version-id}#page={page}&chars={start}-{end}`; offsets include form-feed page separators. Chunking and semantic retrieval remain future work.
+
+### POST `/api/v1/documents/answer`
+
+The owner explicitly submits one question (up to 500 characters), the exact phrase used for the current document search, and one to five selected result IDs with their match offsets. Spring reloads each selected version and validates that the offsets still contain that exact phrase. It constructs an excerpt of at most 700 characters around the match, bounded to the same PDF page when applicable, and sends only those selected excerpts to the internal AI service. The AI service requires the internal bearer token and the explicitly configured local Ollama provider; there is no hosted fallback. It redacts common credential patterns before inference, treats documents as untrusted prompt content, and validates that evidence IDs and short quotes match the selected excerpt. The response carries generated text, evidence quotes, model telemetry, a redaction coverage note, and stable document/page/character citations. Answers are transient; they are not stored in PostgreSQL. Explicit JSON/Markdown downloads include only the answer and selected evidence. This is excerpt-based assistance, not full-document reasoning or a verified answer; inspect the cited document version before relying on it. The route is unavailable while the local model is disabled.
+
+See the [document question-answering design](../05-backend/DOCUMENT-QUESTION-ANSWERING.md) for the sequence, trust boundaries, and remaining quality work.
+
+Example request:
+
+~~~json
+{
+  "question": "What does the policy say about retention?",
+  "searchQuery": "retention",
+  "selections": [
+    {
+      "documentId": "8d81d665-02a0-4a7d-98aa-4f41c2f6cabe",
+      "startOffset": 410,
+      "endOffset": 419
+    }
+  ]
+}
+~~~
 
 ### DELETE `/api/v1/documents/{id}`
 
