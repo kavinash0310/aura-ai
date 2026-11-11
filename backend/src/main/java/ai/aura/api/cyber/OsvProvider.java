@@ -146,7 +146,7 @@ public class OsvProvider {
                 affected.truncated(),
                 references.references(),
                 references.truncated(),
-                "OSV aggregates public vulnerability records. AURA compares only exact PURL identities and complete npm SemVer 2 version evidence locally; other ecosystems and range types are not assessed."
+                "OSV aggregates public vulnerability records. AURA compares exact PURL identities locally, matches exact affected versions for any ecosystem, and evaluates complete npm or canonical Go module SemVer 2 ranges when supported. Go module-path consistency and pseudo-version ancestry are not validated; other ecosystems and range types are not assessed."
         );
     }
 

@@ -22,6 +22,7 @@ ADRs capture trade-offs, not feature completion.
 - 0018 Claim-comparison quote anchors
 - 0019 Optional scheduled backups with verified retention
 - 0020 Explicit OpenAlex scholarly-work search
+- 0021 Local Go module SemVer range assessment
 
 ## Template
 
