@@ -9,6 +9,10 @@ public interface SearchProvider {
 
     boolean isConfigured();
 
+    default boolean isAutomaticDefault() {
+        return true;
+    }
+
     List<ProviderSource> search(String query, ResearchFilters filters);
 }
 

@@ -2,7 +2,7 @@
 
 ## What this adds
 
-An owner can choose `All configured sources` for one bounded research request and add up to two query angles to the saved topic. AURA calls each enabled provider for each query, then saves the combined result set while keeping both provider and query on every source. The existing Automatic option still selects one provider (Brave first, then GDELT, then Bluesky if earlier providers are disabled). Calls are sequential and the UI discloses the maximum request count before the owner starts. This broadens indexed coverage; it is not a whole-internet crawl.
+An owner can choose `All configured sources` for one bounded research request and add up to two query angles to the saved topic. AURA calls each enabled provider for each query, then saves the combined result set while keeping both provider and query on every source. The existing Automatic option still selects one provider (Brave first, then GDELT, then Bluesky if earlier providers are disabled); OpenAlex is deliberately excluded. Calls are sequential and the UI discloses the maximum request count before the owner starts. This broadens indexed coverage; it is not a whole-internet crawl.
 
 ## Data flow
 
@@ -15,6 +15,7 @@ sequenceDiagram
   participant Brave as Brave provider (if configured)
   participant GDELT as GDELT provider (if enabled)
   participant Bluesky as Bluesky public API (if enabled)
+  participant OpenAlex as OpenAlex works API (if keyed)
   participant DB as PostgreSQL
   Owner->>UI: Choose All configured sources and start search
   UI->>API: POST job/{id}/search provider=all queries=[topic, angles]
@@ -32,6 +33,10 @@ sequenceDiagram
   Service->>Bluesky: Send query 1 and supported filters
   Bluesky-->>Service: Results or stable provider error
   Service->>DB: Save Bluesky results and SUCCEEDED outcome atomically
+  Service->>DB: Mark query 1 / OpenAlex run RUNNING
+  Service->>OpenAlex: Send query 1 and supported filters
+  OpenAlex-->>Service: Scholarly works or stable provider error
+  Service->>DB: Save OpenAlex results and SUCCEEDED outcome atomically
   Service->>Service: Repeat sequentially for remaining planned queries
   Service->>DB: Mark job COMPLETED, PARTIAL, or FAILED
   Service-->>UI: Results, provider outcomes, and coverage state
@@ -40,30 +45,32 @@ sequenceDiagram
   API-->>UI: Filtered evidence / downloadable file
 ~~~
 
-Provider calls are sequential, not concurrent. The owner may submit up to three explicit queries, with the saved job topic as the required first query. Before contacting providers, AURA records one `PENDING` run for each provider/query pair. It records `RUNNING` before each request and then either `SUCCEEDED` with a normalized result count or `FAILED` with a stable error code. AURA continues after an individual failure. Up to three queries across three configured providers means nine sequential requests and, at the maximum provider limit, up to 300 result rows. The provider quota or charge can apply to each request.
+Provider calls are sequential, not concurrent. The owner may submit up to three explicit queries, with the saved job topic as the required first query. Before contacting providers, AURA records one `PENDING` run for each provider/query pair. It records `RUNNING` before each request and then either `SUCCEEDED` with a normalized result count or `FAILED` with a stable error code. AURA continues after an individual failure. Up to three queries across four configured providers means 12 sequential requests and, at the maximum provider limit, up to 360 result rows. OpenAlex contributes at most 20 works per query. The provider quota or charge can apply to each request.
 
 After each successful provider request, AURA commits its normalized results and success outcome in the same transaction. It marks the research job `COMPLETED` if every provider succeeded, `PARTIAL` if at least one succeeded and another failed or was skipped, or `FAILED` if no provider succeeded. A partial response is HTTP 200, carries only successfully returned source rows, and includes every provider outcome. A fully failed search retains the audit rows and returns the first provider's stable HTTP error. This preserves useful evidence without making an incomplete provider set look complete.
 
 ## Contract and limits
 
 - Search endpoint: authenticated `POST /api/v1/research-jobs/{id}/search`.
-- `provider` may be `brave`, `gdelt`, `bluesky`, or `all`; omitted means Automatic.
-- All mode means every currently configured provider. Brave is included only when `AURA_BRAVE_API_KEY` exists; GDELT and Bluesky are included when their `AURA_GDELT_ENABLED` and `AURA_BLUESKY_ENABLED` flags are true.
-- Each query gets the same result limit. Provider-specific filters vary: Brave and GDELT accept country/language filters; Bluesky accepts language and freshness but not country.
-- Per query maximum is 100 result rows: up to 60 from Brave, 20 from GDELT, and 20 Bluesky posts. Across three queries the maximum is 300.
+- `provider` may be `brave`, `gdelt`, `bluesky`, `openalex`, or `all`; omitted means Automatic.
+- All mode means every currently configured provider. Brave is included only when `AURA_BRAVE_API_KEY` exists; GDELT and Bluesky are included when their `AURA_GDELT_ENABLED` and `AURA_BLUESKY_ENABLED` flags are true; OpenAlex is included only when `AURA_OPENALEX_API_KEY` is set.
+- OpenAlex sends a bearer key to the official API only when selected directly or through All configured sources. Its bounded works search covers titles, abstracts, and keywords; abstracts can be absent, and author-profile searches are not supported.
+- Each query gets the same result limit. Provider-specific filters vary: Brave and GDELT accept country/language filters; Bluesky accepts language and freshness but not country; OpenAlex accepts freshness by publication date but not country or language.
+- Per query maximum is 120 result rows: up to 60 from Brave, 20 from GDELT, 20 Bluesky posts, and 20 OpenAlex works. Across three queries the maximum is 360.
 - Duplicate URLs returned by different providers or queries stay as separate rows so both origins remain visible. The source unique key is scoped by query as well as provider.
 - Every provider/query pair appears in `providerRuns` on search responses, saved-job detail/history, source listing, and exports. Each run reports query order/text, provider, `PENDING`/`RUNNING`/`SUCCEEDED`/`FAILED`/`SKIPPED`, result count, stable failure code when relevant, and start/completion timestamps. Source rows carry `searchQuery`.
 - Jobs use `PARTIAL` when some providers succeeded and some failed or were skipped during recovery. Source listing, export, and report generation accept `COMPLETED` and `PARTIAL`. Search responses and exports include provider outcomes; generated reports include a missing-provider coverage note, while the full run statuses remain available in search history and source exports. When no provider succeeds, the job remains `FAILED` with its provider-run audit rows.
 - `GET /research-jobs/{id}/sources` and `/export` accept `provider` to filter by the source's exact provider name, case-insensitively.
 - Downloads remain JSON, CSV, or Markdown and include the provider for every row.
 
-Brave covers web, news, and discussion metadata. GDELT covers only indexed public news over at most three months. Bluesky uses its official public AppView post-search API; it does not connect to accounts or private feeds. Search adapters never fetch result pages automatically; an owner may separately read one selected saved source using the bounded flow in [public-page reading](PUBLIC-PAGE-READING.md). X remains deferred under [ADR 0008](../03-adr/0008-social-source-compliance-gate.md).
+Brave covers web, news, and discussion metadata. GDELT covers only indexed public news over at most three months. Bluesky uses its official public AppView post-search API; it does not connect to accounts or private feeds. OpenAlex searches scholarly-work titles, abstracts, and keywords; it does not search all authors or general web pages, and its abstract may be missing or partial. Search adapters never fetch result pages automatically; an owner may separately read one selected saved source using the bounded flow in [public-page reading](PUBLIC-PAGE-READING.md). X remains deferred under [ADR 0008](../03-adr/0008-social-source-compliance-gate.md).
 
 ## Code map
 
 - `web/src/App.tsx`: provider choice, query plan editor and call disclosure, per-source query provenance.
 - `web/src/api.ts`, `web/src/types.ts`: typed request and filter contract.
 - `backend/.../ResearchSearchService.java`: Automatic, explicit-provider, and all-configured resolution and execution.
+- `backend/.../search/OpenAlexWorksSearchProvider.java`: opt-in scholarly-work search, bounded abstract reconstruction, publication-date filter, and OpenAlex work-ID validation.
 - `backend/.../ResearchJobService.java`: transactional provider result persistence, source provenance, global rank, provider-run lifecycle, and interrupted-search recovery.
 - `backend/.../domain/ResearchProviderRun.java` and `ResearchProviderRunStatus.java`: durable provider outcome state machine.
 - `backend/.../persistence/ResearchProviderRunRepository.java`: per-job reads and batched recent-history outcome lookup.
@@ -80,7 +87,7 @@ See [BOUNDED-QUERY-PLANS.md](BOUNDED-QUERY-PLANS.md) for request validation, per
 
 - Search starts only after the authenticated owner explicitly clicks Start research.
 - The visible query plan is limited to three user-entered strings. Each selected provider receives every planned query after the owner clicks Start research.
-- All mode can send up to nine requests for a three-query plan across the three current providers; the UI discloses this before sending it.
+- All mode can send up to 12 requests for a three-query plan across four providers; the UI discloses this before sending it. OpenAlex is never included implicitly through Automatic.
 - Providers are fixed adapters with bounded parameters and HTTPS endpoints. AURA still never requests returned article URLs.
 - No source means “everything on the internet.” Index coverage, freshness, provider terms, and quotas still apply.
 - Failed provider calls do not discard successful source batches. The UI identifies partial jobs and lists each provider's status, count, and failure code. A provider that was called before a later failure has already received the query.

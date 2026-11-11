@@ -116,12 +116,12 @@ public class ResearchSearchService {
         if (requestedProvider != null && !requestedProvider.isBlank()) {
             SearchProvider selected = providersByName.get(requestedProvider);
             if (selected == null) {
-                throw new InvalidResearchFilterException("Search provider must be brave, gdelt, bluesky, or all.");
+                throw new InvalidResearchFilterException("Search provider must be brave, gdelt, bluesky, openalex, or all.");
             }
             return selected.isConfigured() ? List.of(selected) : List.of();
         }
         return providers.stream()
-                .filter(SearchProvider::isConfigured)
+                .filter(provider -> provider.isConfigured() && provider.isAutomaticDefault())
                 .findFirst()
                 .map(List::of)
                 .orElseGet(List::of);
