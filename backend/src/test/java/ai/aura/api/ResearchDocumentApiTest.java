@@ -132,6 +132,24 @@ class ResearchDocumentApiTest {
     }
 
     @Test
+    void importsHtmlAsPlainTextWithoutSavingMarkupOrScriptContent() throws Exception {
+        MockMultipartFile html = new MockMultipartFile("file", "brief.html", "text/html",
+                "<html><body><h1>AURA evidence</h1><p>Local HTML notes</p><script>secret-script</script></body></html>"
+                        .getBytes(StandardCharsets.UTF_8));
+        String location = mockMvc.perform(multipart("/api/v1/documents").file(html)
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.mediaType").value("text/html; charset=utf-8"))
+                .andReturn().getResponse().getHeader("Location");
+
+        mockMvc.perform(get(location).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value("AURA evidence Local HTML notes"))
+                .andExpect(jsonPath("$.content").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("secret-script"))));
+    }
+
+    @Test
     void importsPdfTextAndReturnsPageCitations() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "research.pdf", "application/pdf",
                 pdfWithPages("AURA source on the first page.", "Evidence about AURA on the second page."));
