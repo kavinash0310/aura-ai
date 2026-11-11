@@ -13,4 +13,3 @@
 {"id":"short-provider-prefix","group":"benign","text":"The sample identifier starts with AKIA but is not a key."}
 {"id":"unlabeled-jwt","group":"known_gap","text":"A token example: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fixture-signature","sensitive_value":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fixture-signature"}
 {"id":"encoded-credential-name","group":"known_gap","text":"api%5Fkey=aura-fixture-url-encoded-value","sensitive_value":"aura-fixture-url-encoded-value"}
-{"id":"all-letter-bearer-token","group":"known_gap","text":"Bearer alphabetictokenonly","sensitive_value":"alphabetictokenonly"}
