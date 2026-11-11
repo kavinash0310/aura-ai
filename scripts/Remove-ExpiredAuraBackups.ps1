@@ -21,7 +21,7 @@ if (-not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
     throw "Backup directory does not exist: $OutputDirectory"
 }
 $resolvedOutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
-$archivePattern = '^aura-db-\d{8}T\d{6}Z-[0-9a-f]{8}\.dump$'
+$archivePattern = '^aura-db-\d{8}T\d{6}Z-[0-9a-f]{8}\.dump(?:\.age)?$'
 $validBackups = [System.Collections.Generic.List[object]]::new()
 
 foreach ($archive in Get-ChildItem -LiteralPath $resolvedOutputDirectory -File) {
@@ -37,7 +37,14 @@ foreach ($archive in Get-ChildItem -LiteralPath $resolvedOutputDirectory -File) 
 
     try {
         $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-        if ($manifest.formatVersion -ne 1 -or
+        $isAgeEncrypted = $archive.Name.EndsWith('.dump.age', [StringComparison]::OrdinalIgnoreCase)
+        $manifestFormatValid = if ($isAgeEncrypted) {
+            $manifest.formatVersion -eq 2 -and [string]$manifest.encryptionFormat -ceq 'age'
+        }
+        else {
+            $manifest.formatVersion -eq 1 -and [string]::IsNullOrWhiteSpace([string]$manifest.encryptionFormat)
+        }
+        if (-not $manifestFormatValid -or
                 [string]$manifest.archiveFile -cne $archive.Name -or
                 [long]$manifest.bytes -ne $archive.Length -or
                 [string]$manifest.sha256 -notmatch '^[0-9a-fA-F]{64}$') {

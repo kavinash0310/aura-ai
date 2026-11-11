@@ -11,6 +11,8 @@ param(
     [ValidateRange(1, 50)]
     [int]$MinimumBackups = 2,
 
+    [string]$AgeRecipient,
+
     [ValidateLength(1, 128)]
     [string]$TaskName = 'AURA Database Backup'
 )
@@ -27,6 +29,17 @@ if (-not $pwshCommand) {
 }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot 'backups'
+}
+if (-not [string]::IsNullOrWhiteSpace($AgeRecipient)) {
+    if ($AgeRecipient -match '["\r\n]') {
+        throw 'AgeRecipient cannot contain quotes or line breaks.'
+    }
+    if ($AgeRecipient -notmatch '^age1[0-9a-z]+\z') {
+        throw 'AgeRecipient must be one native age public recipient beginning with age1.'
+    }
+    if (-not (Get-Command age -ErrorAction SilentlyContinue)) {
+        throw 'The age command must be installed and available on PATH before registering an encrypted backup schedule.'
+    }
 }
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $resolvedOutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
@@ -61,6 +74,9 @@ $arguments = @(
     "-RetentionDays $RetentionDays"
     "-MinimumBackups $MinimumBackups"
 ) -join ' '
+if (-not [string]::IsNullOrWhiteSpace($AgeRecipient)) {
+    $arguments += " -AgeRecipient `"$AgeRecipient`""
+}
 $action = New-ScheduledTaskAction `
     -Execute $pwshCommand.Source `
     -Argument $arguments `
@@ -80,7 +96,7 @@ $settings = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask `
     -TaskName $TaskName `
-    -Description 'Create a verified local AURA PostgreSQL backup and apply configured retention.' `
+    -Description 'Create a verified AURA PostgreSQL backup and apply configured retention.' `
     -Action $action `
     -Trigger $trigger `
     -Principal $principal `
@@ -89,3 +105,6 @@ Register-ScheduledTask `
 
 Write-Output "Registered '$TaskName' for $DailyAt local time as $identity. The task runs only while this Windows user is logged in."
 Write-Output "Backup directory: $resolvedOutputDirectory; retention: $RetentionDays days; minimum verified backups: $MinimumBackups."
+if (-not [string]::IsNullOrWhiteSpace($AgeRecipient)) {
+    Write-Output 'The scheduled archive will be encrypted to the configured age recipient; the private identity is not stored in the task.'
+}

@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+
+    [string]$AgeRecipient
 )
 
 $ErrorActionPreference = 'Stop'
@@ -8,6 +10,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $containerBackupPath = $null
 $containerVerifyPath = $null
 $stagingArchive = $null
+$stagingEncryptedArchive = $null
 $stagingManifest = $null
 $finalArchive = $null
 $finalManifest = $null
@@ -36,6 +39,16 @@ try {
     if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
         $OutputDirectory = Join-Path $repoRoot 'backups'
     }
+    $encryptBackup = -not [string]::IsNullOrWhiteSpace($AgeRecipient)
+    if ($encryptBackup -and -not (Get-Command age -ErrorAction SilentlyContinue)) {
+        throw 'The age command was not found. Install age or omit AgeRecipient to create a plaintext archive.'
+    }
+    if ($encryptBackup -and $AgeRecipient -notmatch '^age1[0-9a-z]+\z') {
+        throw 'AgeRecipient must be one native age public recipient beginning with age1.'
+    }
+    if (-not $encryptBackup) {
+        Write-Warning 'This backup will be plaintext. Pass AgeRecipient to encrypt the archive.'
+    }
     New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     $resolvedOutputDirectory = (Resolve-Path -LiteralPath $OutputDirectory).Path
 
@@ -53,9 +66,14 @@ try {
     $timestamp = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssZ')
     $containerBackupPath = "/tmp/aura-backup-$runId.dump"
     $containerVerifyPath = "/tmp/aura-verify-$runId.dump"
-    $stagingArchive = Join-Path $resolvedOutputDirectory ".$runId.partial.dump"
+    $stagingArchiveDirectory = if ($encryptBackup) { [System.IO.Path]::GetTempPath() } else { $resolvedOutputDirectory }
+    $stagingArchive = Join-Path $stagingArchiveDirectory ".$runId.partial.dump"
+    if ($encryptBackup) {
+        $stagingEncryptedArchive = Join-Path $resolvedOutputDirectory ".$runId.partial.dump.age"
+    }
     $stagingManifest = Join-Path $resolvedOutputDirectory ".$runId.partial.manifest.json"
-    $finalArchive = Join-Path $resolvedOutputDirectory "aura-db-$timestamp-$shortRunId.dump"
+    $archiveExtension = if ($encryptBackup) { '.dump.age' } else { '.dump' }
+    $finalArchive = Join-Path $resolvedOutputDirectory "aura-db-$timestamp-$shortRunId$archiveExtension"
     $finalManifest = "${finalArchive}.manifest.json"
 
     Invoke-AuraCompose @('exec', '-T', 'db', 'sh', '-ec', 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"')
@@ -73,9 +91,32 @@ try {
     Invoke-AuraCompose @('cp', $stagingArchive, "db:$containerVerifyPath")
     Invoke-AuraCompose @('exec', '-T', 'db', 'sh', '-ec', "pg_restore --list $containerVerifyPath >/dev/null")
 
-    $hash = (Get-FileHash -LiteralPath $stagingArchive -Algorithm SHA256).Hash
+    $archiveToCommit = $stagingArchive
+    $formatVersion = 1
+    $encryptionFormat = $null
+    if ($encryptBackup) {
+        $ageOutput = & age --encrypt --recipient $AgeRecipient --output $stagingEncryptedArchive $stagingArchive 2>&1
+        $ageExitCode = $LASTEXITCODE
+        if ($ageOutput) {
+            $ageOutput | ForEach-Object { Write-Host "$_" }
+        }
+        if ($ageExitCode -ne 0) {
+            throw "age encryption failed with exit code $ageExitCode."
+        }
+        $encryptedInfo = Get-Item -LiteralPath $stagingEncryptedArchive
+        if ($encryptedInfo.Length -le 0) {
+            throw 'The encrypted database archive is empty.'
+        }
+        $archiveToCommit = $stagingEncryptedArchive
+        $formatVersion = 2
+        $encryptionFormat = 'age'
+    }
+
+    $archiveInfo = Get-Item -LiteralPath $archiveToCommit
+    $hash = (Get-FileHash -LiteralPath $archiveToCommit -Algorithm SHA256).Hash
     $manifest = [ordered]@{
-        formatVersion = 1
+        formatVersion = $formatVersion
+        encryptionFormat = $encryptionFormat
         createdAtUtc = [DateTimeOffset]::UtcNow.ToString('o')
         archiveFile = [System.IO.Path]::GetFileName($finalArchive)
         bytes = $archiveInfo.Length
@@ -85,12 +126,13 @@ try {
     $utf8WithoutBom = [System.Text.UTF8Encoding]::new($false)
     [System.IO.File]::WriteAllText($stagingManifest, $manifestJson + [Environment]::NewLine, $utf8WithoutBom)
 
-    [System.IO.File]::Move($stagingArchive, $finalArchive)
+    [System.IO.File]::Move($archiveToCommit, $finalArchive)
     $archiveCommitted = $true
     [System.IO.File]::Move($stagingManifest, $finalManifest)
     $manifestCommitted = $true
 
-    Write-Host "Verified database backup created: $finalArchive"
+    $backupDescription = if ($encryptBackup) { 'Verified and age-encrypted database backup created' } else { 'Verified database backup created' }
+    Write-Host "${backupDescription}: $finalArchive"
     Write-Host "Integrity manifest: $finalManifest"
     Write-Output $finalArchive
 }
@@ -104,9 +146,19 @@ catch {
     throw
 }
 finally {
-    foreach ($temporaryFile in @($stagingArchive, $stagingManifest)) {
+    foreach ($temporaryFile in @($stagingArchive, $stagingEncryptedArchive, $stagingManifest)) {
         if ($temporaryFile -and (Test-Path -LiteralPath $temporaryFile)) {
-            Remove-Item -LiteralPath $temporaryFile -Force
+            try {
+                Remove-Item -LiteralPath $temporaryFile -Force
+            }
+            catch {
+                if ($temporaryFile -ceq $stagingArchive) {
+                    Write-Warning "Could not remove the temporary plaintext database archive: $temporaryFile"
+                }
+                else {
+                    Write-Warning "Could not remove a temporary backup file: $temporaryFile"
+                }
+            }
         }
     }
 
