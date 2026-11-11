@@ -15,6 +15,12 @@ public class ResearchDocument {
     @Column(nullable = false, updatable = false)
     private UUID id;
 
+    @Column(name = "logical_document_id", nullable = false, updatable = false)
+    private UUID logicalDocumentId;
+
+    @Column(name = "version_number", nullable = false, updatable = false)
+    private int versionNumber;
+
     @Column(nullable = false, length = 300, updatable = false)
     private String title;
 
@@ -39,9 +45,11 @@ public class ResearchDocument {
     protected ResearchDocument() {
     }
 
-    private ResearchDocument(UUID id, String title, String originalFilename, String mediaType,
+    private ResearchDocument(UUID id, UUID logicalDocumentId, int versionNumber, String title, String originalFilename, String mediaType,
                              String contentHash, String content, Instant uploadedAt) {
         this.id = id;
+        this.logicalDocumentId = logicalDocumentId;
+        this.versionNumber = versionNumber;
         this.title = title;
         this.originalFilename = originalFilename;
         this.mediaType = mediaType;
@@ -53,11 +61,21 @@ public class ResearchDocument {
 
     public static ResearchDocument create(String title, String originalFilename, String mediaType,
                                           String contentHash, String content, Instant uploadedAt) {
-        return new ResearchDocument(UUID.randomUUID(), title, originalFilename, mediaType,
+        UUID id = UUID.randomUUID();
+        return new ResearchDocument(id, id, 1, title, originalFilename, mediaType,
                 contentHash, content, uploadedAt);
     }
 
+    public static ResearchDocument createVersion(UUID logicalDocumentId, int versionNumber, String title,
+                                                 String originalFilename, String mediaType, String contentHash,
+                                                 String content, Instant uploadedAt) {
+        return new ResearchDocument(UUID.randomUUID(), logicalDocumentId, versionNumber, title, originalFilename,
+                mediaType, contentHash, content, uploadedAt);
+    }
+
     public UUID getId() { return id; }
+    public UUID getLogicalDocumentId() { return logicalDocumentId; }
+    public int getVersionNumber() { return versionNumber; }
     public String getTitle() { return title; }
     public String getOriginalFilename() { return originalFilename; }
     public String getMediaType() { return mediaType; }

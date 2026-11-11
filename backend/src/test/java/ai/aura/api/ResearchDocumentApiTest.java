@@ -150,6 +150,59 @@ class ResearchDocumentApiTest {
     }
 
     @Test
+    void versionsDocumentsWithoutChangingPriorContentOrCitations() throws Exception {
+        MockMultipartFile first = new MockMultipartFile("file", "notes-v1.txt", "text/plain",
+                "ARCHIVEWORD belongs to version one.".getBytes(StandardCharsets.UTF_8));
+        String firstLocation = mockMvc.perform(multipart("/api/v1/documents").file(first)
+                        .param("title", "Versioned notes")
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.versionNumber").value(1))
+                .andReturn().getResponse().getHeader("Location");
+        String firstId = firstLocation.substring(firstLocation.lastIndexOf('/') + 1);
+
+        MockMultipartFile second = new MockMultipartFile("file", "notes-v2.txt", "text/plain",
+                "CURRENTWORD belongs to version two.".getBytes(StandardCharsets.UTF_8));
+        String secondLocation = mockMvc.perform(multipart("/api/v1/documents/" + firstId + "/versions").file(second)
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.logicalDocumentId").value(firstId))
+                .andExpect(jsonPath("$.versionNumber").value(2))
+                .andExpect(jsonPath("$.title").value("Versioned notes"))
+                .andReturn().getResponse().getHeader("Location");
+
+        mockMvc.perform(get("/api/v1/documents/" + firstId + "/versions")
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].versionNumber").value(2))
+                .andExpect(jsonPath("$[1].versionNumber").value(1));
+
+        mockMvc.perform(get("/api/v1/documents").with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].versionNumber").value(2));
+
+        mockMvc.perform(get("/api/v1/documents/search").param("q", "ARCHIVEWORD")
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/api/v1/documents/search").param("q", "CURRENTWORD")
+                        .with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].documentId").value(secondLocation.substring(secondLocation.lastIndexOf('/') + 1)));
+
+        mockMvc.perform(get(firstLocation).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value("ARCHIVEWORD belongs to version one."));
+
+        mockMvc.perform(delete(firstLocation).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get(secondLocation).with(httpBasic(USERNAME, PASSWORD)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void importsPdfTextAndReturnsPageCitations() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "research.pdf", "application/pdf",
                 pdfWithPages("AURA source on the first page.", "Evidence about AURA on the second page."));

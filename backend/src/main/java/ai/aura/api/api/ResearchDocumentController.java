@@ -32,6 +32,15 @@ public class ResearchDocumentController {
         return ResponseEntity.created(URI.create("/api/v1/documents/" + response.id())).body(response);
     }
 
+    @PostMapping(path = "/{id}/versions", consumes = "multipart/form-data")
+    public ResponseEntity<ResearchDocumentResponse> uploadVersion(
+            @PathVariable UUID id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String title) {
+        ResearchDocumentResponse response = ResearchDocumentResponse.from(service.importVersion(id, file, title), false);
+        return ResponseEntity.created(URI.create("/api/v1/documents/" + response.id())).body(response);
+    }
+
     @GetMapping
     public List<ResearchDocumentResponse> list() {
         return service.list().stream().map(document -> ResearchDocumentResponse.from(document, false)).toList();
@@ -45,6 +54,11 @@ public class ResearchDocumentController {
     @GetMapping("/{id}")
     public ResearchDocumentResponse get(@PathVariable UUID id) {
         return ResearchDocumentResponse.from(service.get(id), true);
+    }
+
+    @GetMapping("/{id}/versions")
+    public List<ResearchDocumentResponse> versions(@PathVariable UUID id) {
+        return service.versions(id).stream().map(document -> ResearchDocumentResponse.from(document, false)).toList();
     }
 
     @DeleteMapping("/{id}")

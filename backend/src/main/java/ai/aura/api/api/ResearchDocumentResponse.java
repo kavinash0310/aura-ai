@@ -7,6 +7,8 @@ import java.util.UUID;
 
 public record ResearchDocumentResponse(
         UUID id,
+        UUID logicalDocumentId,
+        int versionNumber,
         String title,
         String originalFilename,
         String mediaType,
@@ -16,8 +18,8 @@ public record ResearchDocumentResponse(
         String content
 ) {
     public static ResearchDocumentResponse from(ResearchDocument document, boolean includeContent) {
-        return new ResearchDocumentResponse(document.getId(), document.getTitle(), document.getOriginalFilename(),
-                document.getMediaType(), document.getContentHash(), document.getCharacterCount(),
+        return new ResearchDocumentResponse(document.getId(), document.getLogicalDocumentId(), document.getVersionNumber(),
+                document.getTitle(), document.getOriginalFilename(), document.getMediaType(), document.getContentHash(), document.getCharacterCount(),
                 document.getUploadedAt(), includeContent ? document.getContent() : null);
     }
 }

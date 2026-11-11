@@ -138,12 +138,31 @@ export function uploadDocument(credentials: Credentials, file: File, title: stri
   return request<ResearchDocument>("/api/v1/documents", credentials, { method: "POST", body: form });
 }
 
+export function uploadDocumentVersion(
+  credentials: Credentials,
+  documentId: string,
+  file: File,
+  title: string,
+): Promise<ResearchDocument> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  if (title.trim()) form.append("title", title.trim());
+  return request<ResearchDocument>(`/api/v1/documents/${encodeURIComponent(documentId)}/versions`, credentials, {
+    method: "POST",
+    body: form,
+  });
+}
+
 export function listDocuments(credentials: Credentials): Promise<ResearchDocument[]> {
   return request<ResearchDocument[]>("/api/v1/documents", credentials);
 }
 
 export function getDocument(credentials: Credentials, id: string): Promise<ResearchDocument> {
   return request<ResearchDocument>(`/api/v1/documents/${encodeURIComponent(id)}`, credentials);
+}
+
+export function getDocumentVersions(credentials: Credentials, id: string): Promise<ResearchDocument[]> {
+  return request<ResearchDocument[]>(`/api/v1/documents/${encodeURIComponent(id)}/versions`, credentials);
 }
 
 export function searchDocuments(credentials: Credentials, query: string): Promise<ResearchDocumentSearchHit[]> {

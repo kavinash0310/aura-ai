@@ -73,6 +73,8 @@ export interface ResearchPageReadAudit {
 
 export interface ResearchDocument {
   id: string;
+  logicalDocumentId: string;
+  versionNumber: number;
   title: string;
   originalFilename: string;
   mediaType: string;

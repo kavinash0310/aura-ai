@@ -59,8 +59,13 @@ describe("AURA research workspace", () => {
 
   it("imports a private text file and searches it with a stable character citation", async () => {
     const document = {
-      id: "doc-1", title: "Local notes", originalFilename: "notes.md", mediaType: "text/markdown; charset=utf-8",
+      id: "doc-1", logicalDocumentId: "doc-1", versionNumber: 1,
+      title: "Local notes", originalFilename: "notes.md", mediaType: "text/markdown; charset=utf-8",
       contentHash: "a".repeat(64), characterCount: 32, uploadedAt: "2026-11-07T00:00:00Z", content: null,
+    };
+    const secondVersion = {
+      ...document, id: "doc-2", versionNumber: 2, originalFilename: "notes-v2.md",
+      mediaType: "text/markdown; charset=utf-8", contentHash: "b".repeat(64), characterCount: 35,
     };
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ authenticated: true }), { status: 200 }))
@@ -72,10 +77,14 @@ describe("AURA research workspace", () => {
         uploadedAt: "2026-11-07T00:00:00Z", snippet: "AURA notes for citation testing.",
         startOffset: 0, endOffset: 4, citation: "aura-doc://doc-1#chars=0-4",
       }]), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ ...document, content: "AURA notes for citation testing." }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...document, content: "AURA notes for citation testing." }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([document]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(secondVersion), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...secondVersion, content: "Updated AURA notes with new evidence." }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([secondVersion, document]), { status: 200 }));
 
     render(<App />);
-    expect(screen.getByLabelText("Choose a .txt, .md, .pdf, .csv, .json, or .html file"))
+    expect(screen.getByLabelText("Choose a .txt, .md, .pdf, .csv, .json, .html, or .htm file"))
       .toHaveAttribute("accept", expect.stringContaining(".html"));
     fireEvent.change(screen.getByLabelText("Username"), { target: { value: "owner" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
@@ -83,10 +92,10 @@ describe("AURA research workspace", () => {
     await screen.findByText("Connected securely");
 
     const file = new File(["AURA notes for citation testing."], "notes.md", { type: "text/markdown" });
-    fireEvent.change(screen.getByLabelText("Choose a .txt, .md, .pdf, .csv, .json, or .html file"), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText("Choose a .txt, .md, .pdf, .csv, .json, .html, or .htm file"), { target: { files: [file] } });
     fireEvent.change(screen.getByLabelText("Title (optional)"), { target: { value: "Local notes" } });
     fireEvent.click(screen.getByRole("button", { name: /Import document/ }));
-    await screen.findByText(/notes\.md · 32 characters/);
+    await screen.findByText(/notes\.md · v1 · 32 characters/);
     const uploadCall = fetchMock.mock.calls[3]!;
     expect(uploadCall[0]).toBe("/api/v1/documents");
     expect(uploadCall[1]?.body).toBeInstanceOf(FormData);
@@ -98,6 +107,14 @@ describe("AURA research workspace", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Local notes" })[0]!);
     expect(await screen.findByRole("button", { name: "Download" })).toBeInTheDocument();
     expect(fetchMock.mock.calls[5]?.[0]).toBe("/api/v1/documents/doc-1");
+    expect(fetchMock.mock.calls[6]?.[0]).toBe("/api/v1/documents/doc-1/versions");
+    const updated = new File(["Updated AURA notes with new evidence."], "notes-v2.md", { type: "text/markdown" });
+    fireEvent.change(screen.getByLabelText("Upload a new version"), { target: { files: [updated] } });
+    fireEvent.click(screen.getByRole("button", { name: /Save new version/ }));
+    expect(await screen.findByText(/version 2/)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "v1 · notes.md" })).toBeInTheDocument();
+    expect(fetchMock.mock.calls[7]?.[0]).toBe("/api/v1/documents/doc-1/versions");
+    expect((fetchMock.mock.calls[7]?.[1]?.body as FormData).get("file")).toBeInstanceOf(File);
   });
 
   it("shows public coverage and responsible-use limits before a search", () => {

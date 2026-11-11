@@ -33,7 +33,7 @@ Optional local health and Prometheus metrics are available through the Compose `
 
 Local AI report and claim-comparison responses include prompt template versions and available Ollama timing/token counters. Completion logs contain usage metadata only; prompt text, source snippets, claims, and model output are excluded.
 
-The document library extracts text from PDFs (up to 100 pages and 250,000 characters), CSV (up to 10,000 rows and 200 columns per row), JSON (up to 50,000 nodes and 64 levels), and HTML (up to 50,000 parser nodes and 64 open elements); extracted text is capped at 250,000 characters. Original PDF/CSV/JSON/HTML bytes are not retained, and OCR is not enabled. See the [document API contract](docs/02-architecture/API-CONTRACTS.md#personal-document-library).
+The document library keeps stable version snapshots: each upload has its own ID and hash, while the list and search show the latest version. You can open older versions and add a new version; deleting any version removes its complete history. The local limit is 100 stored versions. Extraction is bounded for PDFs (up to 100 pages and 250,000 characters), CSV (up to 10,000 rows and 200 columns per row), JSON (up to 50,000 nodes and 64 levels), and HTML (up to 50,000 parser nodes and 64 open elements). Original PDF/CSV/JSON/HTML bytes are not retained, and OCR is not enabled. See the [document API contract](docs/02-architecture/API-CONTRACTS.md#personal-document-library).
 
 Bluesky connector details and its current limits are documented in [BLUESKY-SEARCH.md](docs/05-backend/BLUESKY-SEARCH.md).
 Provider outcome persistence and partial-result behavior are explained in [PROVIDER-OUTCOME-AUDIT.md](docs/05-backend/PROVIDER-OUTCOME-AUDIT.md).
