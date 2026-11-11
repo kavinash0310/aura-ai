@@ -22,6 +22,7 @@ export interface ResearchJob {
 export interface ProviderRun {
   provider: string;
   queryOrder: number;
+  attempt: number;
   query: string;
   status: "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "SKIPPED";
   resultCount: number;

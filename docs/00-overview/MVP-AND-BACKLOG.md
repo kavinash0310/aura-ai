@@ -66,7 +66,9 @@ Add web/news adapters, query planning, normalization, deduplication, evidence, c
 
 ### M6 — Controlled workflow
 Add persisted steps, typed tools, retries/backoff, cancellation, approval, audit.
-**Delivered first slice:** synchronous public searches persist each provider's results atomically with its success outcome and reconcile interrupted jobs on single-backend startup; interrupted providers are not retried automatically. Multi-instance leases, retry scheduling, cancellation, and approval remain future work.
+**Delivered first slice:** synchronous public searches persist each provider's results atomically with its success outcome and reconcile interrupted jobs on single-backend startup.
+**Delivered next slice:** an owner can explicitly retry the latest failed provider/query using its saved query and filters. Each retry is a separate immutable audit row, visible in the UI and exports; up to three total attempts are allowed. A retry is never automatic, and stale/duplicate attempts are rejected. Previous failures remain visible while the latest outcome controls coverage status.
+**Still needed:** multi-instance leases, asynchronous retry scheduling, cancellation, and broader error recovery.
 **Accept when:** provider failures recover or surface terminal state; policy denies out-of-scope operations.
 
 ### M7 — Cybersecurity intelligence

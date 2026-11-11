@@ -3,6 +3,7 @@ package ai.aura.api.application;
 import ai.aura.api.api.ResearchClaimComparisonResponse;
 import ai.aura.api.domain.ResearchJob;
 import ai.aura.api.domain.ResearchJobStatus;
+import ai.aura.api.domain.ProviderRunOutcomes;
 import ai.aura.api.domain.ResearchSource;
 import ai.aura.api.persistence.ResearchSourceRepository;
 import org.springframework.stereotype.Service;
@@ -73,7 +74,7 @@ public class ResearchClaimComparisonService {
             return generated;
         }
 
-        String failedProviders = jobs.listProviderRuns(jobId).stream()
+        String failedProviders = ProviderRunOutcomes.latestAttempts(jobs.listProviderRuns(jobId)).stream()
                 .filter(run -> run.getStatus() == ai.aura.api.domain.ResearchProviderRunStatus.FAILED
                         || run.getStatus() == ai.aura.api.domain.ResearchProviderRunStatus.SKIPPED)
                 .map(run -> run.getProvider() + " (" + run.getFailureCode() + ")")

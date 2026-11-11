@@ -56,6 +56,17 @@ public class ResearchSearchController {
         return response(job, null, null, null, null, null);
     }
 
+    @PostMapping("/{id}/providers/{provider}/queries/{queryOrder}/retry")
+    public ResearchSearchResponse retryFailedProvider(
+            @PathVariable UUID id,
+            @PathVariable String provider,
+            @PathVariable int queryOrder,
+            @RequestParam int attempt
+    ) {
+        ResearchJob job = searchService.retryFailedProvider(id, provider, queryOrder, attempt);
+        return response(job, null, null, null, null, null);
+    }
+
     @GetMapping("/{id}/sources")
     public ResearchSearchResponse sources(
             @PathVariable UUID id,
@@ -155,7 +166,7 @@ public class ResearchSearchController {
 
     private static String csv(ResearchSearchResponse response) {
         StringBuilder out = new StringBuilder();
-        out.append("provider,searchQuery,rank,kind,title,url,domain,publisher,publishedAt,retrievedAt,description,jobStatus,coverageNote,providerRunStatus,providerRunResultCount,failureCode,recordType\r\n");
+        out.append("provider,searchQuery,rank,kind,title,url,domain,publisher,publishedAt,retrievedAt,description,jobStatus,coverageNote,providerRunStatus,providerRunAttempt,providerRunResultCount,failureCode,recordType\r\n");
         for (ResearchSourceResponse source : response.results()) {
             out.append(cell(source.provider())).append(',')
                     .append(cell(source.searchQuery())).append(',')
@@ -170,7 +181,7 @@ public class ResearchSearchController {
                     .append(cell(source.description()))
                     .append(',').append(cell(response.status().name()))
                     .append(',').append(cell(response.coverageNote()))
-                    .append(",,,")
+                    .append(",,,,")
                     .append(cell("SOURCE"))
                     .append("\r\n");
         }
@@ -181,6 +192,7 @@ public class ResearchSearchController {
                     .append(",,").append(cell(response.status().name()))
                     .append(',').append(cell(response.coverageNote()))
                     .append(',').append(cell(run.status().name()))
+                    .append(',').append(run.attempt())
                     .append(',').append(run.resultCount())
                     .append(',').append(cell(run.failureCode()))
                     .append(',').append(cell("PROVIDER_RUN"))
@@ -209,11 +221,12 @@ public class ResearchSearchController {
                 .append("Coverage: ").append(markdownValue(response.coverageNote())).append("\n\n");
         if (!response.providerRuns().isEmpty()) {
             out.append("## Provider outcomes\n\n")
-                    .append("| Query | Provider | Status | Results | Failure code |\n")
-                    .append("|---|---|---|---:|---|\n");
+                    .append("| Query | Provider | Attempt | Status | Results | Failure code |\n")
+                    .append("|---|---:|---:|---|---:|---|\n");
             for (ProviderRunResponse run : response.providerRuns()) {
                 out.append("| ").append(markdownValue(run.query()))
                         .append(" | ").append(markdownValue(run.provider()))
+                        .append(" | ").append(run.attempt())
                         .append(" | ").append(markdownValue(run.status().name()))
                         .append(" | ").append(run.resultCount())
                         .append(" | ").append(markdownValue(run.failureCode()))

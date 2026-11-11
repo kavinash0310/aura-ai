@@ -8,6 +8,7 @@ import java.time.Instant;
 public record ProviderRunResponse(
         String provider,
         int queryOrder,
+        int attempt,
         String query,
         ResearchProviderRunStatus status,
         int resultCount,
@@ -19,6 +20,7 @@ public record ProviderRunResponse(
         return new ProviderRunResponse(
                 run.getProvider(),
                 run.getQueryOrder(),
+                run.getAttempt(),
                 run.getQueryText(),
                 run.getStatus(),
                 run.getResultCount(),

@@ -14,10 +14,11 @@ The provider calls remain sequential and explicit. A provider called before a la
 
 ## Data model
 
-Migration V5 adds `research_provider_runs`; V8 extends it to retain one row per provider/query pair with:
+Migration V5 adds `research_provider_runs`; V8 adds per-query provenance and V10 adds retained manual retry attempts. Each run stores:
 
-- `research_job_id`, provider name, query order, and exact query text, unique per job/provider/query order.
+- `research_job_id`, provider name, query order, and exact query text, unique per job/provider/query/attempt.
 - `run_order`, preserving the overall order of sequential requests; calls run query-first, then provider.
+- `attempt`, starting at 1 and capped at 3 total attempts for one provider/query pair.
 - `status`: `PENDING`, `RUNNING`, `SUCCEEDED`, `FAILED`, or `SKIPPED` when a provider was never called because an earlier request was interrupted.
 - `result_count`, initialized to zero and set on success.
 - `failure_code`, set only for a failed run using stable application codes (no raw provider response or credentials).
@@ -35,9 +36,15 @@ The existing job row adds one enum value, `PARTIAL`, to its status constraint. V
 
 Provider network I/O is not held inside a database transaction. On application startup, a recovery runner reconciles any job left in `SEARCHING`: a `RUNNING` provider is marked `FAILED/SEARCH_INTERRUPTED`, remaining `PENDING` providers are marked `SKIPPED/SEARCH_INTERRUPTED_BEFORE_PROVIDER`, and the job becomes `COMPLETED`, `PARTIAL`, or `FAILED` based on already committed evidence. The job is failed closed if provider counts do not match persisted source rows, which also protects searches interrupted during an upgrade from the earlier V5 transaction design. No provider request is retried automatically. This recovery assumes the current single-backend deployment; multi-instance deployments need an ownership lease or heartbeat so one live instance cannot recover another instance's active work.
 
+### Explicit retry of one failed provider/query
+
+An authenticated owner can retry the latest `FAILED` attempt by calling `POST /api/v1/research-jobs/{id}/providers/{provider}/queries/{queryOrder}/retry?attempt={attempt}`. The route accepts no query or filter body: it reuses the exact stored query and filters, sends one request to the same configured provider, and permits at most three total attempts. The attempt number is a stale-request guard; a duplicate request, a retry of an old attempt, a non-failed outcome, or a fourth attempt returns a conflict without contacting the provider.
+
+Each retry creates a new provider-run row. Prior failures are never overwritten. Successful results and the new `SUCCEEDED` outcome commit in one transaction. The job's terminal status and coverage use the latest attempt for each provider/query pair, while the API and exports retain the full attempt history. A user click is the approval to repeat that exact public query; AURA does not retry automatically. A failed retry is saved and remains eligible for another explicit retry until the three-attempt cap.
+
 ## API and UI behavior
 
-`ResearchSearchResponse` adds `providerRuns`. A run response contains provider, query order/text, status, result count, optional failure code, and start/completion times. Every source response and export includes its `searchQuery`. A partial synchronous search responds with HTTP 200 and status `PARTIAL`, includes successful rows, and has a coverage note naming failed or skipped runs. A completely failed request retains `FAILED` plus all run rows; authenticated `GET /api/v1/research-jobs/{id}` and history listing expose the provider outcomes. Deletion is rejected while a job is actively `SEARCHING`.
+`ResearchSearchResponse` adds `providerRuns`. A run response contains provider, query order/text, attempt, status, result count, optional failure code, and start/completion times. Every source response and export includes its `searchQuery`. A partial synchronous search responds with HTTP 200 and status `PARTIAL`, includes successful rows, and has a coverage note naming failed or skipped latest attempts. A completely failed request retains `FAILED` plus all run rows; authenticated `GET /api/v1/research-jobs/{id}` and history listing expose the provider outcomes. The UI offers a retry action only for the latest failed attempt and labels the current attempt out of three. Deletion is rejected while a job is actively `SEARCHING`.
 
 Source listing, export, and selected-source report generation accept jobs in `COMPLETED` or `PARTIAL` state. The UI labels partial jobs and shows each provider's result count or stable failure code. If every provider fails and the search endpoint returns an error, the UI refreshes history so the failed job's persisted outcomes are still visible.
 
@@ -55,17 +62,18 @@ JSON and Markdown exports include the provider run summary. CSV exports retain t
 
 - `backend/src/main/java/ai/aura/api/domain/ResearchProviderRun.java`: provider outcome state machine.
 - `backend/src/main/java/ai/aura/api/domain/ResearchProviderRunStatus.java`: persisted lifecycle states.
-- `backend/src/main/java/ai/aura/api/application/ResearchSearchService.java`: sequential provider calls, failure isolation, and final status choice.
+- `backend/src/main/java/ai/aura/api/application/ResearchSearchService.java`: sequential provider calls, explicit per-provider retry, failure isolation, and final status choice.
+- `backend/src/main/java/ai/aura/api/domain/ProviderRunOutcomes.java`: latest-attempt aggregation while preserving all audit rows.
 - `backend/src/main/java/ai/aura/api/application/ResearchJobService.java`: transaction boundaries, provider result persistence, outcome recovery, and provider-run reads.
 - `backend/src/main/java/ai/aura/api/application/ResearchSearchRecovery.java`: startup recovery hook for interrupted single-instance searches.
 - `backend/src/main/java/ai/aura/api/api/ProviderRunResponse.java`: safe API representation.
-- `backend/src/main/resources/db/migration/common/V5__record_provider_search_runs.sql`, `V6__allow_skipped_provider_runs.sql`, and `V8__record_bounded_query_plans.sql`: provider/query audit, job status constraint, recovery state, and source provenance.
+- `backend/src/main/resources/db/migration/common/V5__record_provider_search_runs.sql`, `V6__allow_skipped_provider_runs.sql`, `V8__record_bounded_query_plans.sql`, and `V10__record_manual_provider_retries.sql`: provider/query audit, recovery state, source provenance, and bounded attempts.
 - `backend/src/test/java/ai/aura/api/ResearchSearchApiTest.java`: complete, partial, and all-failed scenarios.
 - `web/src/App.tsx` and `web/src/App.test.tsx`: partial status and provider failure disclosure.
 
 ## Testing and learning prompts
 
-Tests verify that mixed outcomes preserve only successful source rows and report the failed provider, an all-failed search saves run audits and returns the first provider error, and recovery preserves committed evidence while marking active/not-started providers interrupted/skipped.
+Tests verify that mixed outcomes preserve only successful source rows and report the failed provider, an all-failed search saves run audits and returns the first provider error, a user-triggered retry appends a new attempt while retaining the failure row, stale or unauthenticated retries are rejected, and recovery preserves committed evidence while marking active/not-started providers interrupted/skipped.
 
 For the bounded per-query audit design, see [BOUNDED-QUERY-PLANS.md](BOUNDED-QUERY-PLANS.md).
 
