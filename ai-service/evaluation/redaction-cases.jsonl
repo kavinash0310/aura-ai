@@ -1,0 +1,15 @@
+{"id":"private-key-block","group":"supported","text":"-----BEGIN PRIVATE KEY-----\naura-fixture-private-key-material\n-----END PRIVATE KEY-----","sensitive_value":"aura-fixture-private-key-material"}
+{"id":"bearer-token","group":"supported","text":"Authorization: Bearer aura-fixture-bearer-token-12345","sensitive_value":"aura-fixture-bearer-token-12345"}
+{"id":"basic-token","group":"supported","text":"Authorization: Basic aura-fixture-basic-token-12345","sensitive_value":"aura-fixture-basic-token-12345"}
+{"id":"aws-key-id","group":"supported","text":"Example key AKIA1234567890ABCDEF","sensitive_value":"AKIA1234567890ABCDEF"}
+{"id":"github-pat","group":"supported","text":"Example key ghp_123456789012345678901234","sensitive_value":"ghp_123456789012345678901234"}
+{"id":"gitlab-token","group":"supported","text":"Example key glpat-12345678901234567890","sensitive_value":"glpat-12345678901234567890"}
+{"id":"slack-token","group":"supported","text":"Example key xoxb-1234567890-abcdef123456","sensitive_value":"xoxb-1234567890-abcdef123456"}
+{"id":"google-api-key","group":"supported","text":"Example key AIza12345678901234567890123456789012","sensitive_value":"AIza12345678901234567890123456789012"}
+{"id":"stripe-secret","group":"supported","text":"Example key sk_live_auraFixture123456","sensitive_value":"sk_live_auraFixture123456"}
+{"id":"named-credential","group":"supported","text":"session_token=aura-fixture-session-value","sensitive_value":"aura-fixture-session-value"}
+{"id":"ordinary-security-prose","group":"benign","text":"The report explains password rotation and secret storage policies without including credentials."}
+{"id":"auth-scheme-prose","group":"benign","text":"The documentation compares Bearer and Basic authorization schemes."}
+{"id":"short-provider-prefix","group":"benign","text":"The sample identifier starts with AKIA but is not a key."}
+{"id":"unlabeled-jwt","group":"known_gap","text":"A token example: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fixture-signature","sensitive_value":"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.fixture-signature"}
+{"id":"encoded-credential-name","group":"known_gap","text":"api%5Fkey=aura-fixture-url-encoded-value","sensitive_value":"aura-fixture-url-encoded-value"}
