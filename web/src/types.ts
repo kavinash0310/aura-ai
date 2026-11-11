@@ -97,6 +97,36 @@ export interface ResearchDocumentSearchHit {
   citation: string;
 }
 
+export interface DocumentQuestionEvidence {
+  text: string;
+  sourceIds: string[];
+  evidenceQuotes: ResearchReportEvidenceQuote[];
+}
+
+export interface DocumentQuestionCitation {
+  id: string;
+  title: string;
+  originalFilename: string;
+  versionNumber: number;
+  page: number | null;
+  startOffset: number;
+  endOffset: number;
+  citation: string;
+}
+
+export interface DocumentQuestionResponse {
+  generatedAt: string;
+  provider: "ollama";
+  model: string;
+  question: string;
+  answer: string;
+  evidence: DocumentQuestionEvidence[];
+  citations: DocumentQuestionCitation[];
+  limitations: string[];
+  coverageNote: string;
+  modelRun: ModelRunTelemetry;
+}
+
 export interface SearchResponse {
   jobId: string;
   query: string;

@@ -94,4 +94,24 @@ public class AiReportClient {
             throw new AiServiceUnavailableException();
         }
     }
+
+    public AiDocumentQuestionResponse answerDocuments(AiDocumentQuestionRequest request) {
+        if (internalToken.isBlank()) {
+            throw new AiServiceUnavailableException();
+        }
+        try {
+            AiDocumentQuestionResponse response = client.post()
+                    .uri("/api/v1/documents/answer")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + internalToken)
+                    .body(request)
+                    .retrieve()
+                    .body(AiDocumentQuestionResponse.class);
+            if (response == null) {
+                throw new AiServiceUnavailableException();
+            }
+            return response;
+        } catch (RestClientException exception) {
+            throw new AiServiceUnavailableException();
+        }
+    }
 }

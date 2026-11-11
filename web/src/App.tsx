@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   ApiError,
+  answerDocumentQuestion,
   compareResearchClaim,
   createResearchJob,
   deleteDocument,
@@ -35,6 +36,7 @@ import type {
   ResearchPageReadAudit,
   ResearchDocument,
   ResearchDocumentSearchHit,
+  DocumentQuestionResponse,
   ResearchMode,
   SearchProviderChoice,
   ResearchSource,
@@ -280,6 +282,10 @@ export default function App() {
   const [documentTitle, setDocumentTitle] = useState("");
   const [documentQuery, setDocumentQuery] = useState("");
   const [documentHits, setDocumentHits] = useState<ResearchDocumentSearchHit[]>([]);
+  const [documentQuestionDraft, setDocumentQuestionDraft] = useState("");
+  const [documentQuestionSelectionIds, setDocumentQuestionSelectionIds] = useState<string[]>([]);
+  const [documentQuestion, setDocumentQuestion] = useState<DocumentQuestionResponse | null>(null);
+  const [documentQuestionBusy, setDocumentQuestionBusy] = useState(false);
   const [openedDocument, setOpenedDocument] = useState<ResearchDocument | null>(null);
   const [documentVersions, setDocumentVersions] = useState<ResearchDocument[] | null>(null);
   const [documentUploading, setDocumentUploading] = useState(false);
@@ -841,6 +847,8 @@ export default function App() {
       setOpenedDocument(null);
       setDocumentVersions(null);
       setDocumentHits([]);
+      setDocumentQuestionSelectionIds([]);
+      setDocumentQuestion(null);
       setDocumentFile(null);
       setDocumentTitle("");
       setDocumentInputKey((current) => current + 1);
@@ -861,6 +869,8 @@ export default function App() {
       const results = await searchDocuments(credentials, documentQuery);
       if (session === workspaceSession.current) {
         setDocumentHits(results);
+        setDocumentQuestionSelectionIds([]);
+        setDocumentQuestion(null);
         setOpenedDocument(null);
       }
     } catch (caught) {
@@ -868,6 +878,77 @@ export default function App() {
     } finally {
       if (session === workspaceSession.current) setDocumentSearching(false);
     }
+  }
+
+  function toggleDocumentQuestionSource(documentId: string) {
+    setDocumentQuestionSelectionIds((current) => {
+      if (current.includes(documentId)) return current.filter((id) => id !== documentId);
+      if (current.length >= 5) return current;
+      return [...current, documentId];
+    });
+    setDocumentQuestion(null);
+  }
+
+  async function askDocumentQuestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!connected || !documentQuestionDraft.trim()) return;
+    const selected = documentHits.filter((hit) => documentQuestionSelectionIds.includes(hit.documentId));
+    if (selected.length === 0 || selected.length > 5) return;
+    const session = workspaceSession.current;
+    setDocumentQuestionBusy(true);
+    setError("");
+    try {
+      const response = await answerDocumentQuestion(
+        credentials,
+        documentQuestionDraft.trim(),
+        documentQuery.trim(),
+        selected.map((hit) => ({ documentId: hit.documentId, startOffset: hit.startOffset, endOffset: hit.endOffset })),
+      );
+      if (session === workspaceSession.current) setDocumentQuestion(response);
+    } catch (caught) {
+      if (session === workspaceSession.current) setError(errorMessage(caught));
+    } finally {
+      if (session === workspaceSession.current) setDocumentQuestionBusy(false);
+    }
+  }
+
+  function downloadDocumentQuestion(format: "json" | "md") {
+    if (!documentQuestion) return;
+    const content = format === "json"
+      ? JSON.stringify({ schemaVersion: 1, exportedAt: new Date().toISOString(), question: documentQuestion }, null, 2)
+      : [
+        "# Document answer",
+        "",
+        `Question: ${documentQuestion.question}`,
+        `Generated: ${formatDate(documentQuestion.generatedAt)} · Model: ${documentQuestion.model}`,
+        "",
+        documentQuestion.answer,
+        "",
+        "## Evidence from selected excerpts",
+        "",
+        ...documentQuestion.evidence.flatMap((item) => [
+          `- ${item.text}${item.sourceIds.map((id) => {
+            const citation = documentQuestion.citations.find((candidate) => candidate.id === id);
+            return citation ? ` [${citation.title}](<${citation.citation}>)` : "";
+          }).join("")}`,
+          ...item.evidenceQuotes.map((quote) => `  - Matched excerpt: “${quote.quote}”`),
+        ]),
+        "",
+        "## Limitations",
+        "",
+        ...documentQuestion.limitations.map((item) => `- ${item}`),
+        `- ${documentQuestion.coverageNote}`,
+        "",
+      ].join("\n");
+    const mime = format === "json" ? "application/json;charset=utf-8" : "text/markdown;charset=utf-8";
+    const url = URL.createObjectURL(new Blob([content], { type: mime }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aura-document-answer.${format}`;
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function openDocument(id: string) {
@@ -938,6 +1019,8 @@ export default function App() {
       setOpenedDocument(currentVersion);
       setDocumentVersions(versions);
       setDocumentHits([]);
+      setDocumentQuestionSelectionIds([]);
+      setDocumentQuestion(null);
       setDocumentVersionFile(null);
       setDocumentVersionInputKey((current) => current + 1);
     } catch (caught) {
@@ -954,6 +1037,8 @@ export default function App() {
       await deleteDocument(credentials, item.id);
       setDocuments((current) => current.filter((document) => document.logicalDocumentId !== item.logicalDocumentId));
       setDocumentHits((current) => current.filter((hit) => hit.documentId !== item.id));
+      setDocumentQuestionSelectionIds((current) => current.filter((id) => id !== item.id));
+      setDocumentQuestion(null);
       if (openedDocument?.logicalDocumentId === item.logicalDocumentId) {
         setOpenedDocument(null);
         setDocumentVersions(null);
@@ -1252,6 +1337,10 @@ export default function App() {
     setDocumentTitle("");
     setDocumentQuery("");
     setDocumentHits([]);
+    setDocumentQuestionDraft("");
+    setDocumentQuestionSelectionIds([]);
+    setDocumentQuestion(null);
+    setDocumentQuestionBusy(false);
     setOpenedDocument(null);
     setCanRetry(false);
     setError("");
@@ -1601,16 +1690,29 @@ export default function App() {
                   {documentUploading ? <><span className="spinner" /> Importing</> : <>Import document <span aria-hidden="true">↗</span></>}
                 </button>
               </div>
-              <p className="cyber-egress-note">AURA stores extracted text in its local database with a SHA‑256 text hash. Search returns exact phrase and character citations; documents are not sent to Brave or an AI model. PDF extraction is limited to 100 pages and 250,000 characters; CSV to 10,000 rows and 200 columns per row; JSON to 50,000 nodes and 64 levels; HTML to 50,000 parser nodes and 64 levels. Structured extracted text is capped at 250,000 characters. Scanned PDFs are unsupported because OCR is not enabled. PDF, CSV, JSON, and HTML downloads contain extracted searchable text.</p>
+              <p className="cyber-egress-note">AURA stores extracted text in its local database with a SHA‑256 text hash. Search returns exact phrase and character citations; documents are never sent to public search providers. Only excerpts you explicitly select for a local-model answer are sent, never the full document. PDF extraction is limited to 100 pages and 250,000 characters; CSV to 10,000 rows and 200 columns per row; JSON to 50,000 nodes and 64 levels; HTML to 50,000 parser nodes and 64 levels. Structured extracted text is capped at 250,000 characters. Scanned PDFs are unsupported because OCR is not enabled. PDF, CSV, JSON, and HTML downloads contain extracted searchable text.</p>
             </form>
 
             <form className="document-search-form" onSubmit={searchDocumentLibrary}>
-              <label className="filter-search"><span aria-hidden="true">⌕</span><input aria-label="Search documents" placeholder="Search your documents" value={documentQuery} onChange={(event) => setDocumentQuery(event.target.value)} /></label>
+      <label className="filter-search"><span aria-hidden="true">⌕</span><input aria-label="Search documents" placeholder="Search your documents" value={documentQuery} onChange={(event) => { setDocumentQuery(event.target.value); setDocumentHits([]); setDocumentQuestionSelectionIds([]); setDocumentQuestion(null); }} /></label>
               <button className="filter-button" type="submit" disabled={!connected || documentSearching || documentQuery.trim().length < 2}>{documentSearching ? "Searching…" : "Search"}</button>
             </form>
             {documentHits.length > 0 && <div className="document-hit-list" aria-label="Document search results">{documentHits.map((hit) => <article className="document-hit" key={hit.documentId}>
-              <div><button className="document-open-button" type="button" onClick={() => void openDocument(hit.documentId)}>{hit.title}</button><p>{hit.originalFilename}{hit.page == null ? "" : ` · page ${hit.page}`} · characters {hit.startOffset}–{hit.endOffset}</p><blockquote>{hit.snippet}</blockquote><code>{hit.citation}</code></div>
+              <div><label className="document-question-select"><input type="checkbox" checked={documentQuestionSelectionIds.includes(hit.documentId)} onChange={() => toggleDocumentQuestionSource(hit.documentId)} disabled={!documentQuestionSelectionIds.includes(hit.documentId) && documentQuestionSelectionIds.length >= 5} /> Use as answer evidence</label><button className="document-open-button" type="button" onClick={() => void openDocument(hit.documentId)}>{hit.title}</button><p>{hit.originalFilename}{hit.page == null ? "" : ` · page ${hit.page}`} · characters {hit.startOffset}–{hit.endOffset}</p><blockquote>{hit.snippet}</blockquote><code>{hit.citation}</code></div>
             </article>)}</div>}
+            {documentHits.length > 0 && <form className="document-question-form" onSubmit={askDocumentQuestion}>
+              <label className="field-label" htmlFor="document-question">Ask a question about selected excerpts</label>
+              <textarea id="document-question" className="text-input" rows={2} maxLength={500} value={documentQuestionDraft} onChange={(event) => { setDocumentQuestionDraft(event.target.value); setDocumentQuestion(null); }} placeholder="What do these passages say about…?" />
+              <div className="cyber-form-footer"><span className="provider-note">{documentQuestionSelectionIds.length} of 5 excerpts selected · sent only to local Ollama after you ask</span><button className="primary-button" type="submit" disabled={!connected || documentQuestionBusy || !documentQuestionDraft.trim() || documentQuestionSelectionIds.length === 0}>{documentQuestionBusy ? <><span className="spinner" /> Answering</> : <>Ask selected documents <span aria-hidden="true">↗</span></>}</button></div>
+              <p className="cyber-egress-note">Only bounded excerpts around the exact phrase matches you select are sent. Full documents, other search results, and public search providers are excluded. Answers include source quotes and character/page citations; review the excerpts before relying on a summary.</p>
+            </form>}
+            {documentQuestion && <div className="document-question-result" aria-live="polite">
+              <div className="document-list-heading"><strong>Answer from selected excerpts</strong><div className="export-actions"><button type="button" onClick={() => downloadDocumentQuestion("md")}>↓ Markdown</button><button type="button" onClick={() => downloadDocumentQuestion("json")}>↓ JSON</button></div></div>
+              <p className="document-question-answer">{documentQuestion.answer}</p>
+              {documentQuestion.evidence.map((item, index) => <article className="document-question-evidence" key={`${index}-${item.sourceIds.join("-")}`}><p>{item.text}</p>{item.evidenceQuotes.map((quote) => <blockquote key={quote.sourceId}>“{quote.quote}”</blockquote>)}{item.sourceIds.map((id) => { const citation = documentQuestion.citations.find((entry) => entry.id === id); return citation ? <code key={id}>{citation.title} · {citation.originalFilename} · v{citation.versionNumber}{citation.page == null ? "" : ` · page ${citation.page}`} · {citation.citation}</code> : null; })}</article>)}
+              {documentQuestion.limitations.map((item) => <p className="cyber-egress-note" key={item}>{item}</p>)}
+              <p className="coverage-note"><span>ⓘ</span> {documentQuestion.coverageNote}</p>
+            </div>}
             {documentHits.length === 0 && documentQuery && <p className="cyber-egress-note">No matching document results yet. Run the search to check this library.</p>}
             <div className="document-list-heading"><strong>Your documents</strong><span>{documents.length} shown</span></div>
             {documents.length > 0 ? <div className="document-list">{documents.map((item) => <article className="document-row" key={item.id}>

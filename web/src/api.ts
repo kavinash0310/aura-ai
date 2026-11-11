@@ -6,6 +6,7 @@ import type {
   GitHubAdvisoryLookupResponse,
   ResearchDocument,
   ResearchDocumentSearchHit,
+  DocumentQuestionResponse,
   ResearchJob,
   ResearchPageResponse,
   ResearchPageReadAudit,
@@ -168,6 +169,18 @@ export function getDocumentVersions(credentials: Credentials, id: string): Promi
 export function searchDocuments(credentials: Credentials, query: string): Promise<ResearchDocumentSearchHit[]> {
   const params = new URLSearchParams({ q: query });
   return request<ResearchDocumentSearchHit[]>(`/api/v1/documents/search?${params.toString()}`, credentials);
+}
+
+export function answerDocumentQuestion(
+  credentials: Credentials,
+  question: string,
+  searchQuery: string,
+  selections: Array<{ documentId: string; startOffset: number; endOffset: number }>,
+): Promise<DocumentQuestionResponse> {
+  return request<DocumentQuestionResponse>("/api/v1/documents/answer", credentials, {
+    method: "POST",
+    body: JSON.stringify({ question, searchQuery, selections }),
+  });
 }
 
 export function deleteDocument(credentials: Credentials, id: string): Promise<void> {
