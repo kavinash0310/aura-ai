@@ -16,8 +16,6 @@ import java.util.UUID;
 @Service
 public class ResearchDocumentQuestionService {
     private static final int MAX_SOURCES = 5;
-    private static final int CONTEXT_BEFORE = 200;
-    private static final int CONTEXT_AFTER = 300;
 
     private final ResearchDocumentService documents;
     private final AiReportClient aiReportClient;
@@ -61,8 +59,9 @@ public class ResearchDocumentQuestionService {
             int pageStart = content.lastIndexOf('\f', Math.max(-1, start - 1)) + 1;
             int nextPageBreak = content.indexOf('\f', end);
             int pageEnd = nextPageBreak < 0 ? content.length() : nextPageBreak;
-            int excerptStart = Math.max(pageStart, start - CONTEXT_BEFORE);
-            int excerptEnd = Math.min(pageEnd, end + CONTEXT_AFTER);
+            DocumentChunker.Chunk chunk = DocumentChunker.containing(start, end, pageStart, pageEnd);
+            int excerptStart = chunk.startOffset();
+            int excerptEnd = chunk.endOffset();
             Integer page = "application/pdf".equals(document.getMediaType())
                     ? 1 + (int) content.substring(0, start).chars().filter(value -> value == '\f').count()
                     : null;
