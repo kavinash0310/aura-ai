@@ -1,9 +1,9 @@
 import { compare, valid } from "semver";
 import type { OsvAffectedPackage, OsvVersionEvent, OsvVersionRange, SbomComponent } from "./types";
 
-export const OSV_PURL_CORRELATION_LIMITATION = "AURA matches exact OSV affected-version strings for any ecosystem and evaluates complete SemVer 2 ranges for npm, a restricted NuGet subset, and Go modules. NuGet package IDs match without case. Ordered NuGet comparisons accept only strict three-part versions with lowercase prerelease labels; other forms stay not assessed unless their exact version strings match. Go versions must use the v prefix; only +incompatible build metadata is accepted. Go module paths and pseudo-version ancestry are not validated. Other ecosystems or range types stay not assessed; a no-match is limited to the returned advisory data and is not proof of safety.";
+export const OSV_PURL_CORRELATION_LIMITATION = "AURA matches exact OSV affected-version strings for any ecosystem and evaluates complete SemVer 2 ranges for npm, crates.io, a restricted NuGet subset, and Go modules. Cargo versions must be strict three-part SemVer; build metadata does not affect range ordering. NuGet package IDs match without case. Ordered NuGet comparisons accept only strict three-part versions with lowercase prerelease labels; other forms stay not assessed unless their exact version strings match. Go versions must use the v prefix; only +incompatible build metadata is accepted. Go module paths and pseudo-version ancestry are not validated. Other ecosystems or range types stay not assessed; a no-match is limited to the returned advisory data and is not proof of safety.";
 export const OSV_PURL_MATCH_BASIS = "EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION";
-export const OSV_VERSION_ASSESSMENT_POLICY = "EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_NUGET_GO_SEMVER_2_RANGES";
+export const OSV_VERSION_ASSESSMENT_POLICY = "EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_CRATES_IO_NUGET_GO_SEMVER_2_RANGES";
 
 export type OsvVersionAssessmentStatus = "AFFECTED" | "NO_MATCH_IN_RETURNED_OSV_VERSION_DATA" | "NOT_ASSESSED";
 
@@ -26,7 +26,8 @@ const MAX_PURL_LENGTH = 4_096;
 /**
  * Correlates normalized PURL identities locally. Literal exact-version evidence is
  * ecosystem-independent; range evaluation is limited to strict npm SemVer 2,
- * a restricted NuGet SemVer 2 subset, and canonical Go module SemVer 2.
+ * Cargo crates.io SemVer 2, a restricted NuGet SemVer 2 subset, and
+ * canonical Go module SemVer 2.
  */
 export function correlateOsvPackages(
   advisoryPackages: OsvAffectedPackage[],
@@ -99,13 +100,13 @@ export function assessOsvPackageVersion(
     return notAssessed("OSV range evidence was truncated or malformed; AURA did not assess a partial range.");
   }
 
-  const supportsSemverRanges = ["npm", "NuGet", "Go"].includes(advisoryPackage.ecosystem);
+  const supportsSemverRanges = ["npm", "crates.io", "NuGet", "Go"].includes(advisoryPackage.ecosystem);
   if (!supportsSemverRanges) {
     if (advisoryPackage.affectedVersionsTruncated) {
       return notAssessed("OSV affected-version evidence was truncated; a negative result cannot be determined safely.");
     }
     if (advisoryPackage.versionRanges.length > 0 || advisoryPackage.versionRangeDetails.length > 0) {
-      return notAssessed("Range evaluation supports npm, a restricted NuGet SemVer 2 subset, and canonical Go module SemVer 2 only; this ecosystem's range was not compared.");
+      return notAssessed("Range evaluation supports npm, crates.io, a restricted NuGet SemVer 2 subset, and canonical Go module SemVer 2 only; this ecosystem's range was not compared.");
     }
     if (advisoryPackage.affectedVersions.length === 0) {
       return notAssessed("OSV did not return an exact affected-version list that AURA can assess.");
@@ -146,7 +147,7 @@ export function assessOsvPackageVersion(
     return notAssessed("OSV version evidence was truncated; a negative result cannot be determined safely.");
   }
   if (!affectedVersionsSupported || hasUnsupportedRanges) {
-    return notAssessed("OSV includes version evidence outside the supported npm, restricted NuGet, or Go SemVer 2 subset.");
+    return notAssessed("OSV includes version evidence outside the supported npm, crates.io, restricted NuGet, or Go SemVer 2 subset.");
   }
   const hasSupportedVersionEvidence = advisoryPackage.affectedVersions.length > 0 || rangeResults.length > 0;
   if (!hasSupportedVersionEvidence) return notAssessed("OSV did not return version evidence that AURA can assess.");
@@ -258,6 +259,7 @@ function strictSemver(value: string): string | null {
 
 function strictSemverForEcosystem(value: string, ecosystem: string): string | null {
   if (ecosystem === "npm") return strictSemver(value);
+  if (ecosystem === "crates.io") return strictCargoSemver(value);
   if (ecosystem === "NuGet") return strictNugetSemver(value);
   if (ecosystem !== "Go" || !value.startsWith("v")) return null;
   if (value.includes("+") && !value.endsWith("+incompatible")) return null;
@@ -265,6 +267,11 @@ function strictSemverForEcosystem(value: string, ecosystem: string): string | nu
   const versionWithoutPrefix = value.slice(1);
   const parsed = valid(versionWithoutPrefix);
   return parsed === versionWithoutPrefix ? parsed : null;
+}
+
+function strictCargoSemver(value: string): string | null {
+  const match = /^(\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(value);
+  return match ? strictSemver(match[1]!) : null;
 }
 
 function strictNugetSemver(value: string): string | null {

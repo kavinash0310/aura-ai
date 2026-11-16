@@ -66,6 +66,28 @@ describe("correlateOsvPackages", () => {
     });
   });
 
+  it("assesses crates.io ranges with strict Cargo SemVer precedence", () => {
+    const packageInfo = advisory("pkg:cargo/demo", {
+      ecosystem: "crates.io",
+      versionRangeDetails: [semverRange(event("introduced", "1.2.3-alpha"), event("fixed", "1.2.3"))],
+    });
+
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("prerelease", "pkg:cargo/demo@1.2.3-beta+inventory", "1.2.3-beta+inventory"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("fixed-with-build-metadata", "pkg:cargo/demo@1.2.3+inventory", "1.2.3+inventory"),
+    ).status).toBe("NO_MATCH_IN_RETURNED_OSV_VERSION_DATA");
+    for (const version of ["1.2", "v1.2.3", "1.2.3.4", "1.2.3+"]) {
+      expect(assessOsvPackageVersion(
+        packageInfo,
+        component(version, `pkg:cargo/demo@${version}`, version),
+      ).status).toBe("NOT_ASSESSED");
+    }
+  });
+
   it("rejects malformed NuGet package IDs before applying case normalization", () => {
     expect(correlateOsvPackages(
       [advisory("pkg:nuget/group/name", { ecosystem: "NuGet" })],
