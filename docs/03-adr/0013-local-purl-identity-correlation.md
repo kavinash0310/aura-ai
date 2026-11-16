@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-08
 
-The version-assessment boundary in this ADR is extended by [ADR 0014](0014-local-npm-semver-applicability.md). The exact PURL identity rule and no-inventory-egress decision remain in effect.
+The version-assessment boundary in this ADR is extended by [ADR 0014](0014-local-npm-semver-applicability.md). NuGet-specific identity and range rules are added in [ADR 0022](0022-local-nuget-semver-range-assessment.md). Package inventory remains local and is never sent to OSV.
 
 ## Context
 
@@ -22,7 +22,7 @@ The owner needs a useful local connection between an OSV advisory's package list
 
 ## Decision
 
-After the owner explicitly loads an OSV advisory for a CVE declared in an uploaded SBOM, the browser may compare OSV affected-package PURLs with PURLs from the selected finding's locally resolved components. Normalize only the PURL package type to lowercase and remove the version segment after the final slash. Preserve namespace/name and qualifiers as supplied; ignore subpaths for package identity. Require both PURLs to match the helper's bounded minimum PURL shape; this is not a complete PURL standards validator. Do not fall back to names, ecosystem labels, or fuzzy matching. Label results as exact PURL identity matches and mark version assessment `NOT_PERFORMED`. Perform no new network request and persist no new data. Include the correlation and limitation in explicit JSON/CSV downloads.
+After the owner explicitly loads an OSV advisory for a CVE declared in an uploaded SBOM, the browser may compare OSV affected-package PURLs with PURLs from the selected finding's locally resolved components. Normalize the PURL package type to lowercase and remove the version segment after the final slash. Preserve namespace/name and qualifiers for ecosystems with case-sensitive package identity; the NuGet-specific package-ID case normalization is defined by ADR 0022. Ignore subpaths for package identity. Require both PURLs to match the helper's bounded minimum PURL shape; this is not a complete PURL standards validator. Do not fall back to names, ecosystem labels, or fuzzy matching. Label results as PURL identity matches after documented ecosystem normalization and mark version assessment `NOT_PERFORMED`. Perform no new network request and persist no new data. Include the correlation and limitation in explicit JSON/CSV downloads.
 
 ## Consequences
 

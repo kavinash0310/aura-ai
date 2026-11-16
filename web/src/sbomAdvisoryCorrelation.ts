@@ -1,9 +1,9 @@
 import { compare, valid } from "semver";
 import type { OsvAffectedPackage, OsvVersionEvent, OsvVersionRange, SbomComponent } from "./types";
 
-export const OSV_PURL_CORRELATION_LIMITATION = "AURA matches exact OSV affected-version strings for any ecosystem and evaluates complete SemVer 2 ranges for npm and Go modules only. Go versions must use the v prefix; only +incompatible build metadata is accepted. Go module paths and pseudo-version ancestry are not validated. Other ecosystems or range types stay not assessed; a no-match is limited to the returned advisory data and is not proof of safety.";
+export const OSV_PURL_CORRELATION_LIMITATION = "AURA matches exact OSV affected-version strings for any ecosystem and evaluates complete SemVer 2 ranges for npm, a restricted NuGet subset, and Go modules. NuGet package IDs match without case. Ordered NuGet comparisons accept only strict three-part versions with lowercase prerelease labels; other forms stay not assessed unless their exact version strings match. Go versions must use the v prefix; only +incompatible build metadata is accepted. Go module paths and pseudo-version ancestry are not validated. Other ecosystems or range types stay not assessed; a no-match is limited to the returned advisory data and is not proof of safety.";
 export const OSV_PURL_MATCH_BASIS = "EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION";
-export const OSV_VERSION_ASSESSMENT_POLICY = "EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_GO_SEMVER_2_RANGES";
+export const OSV_VERSION_ASSESSMENT_POLICY = "EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_NUGET_GO_SEMVER_2_RANGES";
 
 export type OsvVersionAssessmentStatus = "AFFECTED" | "NO_MATCH_IN_RETURNED_OSV_VERSION_DATA" | "NOT_ASSESSED";
 
@@ -24,9 +24,9 @@ export interface OsvPackageIdentityMatch {
 const MAX_PURL_LENGTH = 4_096;
 
 /**
- * Correlates exact PURL identities locally. Literal exact-version evidence is
- * ecosystem-independent; range evaluation is limited to strict npm SemVer 2
- * and canonical Go module SemVer 2.
+ * Correlates normalized PURL identities locally. Literal exact-version evidence is
+ * ecosystem-independent; range evaluation is limited to strict npm SemVer 2,
+ * a restricted NuGet SemVer 2 subset, and canonical Go module SemVer 2.
  */
 export function correlateOsvPackages(
   advisoryPackages: OsvAffectedPackage[],
@@ -79,17 +79,33 @@ export function assessOsvPackageVersion(
     };
   }
 
+  if (advisoryPackage.ecosystem === "NuGet") {
+    const normalizedInventoryVersion = strictNugetSemver(component.version);
+    const matchingNugetVersion = normalizedInventoryVersion && advisoryPackage.affectedVersions.some((version) => {
+      const normalizedAffectedVersion = strictNugetSemver(version);
+      return normalizedAffectedVersion !== null && compare(normalizedInventoryVersion, normalizedAffectedVersion) === 0;
+    });
+    if (matchingNugetVersion) {
+      return {
+        ...base,
+        status: "AFFECTED",
+        note: "The inventory version matches a supported NuGet OSV version under NuGet SemVer precedence.",
+        evidence: `OSV affected version ${component.version}`,
+      };
+    }
+  }
+
   if (advisoryPackage.versionRangesTruncated) {
     return notAssessed("OSV range evidence was truncated or malformed; AURA did not assess a partial range.");
   }
 
-  const supportsSemverRanges = advisoryPackage.ecosystem === "npm" || advisoryPackage.ecosystem === "Go";
+  const supportsSemverRanges = ["npm", "NuGet", "Go"].includes(advisoryPackage.ecosystem);
   if (!supportsSemverRanges) {
     if (advisoryPackage.affectedVersionsTruncated) {
       return notAssessed("OSV affected-version evidence was truncated; a negative result cannot be determined safely.");
     }
     if (advisoryPackage.versionRanges.length > 0 || advisoryPackage.versionRangeDetails.length > 0) {
-      return notAssessed("Range evaluation supports npm and canonical Go module SemVer 2 only; this ecosystem's range was not compared.");
+      return notAssessed("Range evaluation supports npm, a restricted NuGet SemVer 2 subset, and canonical Go module SemVer 2 only; this ecosystem's range was not compared.");
     }
     if (advisoryPackage.affectedVersions.length === 0) {
       return notAssessed("OSV did not return an exact affected-version list that AURA can assess.");
@@ -130,7 +146,7 @@ export function assessOsvPackageVersion(
     return notAssessed("OSV version evidence was truncated; a negative result cannot be determined safely.");
   }
   if (!affectedVersionsSupported || hasUnsupportedRanges) {
-    return notAssessed("OSV includes version evidence outside the supported npm or Go SemVer 2 subset.");
+    return notAssessed("OSV includes version evidence outside the supported npm, restricted NuGet, or Go SemVer 2 subset.");
   }
   const hasSupportedVersionEvidence = advisoryPackage.affectedVersions.length > 0 || rangeResults.length > 0;
   if (!hasSupportedVersionEvidence) return notAssessed("OSV did not return version evidence that AURA can assess.");
@@ -242,12 +258,24 @@ function strictSemver(value: string): string | null {
 
 function strictSemverForEcosystem(value: string, ecosystem: string): string | null {
   if (ecosystem === "npm") return strictSemver(value);
+  if (ecosystem === "NuGet") return strictNugetSemver(value);
   if (ecosystem !== "Go" || !value.startsWith("v")) return null;
   if (value.includes("+") && !value.endsWith("+incompatible")) return null;
 
   const versionWithoutPrefix = value.slice(1);
   const parsed = valid(versionWithoutPrefix);
   return parsed === versionWithoutPrefix ? parsed : null;
+}
+
+function strictNugetSemver(value: string): string | null {
+  const match = /^(\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(value);
+  if (!match) return null;
+  const semverWithoutBuildMetadata = match[1]!;
+  const parsed = strictSemver(semverWithoutBuildMetadata);
+  if (!parsed) return null;
+  const prerelease = /^\d+\.\d+\.\d+-([^+]+)$/.exec(semverWithoutBuildMetadata)?.[1];
+  if (prerelease && /[A-Z]/.test(prerelease)) return null;
+  return parsed;
 }
 
 function displayRange(range: OsvVersionRange): string {
@@ -272,5 +300,9 @@ function purlIdentity(purl: string): string | null {
     packagePath = packagePath.slice(0, versionSeparator);
   }
   if (!packagePath || packagePath.endsWith("/")) return null;
+  if (match[1].toLowerCase() === "nuget") {
+    if (!/^[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)*$/.test(packagePath)) return null;
+    packagePath = packagePath.toLowerCase();
+  }
   return "pkg:" + match[1].toLowerCase() + "/" + packagePath + (match[3] ?? "");
 }
