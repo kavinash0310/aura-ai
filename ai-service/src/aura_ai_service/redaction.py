@@ -27,6 +27,9 @@ _PROVIDER_TOKEN = (
     r"|glpat-[A-Za-z0-9_-]{20,}"
     r"|xox[baprs]-[A-Za-z0-9-]{10,}"
     r"|AIza[0-9A-Za-z_-]{20,}"
+    r"|GOCSPX-[A-Za-z0-9_-]{20,}"
+    r"|hf_[A-Za-z0-9]{30,}"
+    r"|sk-[A-Za-z0-9_-]{20,}"
     r"|(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{12,}"
 )
 _SENSITIVE_PATTERN = re.compile(

@@ -29,8 +29,9 @@ Explain keyword vs semantic search and the lifecycle.
 Learn inference, context windows, structured outputs, prompt injection, tool calls, token/cost/latency.
 Implemented first slice: one explicit local Ollama report path over up to 20 selected search-result snippets, with JSON Schema output, an internal bearer token, local/private URL validation, single-request serialization, source-ID membership validation, no hosted fallback, and Markdown download. Reports are not stored and uploaded documents are excluded.
 Implemented: explicit local-only report, claim-comparison, and query-planning calls use versioned prompts, schema validation, citation checks, and timing/token counters. A deterministic secret-pattern pass redacts common credential strings across model-bound text fields and shows counts in the response coverage note without returning matches.
-Implemented: CI runs a local synthetic redaction evaluation that reports supported-pattern recall, benign-text specificity, and known blind-spot detection without printing fixture contents. It is a small controlled fixture set, not an estimate of real-world secret-detection coverage.
-Still needed: reusable provider interface, semantic citation evaluation, curated report-quality fixtures, optional hosted adapter, and deterministic fallback.
+Implemented: CI runs a local synthetic redaction evaluation that checks supported-pattern recall, benign-text specificity, and unchanged declared blind spots without printing fixture contents. Fixtures include several common provider-key formats and benign short-prefix lookalikes; this remains a controlled sample, not an estimate of real-world secret-detection coverage.
+Implemented: the provider-neutral structured-completion interface, deterministic query-plan fallback, and synthetic report-quality fixtures for schema/citation/quote checks.
+Still needed: semantic citation evaluation with human-reviewed examples and any hosted adapter after explicit privacy and egress review. The local Ollama adapter is the only model provider today.
 Review local-only no-egress behavior, untrusted output fields, and retry rules.
 
 ## Phase 5 — Public research
