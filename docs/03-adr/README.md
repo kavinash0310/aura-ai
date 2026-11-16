@@ -23,6 +23,8 @@ ADRs capture trade-offs, not feature completion.
 - 0019 Optional scheduled backups with verified retention
 - 0020 Explicit OpenAlex scholarly-work search
 - 0021 Local Go module SemVer range assessment
+- 0022 Restricted local NuGet SemVer range assessment
+- 0023 Local crates.io SemVer range assessment
 
 ## Template
 
