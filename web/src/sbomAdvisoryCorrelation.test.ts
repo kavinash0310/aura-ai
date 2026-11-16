@@ -49,6 +49,55 @@ describe("correlateOsvPackages", () => {
     });
   });
 
+  it("matches NuGet package identity without case and compares strict SemVer 2 ranges", () => {
+    const packageInfo = advisory("pkg:nuget/Newtonsoft.Json", {
+      ecosystem: "NuGet",
+      versionRangeDetails: [semverRange(event("introduced", "13.0.0"), event("fixed", "14.0.0"))],
+    });
+    const result = correlateOsvPackages(
+      [packageInfo],
+      [component("newtonsoft", "pkg:nuget/newtonsoft.json@13.0.1", "13.0.1")],
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.versionAssessments[0]).toMatchObject({
+      status: "AFFECTED",
+      evidence: "SEMVER · introduced 13.0.0 · fixed 14.0.0",
+    });
+  });
+
+  it("rejects malformed NuGet package IDs before applying case normalization", () => {
+    expect(correlateOsvPackages(
+      [advisory("pkg:nuget/group/name", { ecosystem: "NuGet" })],
+      [component("item", "pkg:nuget/Group/Name@1.0.0", "1.0.0")],
+    )).toEqual([]);
+  });
+
+  it("keeps NuGet's non-SemVer forms and case-insensitive prerelease labels not assessed", () => {
+    const packageInfo = advisory("pkg:nuget/example", {
+      ecosystem: "NuGet",
+      versionRangeDetails: [semverRange(event("introduced", "1.0.0-alpha"), event("fixed", "1.0.0"))],
+    });
+
+    expect(assessOsvPackageVersion(packageInfo, component("lowercase", "pkg:nuget/example@1.0.0-beta", "1.0.0-beta")).status)
+      .toBe("AFFECTED");
+    expect(assessOsvPackageVersion(packageInfo, component("uppercase", "pkg:nuget/example@1.0.0-BETA", "1.0.0-BETA")).status)
+      .toBe("NOT_ASSESSED");
+    expect(assessOsvPackageVersion(packageInfo, component("revision", "pkg:nuget/example@1.0.0.1", "1.0.0.1")).status)
+      .toBe("NOT_ASSESSED");
+  });
+
+  it("uses NuGet SemVer precedence for exact version lists but rejects unsupported forms", () => {
+    expect(assessOsvPackageVersion(
+      advisory("pkg:nuget/example", { ecosystem: "NuGet", affectedVersions: ["1.2.3+advisory"] }),
+      component("metadata", "pkg:nuget/example@1.2.3+local", "1.2.3+local"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      advisory("pkg:nuget/example", { ecosystem: "NuGet", affectedVersions: ["1.2.3.0"] }),
+      component("revision", "pkg:nuget/example@1.2.3", "1.2.3"),
+    ).status).toBe("NOT_ASSESSED");
+  });
+
   it("respects fixed boundaries and SemVer prerelease ordering", () => {
     const packageInfo = advisory("pkg:npm/demo", {
       versionRangeDetails: [semverRange(event("introduced", "1.0.0"), event("fixed", "2.0.0"))],

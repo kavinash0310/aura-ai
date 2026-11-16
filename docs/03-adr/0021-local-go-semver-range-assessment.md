@@ -5,7 +5,7 @@
 
 ## Context
 
-After exact PURL identity matching, AURA can compare OSV affected-version lists for any ecosystem and complete SemVer 2 ranges for npm. Go module versions also follow SemVer 2 precedence, but canonical module versions require a leading `v`; Go additionally has module-path rules and pseudo-version provenance checks that a generic SemVer library does not implement.
+After normalized PURL identity matching, AURA can compare OSV affected-version lists for any ecosystem and complete SemVer 2 ranges for npm. Go module versions also follow SemVer 2 precedence, but canonical module versions require a leading `v`; Go additionally has module-path rules and pseudo-version provenance checks that a generic SemVer library does not implement.
 
 Official references: [Go Modules Reference: Versions](https://go.dev/ref/mod#versions), [Go `semver` package](https://pkg.go.dev/golang.org/x/mod/semver), and the [OSV schema](https://ossf.github.io/osv-schema/).
 

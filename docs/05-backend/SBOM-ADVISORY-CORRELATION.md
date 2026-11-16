@@ -2,7 +2,7 @@
 
 ## Goal
 
-After the owner explicitly loads OSV details for a CVE declared in an SBOM, AURA can correlate OSV affected-package records with the local components already linked to that CVE. The browser compares PURL identity, literal affected-version entries for any ecosystem, and complete npm or Go module SemVer 2 range evidence against the local component version. Package inventory is never sent to OSV.
+After the owner explicitly loads OSV details for a CVE declared in an SBOM, AURA can correlate OSV affected-package records with the local components already linked to that CVE. The browser compares PURL identity, literal affected-version entries for any ecosystem, and complete npm, restricted NuGet, or Go module SemVer 2 range evidence against the local component version. Package inventory is never sent to OSV.
 
 ## Data flow
 
@@ -24,7 +24,7 @@ sequenceDiagram
     API-->>UI: Bounded advisory response
     UI->>UI: Compare PURL identities locally
     UI->>UI: Compare exact version strings for any ecosystem
-    UI->>UI: Assess supported npm or Go SEMVER ranges
+    UI->>UI: Assess supported npm, restricted NuGet, or Go SEMVER ranges
     UI-->>Owner: Show identity and version-assessment status
 ```
 
@@ -39,17 +39,17 @@ The helper in `web/src/sbomAdvisoryCorrelation.ts` compares bounded PURLs of a m
 Version assessment runs only when all of these are true:
 
 - OSV returned an available, non-withdrawn advisory for the exact requested CVE.
-- The local component and OSV package share the exact PURL identity above.
+- The local component and OSV package share the normalized PURL identity above; for NuGet, the package ID comparison is case-insensitive.
 - The SBOM component has a version.
-- For an exact-version result, the local version exactly equals an OSV `affected[].versions` entry. Literal equality does not interpret or normalize ecosystem versions.
-- For range comparison, OSV's package ecosystem is exactly `npm` or `Go`; OSV supplied complete `SEMVER` range events in the supported event shape; and both range boundaries and local version are strict SemVer 2.
+- For exact-version evidence, local versions are compared literally for every ecosystem. NuGet also compares strict supported versions using NuGet's SemVer precedence (which ignores build metadata); uppercase prerelease labels or non-three-part forms are left `NOT_ASSESSED` unless the exact strings match.
+- For range comparison, OSV's package ecosystem is exactly `npm`, `NuGet`, or `Go`; OSV supplied complete `SEMVER` range events in the supported event shape; and both range boundaries and local version are strict SemVer 2. NuGet is limited to exactly three numeric version components and lowercase prerelease labels because NuGet accepts additional version shapes and compares prerelease labels without case sensitivity.
 - Go module versions and range boundaries must use canonical `v`-prefixed SemVer strings. The evaluator accepts `+incompatible` build metadata, which Go ignores for ordering, and rejects other build metadata. It does not validate the module path's major-version suffix or pseudo-version timestamp/ancestry.
 
-The client uses `semver` 7.8.5 for strict npm ranges and Go's v-prefixed version form. It handles `introduced` including the OSV sentinel `0`, exclusive `fixed`, inclusive `last_affected`, and `limit` events. It requires valid, alternating introduction/end boundaries and refuses ambiguous or malformed event sequences. The supported Go subset follows the Go module reference's SemVer precedence: pre-releases sort before releases and build metadata does not change order. AURA does not reproduce `go` command checks for pseudo-version ancestry or module-path consistency. OSV `ECOSYSTEM` ranges use ecosystem-specific ordering and are intentionally not compared; other Go range forms therefore remain `NOT_ASSESSED`. OSV's schema distinguishes exact listed versions, `SEMVER`, `ECOSYSTEM`, and `GIT` ranges; see the [OSV schema](https://ossf.github.io/osv-schema/). The [npm SemVer library](https://www.npmjs.com/package/semver) provides the strict SemVer parser; [Go's module reference](https://go.dev/ref/mod#versions) documents Go module version formatting and ordering.
+The client uses `semver` 7.8.5 for strict npm ranges, a restricted NuGet subset, and Go's v-prefixed version form. NuGet PURL package IDs must match AURA's ASCII package-ID subset before they are compared without case. NuGet versions are assessed only when they have exactly three numeric components and any prerelease label is lowercase. NuGet also accepts abbreviated and four-component versions and compares prerelease labels case-insensitively, so AURA leaves those forms `NOT_ASSESSED`; build metadata is ignored for precedence. The evaluator handles `introduced` including the OSV sentinel `0`, exclusive `fixed`, inclusive `last_affected`, and `limit` events. It requires valid, alternating introduction/end boundaries and refuses ambiguous or malformed event sequences. The supported Go subset follows the Go module reference's SemVer precedence: pre-releases sort before releases and build metadata does not change order. AURA does not reproduce `go` command checks for pseudo-version ancestry or module-path consistency. OSV `ECOSYSTEM` ranges use ecosystem-specific ordering and are intentionally not compared; other Go range forms therefore remain `NOT_ASSESSED`. OSV's schema defines `SEMVER` ranges by SemVer 2.0 precedence and distinguishes them from ecosystem-specific ranges; see the [OSV schema](https://ossf.github.io/osv-schema/). Microsoft's [NuGet package version reference](https://learn.microsoft.com/en-us/nuget/concepts/package-versioning) documents NuGet normalization and comparison differences. The [NuGet package ID rule](https://learn.microsoft.com/en-us/nuget/reference/errors-and-warnings/nu1017) documents the accepted package-ID shape. The [npm SemVer library](https://www.npmjs.com/package/semver) provides the strict SemVer parser; [Go's module reference](https://go.dev/ref/mod#versions) documents Go module version formatting and ordering.
 
 Each local component gets one of these results:
 
-- `AFFECTED`: an exact version-list entry matches in any ecosystem, or a supported npm or Go `SEMVER` range matches.
+- `AFFECTED`: an exact version-list entry matches in any ecosystem, or a supported npm, restricted NuGet, or Go `SEMVER` range matches.
 - `NO_MATCH_IN_RETURNED_OSV_VERSION_DATA`: the complete returned version evidence was supported and no match was found. This is not proof that software is safe outside this OSV record or its stated coverage.
 - `NOT_ASSESSED`: missing version/evidence, withdrawn record, unsupported ecosystem/range type, malformed SemVer/event sequence, invalid Go version form, or truncated evidence.
 
@@ -61,7 +61,7 @@ The fixed OSV provider response remains capped at 256 KiB, 20 affected packages,
 
 ## Exports
 
-SBOM JSON exports include the exact PURL match basis, assessment policy `EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_GO_SEMVER_2_RANGES`, per-component version-assessment statuses, supporting evidence, and coverage limitation. CSV exports include the policy, each matched component's assessment status, exact identity match count, and local component labels. OSV responses and correlation are not written to the database.
+SBOM JSON exports include the exact PURL match basis, assessment policy `EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_NUGET_GO_SEMVER_2_RANGES`, per-component version-assessment statuses, supporting evidence, and coverage limitation. CSV exports include the policy, each matched component's assessment status, exact identity match count, and local component labels. OSV responses and correlation are not written to the database.
 
 ## Testing
 
@@ -71,7 +71,7 @@ Backend provider tests cover structured OSV version data, malformed payload shap
 
 - `backend/src/main/java/ai/aura/api/cyber/OsvProvider.java` — fixed outbound lookup, response caps, and structured event parsing.
 - `backend/src/main/java/ai/aura/api/cyber/OsvVulnerabilityData.java` — bounded source data model.
-- `web/src/sbomAdvisoryCorrelation.ts` — exact PURL identity and strict local npm/Go SemVer assessment.
+- `web/src/sbomAdvisoryCorrelation.ts` — normalized PURL identity and strict local npm, restricted NuGet, and Go SemVer assessment.
 - `web/src/sbomAdvisoryCorrelation.test.ts` — version-boundary regression fixtures.
 - `web/src/App.tsx` — user-visible limits and explicit exports.
 
