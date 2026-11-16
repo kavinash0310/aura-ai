@@ -1,6 +1,6 @@
 # AURA implementation status
 
-Updated 2026-11-11.
+Updated 2026-11-16.
 
 | Area | Status | Evidence |
 |---|---|---|
@@ -29,6 +29,8 @@ Updated 2026-11-11.
 Provider-interface verification on 2026-11-11: PR #46 at `538cd51` passed all four CI job groups (backend, AI/Ruff, web, and Compose). The AI service tests and Ruff passed after the import-order correction; the provider tests cover Ollama request mapping, neutral telemetry, the response-size cap, and generation bounds. The interface contains only the local Ollama adapter; no hosted provider was added.
 
 Offline report-quality fixture verification on 2026-11-11: PR #48 at `abcb762` passed all four CI job groups (backend, AI/Ruff, web, and Compose). The Python evaluator checks report schema, selected-source membership, and exact quote anchors against synthetic JSONL cases; it deliberately does not score semantic support, and fixture contents are not printed.
+
+Expanded credential-redaction fixture verification on 2026-11-11: PR #49 at `aa42f64` passed all four CI job groups. The offline evaluator detected all 14 listed supported patterns, left all 5 benign examples unchanged, and left all 3 declared blind spots unchanged. These results describe only the synthetic fixtures and do not estimate real-world secret detection.
 
 Deterministic query-plan fallback verification on 2026-11-11: PR #47 at `90805ee` passed all four CI job groups (backend, AI/Ruff, web, and Compose). Coverage includes disabled and unavailable Ollama, redaction before rule fallback, distinct bounded suggestions, and API response metadata. Local web tests passed 29 cases, TypeScript checking and production build passed, and Ruff passed; Python tests ran in CI because Python/uv are unavailable in the local workspace.
 
