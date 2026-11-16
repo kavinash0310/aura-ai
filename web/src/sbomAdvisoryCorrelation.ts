@@ -268,9 +268,12 @@ function strictSemverForEcosystem(value: string, ecosystem: string): string | nu
 }
 
 function strictNugetSemver(value: string): string | null {
-  const parsed = strictSemver(value);
+  const match = /^(\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.exec(value);
+  if (!match) return null;
+  const semverWithoutBuildMetadata = match[1]!;
+  const parsed = strictSemver(semverWithoutBuildMetadata);
   if (!parsed) return null;
-  const prerelease = /^\d+\.\d+\.\d+-([^+]+)(?:\+.*)?$/.exec(value)?.[1];
+  const prerelease = /^\d+\.\d+\.\d+-([^+]+)$/.exec(semverWithoutBuildMetadata)?.[1];
   if (prerelease && /[A-Z]/.test(prerelease)) return null;
   return parsed;
 }
