@@ -28,6 +28,8 @@ Updated 2026-11-16.
 
 Provider-interface verification on 2026-11-11: PR #46 at `538cd51` passed all four CI job groups (backend, AI/Ruff, web, and Compose). The AI service tests and Ruff passed after the import-order correction; the provider tests cover Ollama request mapping, neutral telemetry, the response-size cap, and generation bounds. The interface contains only the local Ollama adapter; no hosted provider was added.
 
+NuGet advisory assessment verification on 2026-11-16: PR #50 at `cc5a356` passed all four CI groups. Browser coverage includes case-insensitive package identity, strict supported SemVer ranges, build-metadata precedence, malformed IDs, and `NOT_ASSESSED` outcomes for unsupported versions. An initial failing build-metadata case was corrected before the final green runs.
+
 Offline report-quality fixture verification on 2026-11-11: PR #48 at `abcb762` passed all four CI job groups (backend, AI/Ruff, web, and Compose). The Python evaluator checks report schema, selected-source membership, and exact quote anchors against synthetic JSONL cases; it deliberately does not score semantic support, and fixture contents are not printed.
 
 Expanded credential-redaction fixture verification on 2026-11-11: PR #49 at `aa42f64` passed all four CI job groups. The offline evaluator detected all 14 listed supported patterns, left all 5 benign examples unchanged, and left all 3 declared blind spots unchanged. These results describe only the synthetic fixtures and do not estimate real-world secret detection.
