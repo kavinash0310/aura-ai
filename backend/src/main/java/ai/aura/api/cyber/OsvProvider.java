@@ -146,7 +146,7 @@ public class OsvProvider {
                 affected.truncated(),
                 references.references(),
                 references.truncated(),
-                "OSV aggregates public vulnerability records. AURA compares normalized PURL identities locally, matches exact affected versions for any ecosystem, and evaluates complete npm, restricted NuGet, or canonical Go module SemVer 2 ranges when supported. NuGet package IDs are case-insensitive; non-canonical versions may remain not assessed. Go module-path consistency and pseudo-version ancestry are not validated; other ecosystems and range types are not assessed."
+                "OSV aggregates public vulnerability records. AURA compares normalized PURL identities locally, matches literal affected versions for any ecosystem, compares equivalent PyPI, RubyGems, Hex, and Pub versions under their ecosystem ordering, and evaluates PyPI PEP 440, RubyGems, Hex, and Pub ECOSYSTEM ranges plus complete npm, crates.io, restricted NuGet, or canonical Go module SemVer 2 ranges when supported. PyPI names use PEP 503 normalization. RubyGems versions use a bounded strict ASCII version subset; Hex/Elixir core and numeric prerelease segments are limited to 14 digits; Pub build suffixes affect ordering; versions are capped at 120 characters and supported numeric segments at 15 digits. NuGet package IDs are case-insensitive; non-canonical versions may remain not assessed. Go module-path consistency and pseudo-version ancestry are not validated; other ecosystems and range types are not assessed."
         );
     }
 

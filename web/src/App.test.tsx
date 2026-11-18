@@ -598,11 +598,23 @@ describe("AURA research workspace", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
 
     fireEvent.click(screen.getByRole("button", { name: "Load OSV advisory" }));
-    expect(await screen.findByText(/exact OSV affected-version strings for any ecosystem/)).toBeInTheDocument();
+    expect(await screen.findAllByText(/exact OSV affected-version strings for any ecosystem/)).toHaveLength(2);
     expect(screen.getByText(/inventory version 1\.2\.0/)).toBeInTheDocument();
     expect(screen.getByText(/Affected by supported OSV version evidence/)).toBeInTheDocument();
     expect(screen.getByText(/Evidence: SEMVER · introduced 1\.0\.0 · fixed 2\.0\.0/)).toBeInTheDocument();
     expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({ cve: "CVE-2026-12345" });
+
+    fireEvent.change(screen.getByLabelText("Filter findings"), { target: { value: "PRODUCTION_EXPOSED_AFFECTED" } });
+    expect(await screen.findByText("No findings match this filter")).toBeInTheDocument();
+    expect(screen.getByText(/requires owner-provided Production and Internet facing labels/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Environment"), { target: { value: "PRODUCTION" } });
+    fireEvent.change(screen.getByLabelText("Network exposure"), { target: { value: "INTERNET_FACING" } });
+    expect(screen.getByText(/Showing 1 of 1/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Filter findings"), { target: { value: "CRITICAL_AFFECTED" } });
+    expect(screen.getByText(/requires an owner-provided Critical business criticality label/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Business criticality"), { target: { value: "CRITICAL" } });
+    expect(screen.getByText(/Showing 1 of 1/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "↓ JSON" }));
     expect(fetchMock).toHaveBeenCalledTimes(5);
@@ -613,9 +625,17 @@ describe("AURA research workspace", () => {
       reader.readAsText(downloads[0]!);
     });
     const downloadedJson = JSON.parse(downloadedText);
+    expect(downloadedJson.findingFilter).toBe("CRITICAL_AFFECTED");
+    expect(downloadedJson.assetContext).toMatchObject({
+      environment: "PRODUCTION",
+      exposure: "INTERNET_FACING",
+      criticality: "CRITICAL",
+      provenance: "USER_PROVIDED",
+      affectsPriorityOrder: false,
+    });
     expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].matchBasis).toBe("EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION");
     expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].versionAssessmentPolicy)
-      .toBe("EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_CRATES_IO_NUGET_GO_SEMVER_2_RANGES");
+      .toBe("EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_PYPI_PEP440_RUBYGEMS_HEX_PUB_NPM_CRATES_IO_NUGET_GO_SEMVER_2_RANGES");
     expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].matches[0].components[0].version).toBe("1.2.0");
     expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].matches[0].versionAssessments[0].status).toBe("AFFECTED");
     expect(downloadedJson.osvPackageCorrelations["CVE-2026-12345"].limitation).toContain("not proof of safety");
@@ -628,7 +648,9 @@ describe("AURA research workspace", () => {
       reader.readAsText(downloads[1]!);
     });
     expect(downloadedCsv).toContain('"osvPurlIdentityMatchBasis","osvVersionAssessmentPolicy","osvInventoryVersionAssessments"');
-    expect(downloadedCsv).toContain('"EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION","EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_NPM_CRATES_IO_NUGET_GO_SEMVER_2_RANGES","pkg:npm/demo@1.2.0:AFFECTED"');
+    expect(downloadedCsv).toContain('"CRITICAL_AFFECTED"');
+    expect(downloadedCsv).toContain('"PRODUCTION","INTERNET_FACING","CRITICAL","USER_PROVIDED","false"');
+    expect(downloadedCsv).toContain('"EXACT_PURL_IDENTITY_AFTER_REMOVING_VERSION","EXACT_OSV_VERSIONS_ANY_ECOSYSTEM_PYPI_PEP440_RUBYGEMS_HEX_PUB_NPM_CRATES_IO_NUGET_GO_SEMVER_2_RANGES","pkg:npm/demo@1.2.0:AFFECTED"');
   });
 
   it("generates a report from visible source IDs and downloads a source-linked JSON snapshot", async () => {

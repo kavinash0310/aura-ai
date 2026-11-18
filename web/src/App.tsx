@@ -192,7 +192,7 @@ function OsvDetails({ data, inventoryComponents = [] }: { data: OsvLookupRespons
     </div>}
     {data.affectedPackages.length > 0 && <details className="nvd-applicability">
       <summary>Packages listed by OSV ({data.affectedPackages.length}{data.affectedPackagesTruncated ? "+" : ""})</summary>
-      <p className="nvd-note">OSV package versions and ranges are source evidence. AURA matches exact affected-version strings for any ecosystem and compares complete npm, crates.io, restricted NuGet, or canonical Go module SemVer ranges locally. Cargo versions must be strict three-part SemVer; build metadata does not affect range ordering. NuGet IDs match without case. Ordered NuGet comparisons accept only strict three-part versions with lowercase prerelease labels; other forms stay not assessed unless their exact version strings match. Go versions need the v prefix; module paths and pseudo-version ancestry are not validated.</p>
+      <p className="nvd-note">OSV package versions and ranges are third-party source evidence. {OSV_PURL_CORRELATION_LIMITATION}</p>
       {data.affectedPackages.map((item, index) => <p className="sbom-component" key={`${item.ecosystem}-${item.name}-${index}`}>
         <strong>{item.name || "Unnamed package"}</strong>{item.ecosystem ? ` · ${item.ecosystem}` : ""}{item.purl ? ` · ${item.purl}` : ""}
         {item.versionRanges.map((range, rangeIndex) => <span key={`${range}-${rangeIndex}`}> · {range}</span>)}
@@ -304,10 +304,40 @@ export default function App() {
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
   const [sbomFile, setSbomFile] = useState<File | null>(null);
   const [sbomLookup, setSbomLookup] = useState<SbomLookupResponse | null>(null);
+  const [sbomAssetContext, setSbomAssetContext] = useState({
+    environment: "UNKNOWN",
+    exposure: "UNKNOWN",
+    criticality: "UNKNOWN",
+  });
+  const [sbomFindingFilter, setSbomFindingFilter] = useState<"ALL" | "KEV" | "OSV_AFFECTED" | "OSV_NOT_ASSESSED" | "OSV_NO_MATCH" | "PRODUCTION_EXPOSED_AFFECTED" | "CRITICAL_AFFECTED">("ALL");
   const [sbomBusy, setSbomBusy] = useState(false);
 
   const credentials = useMemo<Credentials>(() => ({ username, password }), [username, password]);
   const selectedSources = sources.filter((source) => selectedSourceIds.includes(source.id)).slice(0, 20);
+  const displayedSbomVulnerabilities = useMemo(() => {
+    if (!sbomLookup) return [];
+    return sbomLookup.vulnerabilities.filter((vulnerability) => {
+      if (sbomFindingFilter === "ALL") return true;
+      const finding = sbomLookup.intelligence?.results.find((result) => result.cve === vulnerability.cve);
+      if (sbomFindingFilter === "KEV") return finding?.knownExploited === true;
+      if (sbomFindingFilter === "PRODUCTION_EXPOSED_AFFECTED"
+        && (sbomAssetContext.environment !== "PRODUCTION" || sbomAssetContext.exposure !== "INTERNET_FACING")) return false;
+      if (sbomFindingFilter === "CRITICAL_AFFECTED" && sbomAssetContext.criticality !== "CRITICAL") return false;
+
+      const osv = osvLookups[vulnerability.cve];
+      if (!osv || osv.status !== "AVAILABLE") return false;
+      const statuses = correlateOsvPackages(
+        osv.affectedPackages,
+        vulnerability.affectedComponents,
+        Boolean(osv.withdrawnAt),
+      ).flatMap((match) => match.versionAssessments.map((assessment) => assessment.status));
+      if (sbomFindingFilter === "OSV_AFFECTED" || sbomFindingFilter === "PRODUCTION_EXPOSED_AFFECTED" || sbomFindingFilter === "CRITICAL_AFFECTED") {
+        return statuses.includes("AFFECTED");
+      }
+      if (sbomFindingFilter === "OSV_NOT_ASSESSED") return statuses.includes("NOT_ASSESSED");
+      return statuses.length > 0 && statuses.every((status) => status === "NO_MATCH_IN_RETURNED_OSV_VERSION_DATA");
+    });
+  }, [sbomAssetContext, sbomFindingFilter, sbomLookup, osvLookups]);
   const researchPageMatches = useMemo(
     () => researchPage ? findResearchPageTextMatches(researchPage.text, pageSearchQuery) : null,
     [researchPage, pageSearchQuery],
@@ -1281,6 +1311,7 @@ export default function App() {
     }
     setSbomBusy(true);
     setSbomLookup(null);
+    setSbomFindingFilter("ALL");
     setError("");
     try {
       setSbomLookup(await lookupSbom(credentials, sbomFile));
@@ -1293,16 +1324,18 @@ export default function App() {
 
   function downloadSbom(format: "json" | "csv") {
     if (!sbomLookup) return;
+    const assetContextProvenance = Object.values(sbomAssetContext).some((value) => value !== "UNKNOWN") ? "USER_PROVIDED" : "NOT_PROVIDED";
+    const exportedVulnerabilities = displayedSbomVulnerabilities;
     let content: string;
     let mimeType: string;
     if (format === "json") {
-      const relevantNvdDetails = Object.fromEntries(sbomLookup.vulnerabilities
+      const relevantNvdDetails = Object.fromEntries(exportedVulnerabilities
         .filter((vulnerability) => nvdLookups[vulnerability.cve])
         .map((vulnerability) => [vulnerability.cve, nvdLookups[vulnerability.cve]]));
-      const relevantOsvAdvisories = Object.fromEntries(sbomLookup.vulnerabilities
+      const relevantOsvAdvisories = Object.fromEntries(exportedVulnerabilities
         .filter((vulnerability) => osvLookups[vulnerability.cve])
         .map((vulnerability) => [vulnerability.cve, osvLookups[vulnerability.cve]]));
-      const relevantOsvPackageCorrelations = Object.fromEntries(sbomLookup.vulnerabilities
+      const relevantOsvPackageCorrelations = Object.fromEntries(exportedVulnerabilities
         .filter((vulnerability) => osvLookups[vulnerability.cve])
         .map((vulnerability) => [vulnerability.cve, {
           matchBasis: OSV_PURL_MATCH_BASIS,
@@ -1310,15 +1343,19 @@ export default function App() {
           limitation: OSV_PURL_CORRELATION_LIMITATION,
           matches: correlateOsvPackages(osvLookups[vulnerability.cve].affectedPackages, vulnerability.affectedComponents, Boolean(osvLookups[vulnerability.cve].withdrawnAt)),
         }]));
-      const relevantGitHubAdvisories = Object.fromEntries(sbomLookup.vulnerabilities
+      const relevantGitHubAdvisories = Object.fromEntries(exportedVulnerabilities
         .filter((vulnerability) => githubAdvisories[vulnerability.cve])
         .map((vulnerability) => [vulnerability.cve, githubAdvisories[vulnerability.cve]]));
-      content = JSON.stringify({ ...sbomLookup, nvdDetails: relevantNvdDetails, osvAdvisories: relevantOsvAdvisories, osvPackageCorrelations: relevantOsvPackageCorrelations, githubAdvisories: relevantGitHubAdvisories }, null, 2);
+      const exportedCves = new Set(exportedVulnerabilities.map((vulnerability) => vulnerability.cve));
+      const exportedIntelligence = sbomLookup.intelligence
+        ? { ...sbomLookup.intelligence, results: sbomLookup.intelligence.results.filter((finding) => exportedCves.has(finding.cve)) }
+        : null;
+      content = JSON.stringify({ ...sbomLookup, cveCount: exportedVulnerabilities.length, totalCveCount: sbomLookup.cveCount, vulnerabilities: exportedVulnerabilities, intelligence: exportedIntelligence, findingFilter: sbomFindingFilter, assetContext: { ...sbomAssetContext, provenance: assetContextProvenance, affectsPriorityOrder: false }, nvdDetails: relevantNvdDetails, osvAdvisories: relevantOsvAdvisories, osvPackageCorrelations: relevantOsvPackageCorrelations, githubAdvisories: relevantGitHubAdvisories }, null, 2);
       mimeType = "application/json;charset=utf-8";
     } else {
       const findings = new Map((sbomLookup.intelligence?.results ?? []).map((finding) => [finding.cve, finding]));
-      const columns = ["cve", "affectedReferences", "findingNames", "findingLevelsOrVersions", "purls", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes", "osvStatus", "osvId", "osvSummary", "osvPublishedAt", "osvModifiedAt", "osvPurlIdentityMatchBasis", "osvVersionAssessmentPolicy", "osvInventoryVersionAssessments", "osvPurlIdentityMatchCount", "osvPurlMatchedInventoryComponents", "githubAdvisoryStatus", "githubAdvisoryIds", "githubAdvisorySummaries"];
-      const rows = sbomLookup.vulnerabilities.map((vulnerability) => {
+      const columns = ["cve", "findingFilter", "affectedReferences", "findingNames", "findingLevelsOrVersions", "purls", "assetEnvironment", "assetExposure", "assetCriticality", "assetContextProvenance", "assetContextAffectsPriorityOrder", "knownExploited", "epssScore", "priorityRank", "nvdStatus", "cvssVersion", "cvssScore", "cvssSeverity", "cwes", "osvStatus", "osvId", "osvSummary", "osvPublishedAt", "osvModifiedAt", "osvPurlIdentityMatchBasis", "osvVersionAssessmentPolicy", "osvInventoryVersionAssessments", "osvPurlIdentityMatchCount", "osvPurlMatchedInventoryComponents", "githubAdvisoryStatus", "githubAdvisoryIds", "githubAdvisorySummaries"];
+      const rows = exportedVulnerabilities.map((vulnerability) => {
         const finding = findings.get(vulnerability.cve);
         const nvd = nvdLookups[vulnerability.cve];
         const osv = osvLookups[vulnerability.cve];
@@ -1326,10 +1363,16 @@ export default function App() {
         const github = githubAdvisories[vulnerability.cve];
         const values: Array<string | number | boolean | null> = [
           vulnerability.cve,
+          sbomFindingFilter,
           vulnerability.affectedBomRefs.join("; "),
           vulnerability.affectedComponents.map((component) => component.name).filter(Boolean).join("; "),
           vulnerability.affectedComponents.map((component) => component.version).filter(Boolean).join("; "),
           vulnerability.affectedComponents.map((component) => component.purl).filter(Boolean).join("; "),
+          sbomAssetContext.environment,
+          sbomAssetContext.exposure,
+          sbomAssetContext.criticality,
+          assetContextProvenance,
+          false,
           finding?.knownExploited ?? null,
           finding?.epssScore ?? null,
           finding?.priorityRank ?? null,
@@ -1382,6 +1425,8 @@ export default function App() {
     setClaimDraft("");
     setSbomFile(null);
     setSbomLookup(null);
+    setSbomAssetContext({ environment: "UNKNOWN", exposure: "UNKNOWN", criticality: "UNKNOWN" });
+    setSbomFindingFilter("ALL");
     setNvdLookups({});
     setOsvLookups({});
     setGithubAdvisories({});
@@ -1886,10 +1931,12 @@ export default function App() {
                 onChange={(event) => {
                   setSbomFile(event.currentTarget.files?.[0] ?? null);
                   setSbomLookup(null);
+                  setSbomAssetContext({ environment: "UNKNOWN", exposure: "UNKNOWN", criticality: "UNKNOWN" });
+                  setSbomFindingFilter("ALL");
                 }}
               />
               <div className="cyber-form-footer">
-                <span className="provider-note"><i className="shield-icon">◇</i> Declared CVEs only · no package matching or scanning</span>
+                <span className="provider-note"><i className="shield-icon">◇</i> Declared CVEs only · no host scanning</span>
                 <button className="primary-button" type="submit" disabled={!connected || sbomBusy || !sbomFile}>
                   {sbomBusy ? <><span className="spinner" /> Reviewing file</> : <>Review file <span aria-hidden="true">↗</span></>}
                 </button>
@@ -1910,9 +1957,56 @@ export default function App() {
                 </div>
               </div>
               <p className="coverage-note"><span>ⓘ</span> {sbomLookup.coverageNote}</p>
+              {sbomLookup.vulnerabilities.length > 0 && <div className="sbom-filter-bar">
+                <label htmlFor="sbom-finding-filter">Filter findings
+                  <select id="sbom-finding-filter" className="text-input" value={sbomFindingFilter} onChange={(event) => setSbomFindingFilter(event.target.value as typeof sbomFindingFilter)}>
+                    <option value="ALL">All declared CVEs</option>
+                    <option value="KEV">CISA KEV listed</option>
+                    <option value="OSV_AFFECTED">OSV version assessed as affected</option>
+                    <option value="OSV_NOT_ASSESSED">OSV version not assessed</option>
+                    <option value="OSV_NO_MATCH">No match in returned OSV version data</option>
+                    <option value="PRODUCTION_EXPOSED_AFFECTED">OSV affected · production + internet-facing</option>
+                    <option value="CRITICAL_AFFECTED">OSV affected · critical asset</option>
+                  </select>
+                </label>
+                <span>Showing {displayedSbomVulnerabilities.length} of {sbomLookup.vulnerabilities.length} · downloads follow this filter</span>
+              </div>}
+              <section className="sbom-context-card" aria-labelledby="sbom-context-title">
+                <div className="sbom-context-intro">
+                  <strong id="sbom-context-title">Owner supplied asset context</strong>
+                  <p>These labels apply to this SBOM review, stay in this page, and appear only in your explicit download. They do not change KEV or EPSS order or produce a risk score.</p>
+                </div>
+                <div className="sbom-context-grid">
+                  <label htmlFor="sbom-environment">Environment
+                    <select id="sbom-environment" className="text-input" value={sbomAssetContext.environment} onChange={(event) => setSbomAssetContext((context) => ({ ...context, environment: event.target.value }))}>
+                      <option value="UNKNOWN">Unknown</option>
+                      <option value="PRODUCTION">Production</option>
+                      <option value="STAGING">Staging</option>
+                      <option value="DEVELOPMENT">Development</option>
+                    </select>
+                  </label>
+                  <label htmlFor="sbom-exposure">Network exposure
+                    <select id="sbom-exposure" className="text-input" value={sbomAssetContext.exposure} onChange={(event) => setSbomAssetContext((context) => ({ ...context, exposure: event.target.value }))}>
+                      <option value="UNKNOWN">Unknown</option>
+                      <option value="INTERNET_FACING">Internet facing</option>
+                      <option value="INTERNAL">Internal</option>
+                      <option value="ISOLATED">Isolated</option>
+                    </select>
+                  </label>
+                  <label htmlFor="sbom-criticality">Business criticality
+                    <select id="sbom-criticality" className="text-input" value={sbomAssetContext.criticality} onChange={(event) => setSbomAssetContext((context) => ({ ...context, criticality: event.target.value }))}>
+                      <option value="UNKNOWN">Unknown</option>
+                      <option value="CRITICAL">Critical</option>
+                      <option value="HIGH">High</option>
+                      <option value="STANDARD">Standard</option>
+                      <option value="LOW">Low</option>
+                    </select>
+                  </label>
+                </div>
+              </section>
               {sbomLookup.vulnerabilities.length > 0 && <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null || githubAdvisoryBusyCve !== null} onClick={() => void loadNvdBatch(sbomLookup.vulnerabilities.map((vulnerability) => vulnerability.cve))}>{nvdBatchBusy ? "Loading NVD details…" : `Load NVD details for all ${sbomLookup.vulnerabilities.length} declared CVEs`}</button>}
-              {sbomLookup.vulnerabilities.length ? <div className="cyber-findings">
-                {sbomLookup.vulnerabilities.map((declared) => {
+              {displayedSbomVulnerabilities.length ? <div className="cyber-findings">
+                {displayedSbomVulnerabilities.map((declared) => {
                   const finding = sbomLookup.intelligence?.results.find((result) => result.cve === declared.cve);
                   const visibleRefs = declared.affectedBomRefs.slice(0, 50);
                   const visibleComponents = declared.affectedComponents.slice(0, 50);
@@ -1924,7 +2018,7 @@ export default function App() {
                       {visibleComponents.map((component) => sbomLookup.format === "SARIF JSON"
                         ? <p className="sbom-component" key={component.bomRef}><strong>{component.name || component.bomRef}</strong>{component.version ? ` · ${component.version}` : ""}</p>
                         : <p className="sbom-component" key={component.bomRef}><strong>{component.name || component.bomRef}</strong>{component.version ? ` · ${component.version}` : ""}{component.purl ? ` · ${component.purl}` : ""}</p>)}
-                      {declared.affectedComponents.length > visibleComponents.length && <p className="sbom-component">Showing {visibleComponents.length} of {declared.affectedComponents.length} {sbomLookup.format === "SARIF JSON" ? "findings" : "resolved components"}. Download the full JSON or CSV for the complete list.</p>}
+                      {declared.affectedComponents.length > visibleComponents.length && <p className="sbom-component">Showing {visibleComponents.length} of {declared.affectedComponents.length} {sbomLookup.format === "SARIF JSON" ? "findings" : "resolved components"}. Downloads include all components for findings that match the current filter.</p>}
                       {declared.affectedBomRefs.length > declared.affectedComponents.length && <p className="sbom-component">Some {sbomLookup.format === "SARIF JSON" ? "finding" : "package"} references did not resolve in this file.</p>}
                       {finding && <div className="cyber-metrics"><span>EPSS <strong>{formatProbability(finding.epssScore)}</strong></span><span>Percentile <strong>{formatProbability(finding.epssPercentile)}</strong></span><span>Priority <strong>{finding.priorityRank}</strong></span></div>}
                       <button className="nvd-lookup-button" type="button" disabled={!connected || nvdBusyCve !== null || nvdBatchBusy || osvBusyCve !== null || githubAdvisoryBusyCve !== null} onClick={() => void loadNvd(declared.cve)}>{nvdBusyCve === declared.cve ? "Loading NVD…" : nvdLookups[declared.cve] ? "Refresh NVD details" : "Load NVD details"}</button>
@@ -1936,7 +2030,23 @@ export default function App() {
                     </div>
                   </article>;
                 })}
-              </div> : <div className="empty-results"><strong>No CVE IDs were declared in this {sbomLookup.format === "SARIF JSON" ? "SARIF log" : "SBOM"}</strong><p>AURA does not infer vulnerabilities from package names, versions, or finding messages.</p></div>}
+              </div> : sbomLookup.vulnerabilities.length > 0
+                ? <div className="empty-results"><strong>No findings match this filter</strong><p>{sbomFindingFilter === "KEV"
+                  ? sbomLookup.intelligence?.kev.status === "AVAILABLE"
+                    ? "No finding in this SBOM matched the available CISA KEV data."
+                    : sbomLookup.intelligence?.kev.status === "STALE"
+                      ? "No finding matched the returned stale CISA KEV snapshot."
+                      : "CISA KEV data is unavailable, so AURA cannot determine whether this filter has matches."
+                  : sbomFindingFilter === "PRODUCTION_EXPOSED_AFFECTED"
+                    ? sbomAssetContext.environment !== "PRODUCTION" || sbomAssetContext.exposure !== "INTERNET_FACING"
+                      ? "This context filter requires owner-provided Production and Internet facing labels."
+                      : "No matching CVE has an explicit OSV AFFECTED version assessment."
+                    : sbomFindingFilter === "CRITICAL_AFFECTED"
+                      ? sbomAssetContext.criticality !== "CRITICAL"
+                        ? "This context filter requires an owner-provided Critical business criticality label."
+                        : "No matching CVE has an explicit OSV AFFECTED version assessment."
+                      : "OSV filters require an available advisory and a local package/version assessment; missing PURL identity or version evidence may remain unassessed."}</p></div>
+                : <div className="empty-results"><strong>No CVE IDs were declared in this {sbomLookup.format === "SARIF JSON" ? "SARIF log" : "SBOM"}</strong><p>AURA does not infer vulnerabilities from package names, versions, or finding messages.</p></div>}
             </div>}
           </section>
           {error && <div className="toast-error" role="alert"><span>!</span><p>{error}</p><button type="button" onClick={() => setError("")} aria-label="Dismiss error">×</button></div>}

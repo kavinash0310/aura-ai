@@ -30,6 +30,7 @@ const event = (kind: "introduced" | "fixed" | "lastAffected" | "limit", value: s
 });
 
 const semverRange = (...events: OsvVersionEvent[]): OsvVersionRange => ({ type: "SEMVER", events });
+const ecosystemRange = (...events: OsvVersionEvent[]): OsvVersionRange => ({ type: "ECOSYSTEM", events });
 
 describe("correlateOsvPackages", () => {
   it("matches exact PURL identity and reports a local npm SemVer range match", () => {
@@ -175,6 +176,158 @@ describe("correlateOsvPackages", () => {
       affectedVersions: ["1.2.3"],
       versionRangeDetails: [semverRange(event("introduced", "1.0.0"))],
     }), component("range", "pkg:pypi/demo@1.2.4", "1.2.4")).status).toBe("NOT_ASSESSED");
+  });
+
+  it("compares PyPI versions with PEP 440 ordering and normalizes PyPI PURLs", () => {
+    const packageInfo = advisory("pkg:pypi/Friendly_Bard", {
+      ecosystem: "PyPI",
+      affectedVersions: ["2.1.0"],
+    });
+    const matches = correlateOsvPackages(
+      [packageInfo],
+      [component("pypi", "pkg:pypi/friendly-bard@2.1", "2.1")],
+    );
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.versionAssessments[0]).toMatchObject({
+      status: "AFFECTED",
+      evidence: "OSV affected version 2.1.0",
+    });
+
+    const prereleaseRange = advisory("pkg:pypi/demo", {
+      ecosystem: "PyPI",
+      versionRangeDetails: [ecosystemRange(event("introduced", "1.0rc1"), event("fixed", "1.0"))],
+    });
+    expect(assessOsvPackageVersion(
+      prereleaseRange,
+      component("pre", "pkg:pypi/demo@1.0rc2", "1.0rc2"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      prereleaseRange,
+      component("fixed", "pkg:pypi/demo@1.0", "1.0"),
+    ).status).toBe("NO_MATCH_IN_RETURNED_OSV_VERSION_DATA");
+  });
+
+  it("leaves unsafe PEP 440 integer fields unassessed", () => {
+    const tooLarge = `${"9".repeat(17)}.0`;
+    const packageInfo = advisory("pkg:pypi/demo", {
+      ecosystem: "PyPI",
+      versionRangeDetails: [ecosystemRange(event("introduced", "0"), event("fixed", "2.0"))],
+    });
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("large", `pkg:pypi/demo@${tooLarge}`, tooLarge),
+    ).status).toBe("NOT_ASSESSED");
+  });
+
+  it("orders RubyGems numeric and prerelease segments and keeps unsupported forms unassessed", () => {
+    const packageInfo = advisory("pkg:gem/demo", {
+      ecosystem: "RubyGems",
+      versionRangeDetails: [ecosystemRange(event("introduced", "1.0.2"), event("fixed", "1.0.10"))],
+    });
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("numeric", "pkg:gem/demo@1.0.9", "1.0.9"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("fixed", "pkg:gem/demo@1.0.10", "1.0.10"),
+    ).status).toBe("NO_MATCH_IN_RETURNED_OSV_VERSION_DATA");
+
+    const prereleaseRange = advisory("pkg:gem/demo", {
+      ecosystem: "RubyGems",
+      versionRangeDetails: [ecosystemRange(event("introduced", "2.0.0.pre"), event("fixed", "2.0.0"))],
+    });
+    expect(assessOsvPackageVersion(
+      prereleaseRange,
+      component("pre", "pkg:gem/demo@2.0.0.pre.1", "2.0.0.pre.1"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("whitespace", "pkg:gem/demo@1.0.5", "1.0.5 "),
+    ).status).toBe("NOT_ASSESSED");
+  });
+
+  it("uses Hex/Elixir ordering for ECOSYSTEM ranges and ignores build metadata", () => {
+    const prereleaseRange = advisory("pkg:hex/demo", {
+      ecosystem: "Hex",
+      versionRangeDetails: [ecosystemRange(event("introduced", "1.0.0-alpha"), event("fixed", "1.0.0"))],
+    });
+    expect(assessOsvPackageVersion(
+      prereleaseRange,
+      component("pre", "pkg:hex/demo@1.0.0-beta.2", "1.0.0-beta.2"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      prereleaseRange,
+      component("fixed", "pkg:hex/demo@1.0.0", "1.0.0"),
+    ).status).toBe("NO_MATCH_IN_RETURNED_OSV_VERSION_DATA");
+
+    expect(assessOsvPackageVersion(
+      advisory("pkg:hex/demo", { ecosystem: "Hex", affectedVersions: ["2.0.1+advisory"] }),
+      component("build", "pkg:hex/demo@2.0.1+local", "2.0.1+local"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      prereleaseRange,
+      component("large", "pkg:hex/demo@100000000000000.0.0", "100000000000000.0.0"),
+    ).status).toBe("NOT_ASSESSED");
+  });
+
+  it("applies Pub build-suffix precedence to exact versions and ECOSYSTEM boundaries", () => {
+    const packageInfo = advisory("pkg:pub/demo", {
+      ecosystem: "Pub",
+      versionRangeDetails: [ecosystemRange(event("introduced", "1.2.3+2"), event("fixed", "1.2.3+alpha"))],
+    });
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("numeric-build", "pkg:pub/demo@1.2.3+2", "1.2.3+2"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("text-build", "pkg:pub/demo@1.2.3+alpha", "1.2.3+alpha"),
+    ).status).toBe("NO_MATCH_IN_RETURNED_OSV_VERSION_DATA");
+
+    expect(assessOsvPackageVersion(
+      advisory("pkg:pub/demo", { ecosystem: "Pub", affectedVersions: ["2.0.0+01"] }),
+      component("equivalent-build", "pkg:pub/demo@2.0.0+1", "2.0.0+1"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      advisory("pkg:pub/demo", {
+        ecosystem: "Pub",
+        versionRangeDetails: [semverRange(event("introduced", "1.0.0"), event("fixed", "2.0.0"))],
+      }),
+      component("wrong-range-kind", "pkg:pub/demo@1.5.0", "1.5.0"),
+    ).status).toBe("NOT_ASSESSED");
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("large-build", `pkg:pub/demo@1.2.3+${"9".repeat(16)}`, `1.2.3+${"9".repeat(16)}`),
+    ).status).toBe("NOT_ASSESSED");
+  });
+
+  it("requires canonical Go module versions and supports only +incompatible build metadata", () => {
+    const packageInfo = advisory("pkg:golang/example.com/demo", {
+      ecosystem: "Go",
+      versionRangeDetails: [semverRange(event("introduced", "v1.0.0"), event("fixed", "v2.0.0"))],
+    });
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("inside", "pkg:golang/example.com/demo@v1.5.0", "v1.5.0"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("fixed", "pkg:golang/example.com/demo@v2.0.0", "v2.0.0"),
+    ).status).toBe("NO_MATCH_IN_RETURNED_OSV_VERSION_DATA");
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("without-prefix", "pkg:golang/example.com/demo@1.5.0", "1.5.0"),
+    ).status).toBe("NOT_ASSESSED");
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("incompatible", "pkg:golang/example.com/demo@v1.5.0+incompatible", "v1.5.0+incompatible"),
+    ).status).toBe("AFFECTED");
+    expect(assessOsvPackageVersion(
+      packageInfo,
+      component("other-metadata", "pkg:golang/example.com/demo@v1.5.0+custom", "v1.5.0+custom"),
+    ).status).toBe("NOT_ASSESSED");
   });
 
   it("does not infer exact-list negatives from absent or incomplete evidence", () => {

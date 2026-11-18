@@ -25,6 +25,10 @@ ADRs capture trade-offs, not feature completion.
 - 0021 Local Go module SemVer range assessment
 - 0022 Restricted local NuGet SemVer range assessment
 - 0023 Local crates.io SemVer range assessment
+- 0024 Local PyPI PEP 440 range assessment
+- 0025 Local RubyGems ecosystem range assessment
+- 0026 Local Hex ecosystem range assessment
+- 0027 Local Pub ecosystem range assessment
 
 ## Template
 
