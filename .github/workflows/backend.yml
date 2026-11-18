@@ -102,5 +102,36 @@ jobs:
         uses: actions/checkout@v4
       - name: Validate Compose configuration
         run: docker compose config --quiet
+      - name: Validate optional observability Compose profiles
+        run: |
+          docker compose --profile observability config --quiet
+          docker compose -f compose.yaml -f compose.email-alerts.yaml --profile observability config --quiet
+      - name: Validate Prometheus and Alertmanager configuration
+        shell: bash
+        run: |
+          docker run --rm \
+            --volume "$PWD/ops/prometheus:/etc/prometheus:ro" \
+            --entrypoint=promtool \
+            prom/prometheus:v3.16.0 \
+            check config /etc/prometheus/prometheus.yml
+          docker run --rm \
+            --volume "$PWD/ops/prometheus:/etc/prometheus:ro" \
+            --entrypoint=promtool \
+            prom/prometheus:v3.16.0 \
+            check rules /etc/prometheus/rules/aura.yml
+          docker run --rm \
+            --volume "$PWD/ops/alertmanager:/etc/alertmanager:ro" \
+            --entrypoint=amtool \
+            prom/alertmanager:v0.35.0 \
+            check-config /etc/alertmanager/alertmanager.yml
+          ci_config="$RUNNER_TEMP/aura-alertmanager-ci"
+          mkdir -p "$ci_config"
+          cp ops/alertmanager/alertmanager.email.example.yml "$ci_config/"
+          printf 'ci-only-placeholder\n' > "$ci_config/smtp-password"
+          docker run --rm \
+            --volume "$ci_config:/etc/alertmanager:ro" \
+            --entrypoint=amtool \
+            prom/alertmanager:v0.35.0 \
+            check-config /etc/alertmanager/alertmanager.email.example.yml
       - name: Build the AI and web images
         run: docker compose build ai web

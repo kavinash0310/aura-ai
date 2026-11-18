@@ -29,7 +29,7 @@ See [implementation status](docs/04-learning/AURA-IMPLEMENTATION-STATUS.md) and 
 
 The [repository security review](docs/02-architecture/SECURITY-REVIEW.md) records current code controls and the conditions that must be met before any remote or multi-user deployment.
 
-Optional local health and Prometheus metrics are available through the Compose `observability` profile. See the [observability runbook](docs/19-operations/OBSERVABILITY.md) for the isolated management port and retention boundaries.
+Optional local health, Prometheus metrics, API alert rules, and a loopback Alertmanager UI are available through the Compose `observability` profile. The default alert receiver is silent; email requires the separate operator-configured overlay. Prometheus retention and local container memory have bounds for the 16 GB workstation target. See the [observability runbook](docs/19-operations/OBSERVABILITY.md) and [alerting runbook](docs/19-operations/ALERTING.md).
 
 Local AI report and claim-comparison responses include prompt template versions and available Ollama timing/token counters. Completion logs contain usage metadata only; prompt text, source snippets, claims, and model output are excluded.
 
@@ -71,12 +71,17 @@ All host ports bind to loopback. The Python health endpoint is public and return
 - [Bluesky public-post search](docs/05-backend/BLUESKY-SEARCH.md)
 - [Provider outcome audit](docs/05-backend/PROVIDER-OUTCOME-AUDIT.md)
 - [Database backup and restore runbook](docs/19-operations/DATABASE-BACKUP-RESTORE.md)
+- [Alerting runbook](docs/19-operations/ALERTING.md)
+- [Testing and verification guide](docs/19-operations/TESTING.md)
+- [Demo scenarios](docs/19-operations/DEMO-SCENARIOS.md)
+- [Engineering case study](docs/04-learning/AURA-ENGINEERING-CASE-STUDY.md)
 - [Bounded local report design](docs/05-backend/RESEARCH-REPORT-GENERATION.md)
 - [Bounded document question-answering design](docs/05-backend/DOCUMENT-QUESTION-ANSWERING.md)
 - [Multi-provider search design](docs/05-backend/MULTI-PROVIDER-SEARCH.md)
 - [Technology decisions](docs/02-architecture/TECHNOLOGY-DECISIONS.md)
 - [Threat model](docs/02-architecture/THREAT-MODEL.md)
 - [Learning roadmap](docs/04-learning/AURA-LEARNING-ROADMAP.md)
+- [AI/ML/DL learning roadmap](docs/04-learning/AI-ML-DL-ROADMAP.md)
 - [Feature learning map](docs/04-learning/FEATURE-TO-LEARNING-MAP.md)
 - [Progress tracker](docs/04-learning/AURA-PROGRESS.md)
 - [Interview guide](docs/04-learning/AURA-INTERVIEW-GUIDE.md)

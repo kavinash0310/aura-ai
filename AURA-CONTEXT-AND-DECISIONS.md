@@ -2,7 +2,7 @@
 
 ## Repository inspection
 
-The repository was empty when inspected: no source files, documentation, instructions, ADRs, or commit history existed. A project README was added to establish the brief. The implementation branch is codex/phase-0-foundation; no previous code was available to preserve.
+The initial project inspection found an empty implementation repository and established the brief on the `codex/phase-0-foundation` branch. That describes the original starting point, not the current implementation. Subsequent milestones were merged to `main`; the 2026-11-18 baseline inspected for this continuation was commit `527420c`. It includes the Spring/Python/PostgreSQL application, React workspace, bounded public-source search, document handling, local model actions, and defensive vulnerability intelligence. The current feature branch adds local operational alerting and portfolio documentation; its verification is tracked separately in the progress document.
 
 ## Context carried into this repository
 

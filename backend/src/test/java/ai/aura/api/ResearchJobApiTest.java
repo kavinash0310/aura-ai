@@ -1,5 +1,6 @@
 package ai.aura.api;
 
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -37,11 +39,24 @@ class ResearchJobApiTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private PrometheusMeterRegistry prometheusMeterRegistry;
+
     @Test
     void healthIsPublic() throws Exception {
         mockMvc.perform(get("/api/v1/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void httpRequestHistogramExportsBucketsForPrometheusLatencyAlerts() throws Exception {
+        mockMvc.perform(get("/api/v1/health"))
+                .andExpect(status().isOk());
+
+        String scrape = prometheusMeterRegistry.scrape();
+        assertThat(scrape).contains("http_server_requests_seconds_count");
+        assertThat(scrape).contains("http_server_requests_seconds_bucket");
     }
 
     @Test

@@ -1,0 +1,49 @@
+groups:
+  - name: aura-api
+    rules:
+      - alert: AuraApiUnavailable
+        expr: up{job="aura-api"} == 0
+        for: 2m
+        labels:
+          service: aura-api
+          severity: critical
+        annotations:
+          summary: AURA API metrics target is unavailable
+          description: Prometheus has failed to scrape the AURA API management endpoint for at least two minutes.
+
+      - alert: AuraApiHighServerErrorRate
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{job="aura-api",status=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_server_requests_seconds_count{job="aura-api"}[5m])), 0.001)
+          ) > 0.05
+          and sum(rate(http_server_requests_seconds_count{job="aura-api"}[5m])) > 0.1
+        for: 5m
+        labels:
+          service: aura-api
+          severity: warning
+        annotations:
+          summary: AURA API server error rate is above 5%
+          description: More than 5% of observed API requests returned a 5xx status for at least five minutes.
+
+      - alert: AuraApiHighP95Latency
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job="aura-api"}[5m]))) > 2
+          and sum(rate(http_server_requests_seconds_count{job="aura-api"}[5m])) > 0.1
+        for: 10m
+        labels:
+          service: aura-api
+          severity: warning
+        annotations:
+          summary: AURA API p95 latency is above two seconds
+          description: The five-minute rolling p95 server request duration exceeded two seconds for at least ten minutes.
+
+      - alert: AuraApiHighJvmHeapUsage
+        expr: sum by (instance) (jvm_memory_used_bytes{job="aura-api",area="heap"}) / clamp_min(sum by (instance) (jvm_memory_max_bytes{job="aura-api",area="heap"}), 1) > 0.85
+        for: 10m
+        labels:
+          service: aura-api
+          severity: warning
+        annotations:
+          summary: AURA API JVM heap usage is above 85%
+          description: The JVM heap has remained above 85% of its configured maximum for at least ten minutes.

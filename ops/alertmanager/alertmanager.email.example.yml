@@ -1,0 +1,20 @@
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: smtp.example.invalid:587
+  smtp_from: aura@example.invalid
+  smtp_auth_username: aura@example.invalid
+  smtp_auth_password_file: /etc/alertmanager/smtp-password
+  smtp_require_tls: true
+
+route:
+  receiver: aura-email
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+
+receivers:
+  - name: aura-email
+    email_configs:
+      - to: owner@example.invalid
+        send_resolved: true

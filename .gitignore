@@ -3,6 +3,8 @@
 .env.*
 !.env.example
 /backups/
+ops/alertmanager/alertmanager.local.yml
+ops/alertmanager/smtp-password
 **/target/
 .idea/
 *.iml

@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:18
+    mem_limit: 1g
     environment:
       POSTGRES_DB: ${AURA_DB_NAME:?Set AURA_DB_NAME in .env}
       POSTGRES_USER: ${AURA_DB_USER:?Set AURA_DB_USER in .env}
@@ -19,6 +20,7 @@ services:
   api:
     build:
       context: ./backend
+    mem_limit: 1536m
     environment:
       AURA_SERVER_ADDRESS: 0.0.0.0
       AURA_DB_URL: jdbc:postgresql://db:5432/${AURA_DB_NAME:?Set AURA_DB_NAME in .env}
@@ -48,23 +50,46 @@ services:
   prometheus:
     image: prom/prometheus:v3.16.0
     profiles: ["observability"]
+    mem_limit: 1g
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--storage.tsdb.retention.size=1GB"
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
       - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/prometheus/rules:/etc/prometheus/rules:ro
       - aura-prometheus-data:/prometheus
     networks:
       - observability
     depends_on:
       - api
+      - alertmanager
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.35.0
+    profiles: ["observability"]
+    mem_limit: 128m
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--web.listen-address=0.0.0.0:9093"
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - ./ops/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - aura-alertmanager-data:/alertmanager
+    networks:
+      - observability
     restart: unless-stopped
 
   ai:
     build:
       context: ./ai-service
+    mem_limit: 512m
     environment:
       AURA_AI_LOG_LEVEL: ${AURA_AI_LOG_LEVEL:-INFO}
       AURA_AI_INTERNAL_TOKEN: ${AURA_AI_INTERNAL_TOKEN:-}
@@ -79,6 +104,7 @@ services:
   web:
     build:
       context: ./web
+    mem_limit: 256m
     ports:
       - "127.0.0.1:3000:80"
     depends_on:
@@ -88,6 +114,7 @@ services:
 volumes:
   aura-postgres-data:
   aura-prometheus-data:
+  aura-alertmanager-data:
 
 networks:
   observability:

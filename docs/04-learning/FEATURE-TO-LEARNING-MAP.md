@@ -17,12 +17,12 @@ CORE means needed for AURA; CAREER means high value for the target role; OPTIONA
 | Controlled workflows | Tool permission, state, audit, approval, recovery | Java state machine, optional LangGraph | Workflow fundamentals | CORE / CAREER |
 | Cyber intelligence | CVE/CPE/SBOM, KEV, EPSS, CVSS v3/v4, advisory provenance, bounded public APIs, PURL identity, exact OSV version evidence, strict npm, crates.io, restricted NuGet, and Go module SemVer range applicability, deterministic ranking regression fixtures, source freshness, uncertainty | NVD/CISA/FIRST/OSV/GitHub Advisory adapters | Normalization, probability, source trust, HTTP limits, caching, version identifiers, ecosystem-specific SemVer limits, test design | CORE |
 | UI | Component/state model, accessibility, API types | React, TypeScript, Vite | HTML/CSS/JS, APIs | CORE / CAREER |
-| Operations | Containers, CI, logs, metrics, backup/restore | Docker Compose, GitHub Actions | CLI, Linux | CAREER |
+| Operations | Containers, CI, logs, metrics/cardinality, PromQL alerts, notification egress, resource ceilings, backup/restore | Docker Compose, Prometheus, Alertmanager, GitHub Actions | CLI, networking, Linux | CAREER |
 | Safety | Auth, prompt injection, SSRF, privacy, audit | Spring Security, policy | Web security | CORE / CAREER |
 
 ## AI/ML sequence
 
-Linear algebra basics (vectors, dot products), probability/statistics, NumPy/Pandas, scikit-learn baselines, neural network basics, PyTorch, tokenization, transformers, embeddings, inference, evaluation. AURA initially consumes models; it does not train a foundation model.
+Linear algebra basics (vectors, dot products), probability/statistics, NumPy/Pandas, scikit-learn baselines, neural network basics, PyTorch, tokenization, transformers, embeddings, inference, evaluation. AURA initially consumes models; it does not train a foundation model. Use the hands-on [AI/ML/DL roadmap](AI-ML-DL-ROADMAP.md) to sequence CPU-sized exercises and quality checkpoints.
 
 ## Demonstration standard
 

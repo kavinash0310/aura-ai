@@ -14,7 +14,7 @@ Extend only after basics: pagination, idempotency, audit, OIDC.
 
 ## Phase 2 — Python AI service
 Learn Python OOP/typing, virtual environments, Pydantic, FastAPI, ASGI, asyncio/blocking I/O, packaging/lock files, HTTP timeout/retry.
-Implemented: Python 3.12 service, settings via Pydantic Settings, FastAPI lifespan and typed health response, uv lock, isolated container, token-protected report and claim-comparison routes, and a local query-plan route on the active branch (CI pending). When explicitly enabled, model actions call only a local/private Ollama endpoint using structured output; provider snippets are untrusted and the service has no search tools, data connectors, or database access.
+Implemented: Python 3.12 service, settings via Pydantic Settings, FastAPI lifespan and typed health response, uv lock, isolated container, token-protected report and claim-comparison routes, and a local query-plan route. When explicitly enabled, model actions call only a local/private Ollama endpoint using structured output; provider snippets are untrusted and the service has no search tools, data connectors, or database access.
 Review: Why can POST retry duplicate work? What blocks the event loop? Explain what authority Python does not own.
 Review the report route's typed Java-to-Python contract, bearer-token boundary, blocking I/O offload, local endpoint allowlist, and source-ID validation. Explain why citation membership does not prove semantic support.
 
@@ -51,4 +51,16 @@ Review replay, retries, terminal failures, and policy boundary.
 Learn CVE/CPE/SBOM, CVSS vs EPSS, KEV semantics, confidence, Docker networking, CI, logs, backups.
 Implement adapters, transparent ranking, evaluation, packaging and runbooks.
 Review evidence for priority and how restore is verified.
+
+## Phase 8 — Production engineering
+Learn health/readiness semantics, Prometheus metric types and cardinality, alert thresholds/grouping, container resource limits, backup/restore evidence, secret boundaries, failure diagnosis, and deployment threat modeling.
+Implemented: optional Prometheus and Alertmanager in an isolated local profile; API availability, 5xx ratio, p95 latency, and heap rules; silent default notification route; opt-in email configuration with a file-based SMTP secret; retention and container memory ceilings; CI validation for Compose, Prometheus, and Alertmanager configuration. SMTP delivery and threshold usefulness still need an owner-run local exercise. Remote metrics, distributed tracing, public deployment security, and host-loss recovery remain unverified or deferred.
+Review: How does each rule avoid noise? Which metrics are safe labels? Which network grants SMTP egress? What evidence proves a restore? Why does a passing syntax check not prove an alert was delivered?
+Practical exercise: start the profile, inspect a target, trigger an alert in a disposable local environment, and capture the incident-to-resolution timeline without exposing operational data.
+
+## Phase 9 — Portfolio and independent explanation
+Learn to present real evidence, trade-offs, limits, test commands, operational setup, and one end-to-end user story without claiming unverified behavior.
+Implemented artifacts: README, architecture diagrams, ADRs, API and security design, test guide, demo scenarios, and a case-study template.
+Still needed: run the clean setup and demo on the owner's machine; replace the case-study prompts with the owner's own decisions and lessons; explain one Java flow, one Python model call, one database migration, and one security boundary independently. Generated artifacts are not evidence of mastery.
+Review: Which test proves the behavior? What is deliberately unsupported? Which design would change first under a real deployment requirement?
 
