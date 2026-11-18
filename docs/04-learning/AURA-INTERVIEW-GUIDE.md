@@ -44,3 +44,11 @@ Only describe features actually implemented on the current branch.
 ## Exercise
 
 Draw current M1 request flow and target RAG flow. For each, name one failure and the test that detects it.
+
+## Operations questions
+
+- Why are the Prometheus and Alertmanager UIs loopback-only and unauthenticated?
+- What does the email overlay change in the Docker network, and where does its SMTP secret live?
+- Why do the 5xx and p95 rules require a minimum request rate?
+- Which conditions can syntax validation prove, and which require an owner-run smoke test?
+- Why do local memory caps and Prometheus retention use explicit bounds?

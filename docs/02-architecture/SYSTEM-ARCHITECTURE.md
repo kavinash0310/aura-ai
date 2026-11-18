@@ -19,8 +19,7 @@ flowchart LR
   Docs --> Pg
   Api --> Workflow[Bounded research workflow]
   Workflow --> Py[Optional Python FastAPI AI service]
-  Py --> Local[Local model provider]
-  Py --> Hosted[Optional hosted provider]
+  Py --> Local[Local Ollama model when enabled]
   Workflow --> Reports[Cited reports and exports]
   Api --> Audit[Audit events and approvals]
   Audit --> Pg
@@ -156,6 +155,22 @@ flowchart LR
 ~~~
 
 Future flow only. Parsing, chunking, indexing, retrieval, and synthesis remain separate so failures and quality can be measured per stage. pgvector is deferred until semantic retrieval evaluation justifies it.
+
+## Optional local metrics and alert flow
+
+```mermaid
+flowchart LR
+  API[Spring API management endpoint :8081] -->|scrape on internal network| Prom[Prometheus]
+  Rules[API alert rules] --> Prom
+  Prom -->|firing alerts| AM[Alertmanager]
+  Owner -->|loopback :9090| Prom
+  Owner -->|loopback :9093| AM
+  AM -.->|only with email overlay| SMTP[Configured SMTP relay]
+```
+
+Prometheus and Alertmanager join the internal observability network with the API management endpoint. Their UIs bind to loopback; only the optional email overlay attaches Alertmanager to an outbound-capable notification network. The default receiver is silent, while rule expressions track API scrape availability, server errors, latency, and JVM heap. This diagram describes the Compose development topology only: it has no remote metrics store, distributed tracing, production identity service, or external ingress policy.
+
+**Interview:** “Operational signals stay local by default. Prometheus evaluates bounded API rules, Alertmanager groups them, and notification egress is an explicit operator choice.”
 
 ## Deployment target
 

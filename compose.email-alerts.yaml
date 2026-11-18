@@ -1,0 +1,12 @@
+services:
+  alertmanager:
+    volumes:
+      - ./ops/alertmanager/alertmanager.local.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./ops/alertmanager/smtp-password:/etc/alertmanager/smtp-password:ro
+    networks:
+      - observability
+      - notifications
+
+networks:
+  notifications:
+    driver: bridge

@@ -23,6 +23,10 @@ server:
   error:
     include-message: never
 management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   server:
     address: ${AURA_MANAGEMENT_ADDRESS:127.0.0.1}
     port: ${AURA_MANAGEMENT_PORT:8081}

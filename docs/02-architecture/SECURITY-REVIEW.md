@@ -34,3 +34,7 @@ The repository now defines weekly Dependabot version updates for GitHub Actions,
 - Data deletion is logical. PostgreSQL volumes, backup files, and temporary restore/drill data need encrypted storage and owner-managed retention.
 
 Revisit this review whenever the deployment becomes remotely reachable, gains another user, adds an account connector, or enables active security checks.
+
+## 2026-11-18 configuration addendum: local alerting
+
+The optional observability profile now includes API alert rules and a loopback-bound Alertmanager UI. Its tracked receiver is silent. Email requires a separate Compose overlay, an ignored local SMTP password file, and a normal Docker bridge network for outbound delivery; the default internal observability network remains unchanged. CI validates the Compose variants and monitoring configuration syntax. This addendum reviews the configuration boundary only; it is not a full rerun of the security review, SMTP delivery test, or deployment assessment. Do not expose either monitoring UI beyond loopback.
