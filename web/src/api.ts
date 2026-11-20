@@ -314,7 +314,7 @@ export async function downloadExport(
   credentials: Credentials,
   id: string,
   filters: ResultFilters,
-  format: "json" | "csv" | "md",
+  format: "json" | "csv" | "md" | "pdf",
 ): Promise<Blob> {
   const params = filterParams(filters);
   params.set("format", format);

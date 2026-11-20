@@ -101,9 +101,9 @@ The response contains `readId`, `sourceId`, the final page URL and host, title, 
 
 Returns recent metadata-only read attempts for a saved source in a completed or partially completed brief. `limit` defaults to 10 and must be from 1 to 100. Each row includes status (`RUNNING`, `SUCCEEDED`, `FAILED`, or `ABANDONED`), request/completion times, optional content hash/count/truncation, and a stable failure code. It does not return page text or a page URL. Startup recovery marks interrupted `RUNNING` rows as `ABANDONED`; this currently assumes one backend instance.
 
-### GET `/api/v1/research-jobs/{id}/export?format=json|csv|md`
+### GET `/api/v1/research-jobs/{id}/export?format=json|csv|md|pdf`
 
-Downloads the same filtered result set as JSON, CSV, or Markdown. `format` defaults to `json`. CSV fields are quoted and formula-leading values are neutralized. Exports include provider metadata, source links, retrieval times, provider-run outcomes, and the coverage note; CSV uses `SOURCE` and `PROVIDER_RUN` record types so outcomes remain machine-readable. An export is not a synthesized report.
+Downloads the same filtered result set as JSON, CSV, Markdown, or PDF. `format` defaults to `json`. CSV fields are quoted and formula-leading values are neutralized. Exports include provider metadata, source links, retrieval times, provider-run outcomes, and the coverage note; CSV uses `SOURCE` and `PROVIDER_RUN` record types so outcomes remain machine-readable. PDF uses a bounded plain-text layout; glyphs unavailable in its built-in font are replaced with `?`. An export is not a synthesized report.
 
 ## Defensive vulnerability lookup
 

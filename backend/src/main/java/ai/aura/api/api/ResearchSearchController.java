@@ -2,6 +2,7 @@ package ai.aura.api.api;
 
 import ai.aura.api.application.InvalidResearchFilterException;
 import ai.aura.api.application.ResearchJobService;
+import ai.aura.api.application.ResearchReportPdfRenderer;
 import ai.aura.api.application.ResearchResultService;
 import ai.aura.api.application.ResearchSearchService;
 import ai.aura.api.domain.ResearchJob;
@@ -34,17 +35,20 @@ public class ResearchSearchController {
     private final ResearchResultService resultService;
     private final ResearchJobService jobService;
     private final JsonMapper jsonMapper;
+    private final ResearchReportPdfRenderer pdfRenderer;
 
     public ResearchSearchController(
             ResearchSearchService searchService,
             ResearchResultService resultService,
             ResearchJobService jobService,
-            JsonMapper jsonMapper
+            JsonMapper jsonMapper,
+            ResearchReportPdfRenderer pdfRenderer
     ) {
         this.searchService = searchService;
         this.resultService = resultService;
         this.jobService = jobService;
         this.jsonMapper = jsonMapper;
+        this.pdfRenderer = pdfRenderer;
     }
 
     @PostMapping("/{id}/search")
@@ -121,7 +125,12 @@ public class ResearchSearchController {
                     extension = "md";
                     body = markdown(response).getBytes(StandardCharsets.UTF_8);
                 }
-                default -> throw new InvalidResearchFilterException("Export format must be json, csv, or md.");
+                case "pdf" -> {
+                    mediaType = MediaType.APPLICATION_PDF;
+                    extension = "pdf";
+                    body = pdfRenderer.render(response);
+                }
+                default -> throw new InvalidResearchFilterException("Export format must be json, csv, md, or pdf.");
             }
         } catch (JacksonException exception) {
             throw new IllegalStateException("Could not serialize research export.", exception);

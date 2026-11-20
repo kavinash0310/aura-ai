@@ -562,7 +562,7 @@ export default function App() {
     }
   }
 
-  async function exportResults(format: "json" | "csv" | "md") {
+  async function exportResults(format: "json" | "csv" | "md" | "pdf") {
     if (!job) return;
     setExporting(format);
     setError("");
@@ -1595,6 +1595,7 @@ export default function App() {
                     <button type="button" onClick={() => void exportResults("csv")} disabled={Boolean(exporting)}>{exporting === "csv" ? "Preparing…" : "↓ CSV"}</button>
                     <button type="button" onClick={() => void exportResults("json")} disabled={Boolean(exporting)}>{exporting === "json" ? "Preparing…" : "↓ JSON"}</button>
                     <button type="button" onClick={() => void exportResults("md")} disabled={Boolean(exporting)}>{exporting === "md" ? "Preparing…" : "↓ MD"}</button>
+                    <button type="button" onClick={() => void exportResults("pdf")} disabled={Boolean(exporting)}>{exporting === "pdf" ? "Preparing…" : "↓ PDF"}</button>
                   </div>}
                 </div>
 
