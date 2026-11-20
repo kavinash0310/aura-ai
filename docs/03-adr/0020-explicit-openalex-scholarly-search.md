@@ -1,7 +1,9 @@
 # ADR 0020: Explicit OpenAlex scholarly-work search
 
-- Status: Accepted
+- Status: Accepted; provider-filter limits superseded in part by [ADR 0024](0024-openalex-language-and-institution-country-filters.md)
 - Date: 2026-11-11
+
+The initial filter limitation below describes the original OpenAlex slice. The filter decision was updated on 2026-11-20: OpenAlex now applies supported metadata-language and author-institution-country filters, as recorded in ADR 0024.
 
 ## Context
 

@@ -93,7 +93,7 @@ public class OpenAlexWorksSearchProvider implements SearchProvider {
                 .queryParam("search.title_abstract_keywords", query)
                 .queryParam("per_page", filters.resultLimit())
                 .queryParam("select", "id,title,publication_date,authorships,abstract_inverted_index")
-                .queryParamIfPresent("filter", Optional.ofNullable(publicationDateFilter(filters.freshness())))
+                .queryParamIfPresent("filter", Optional.ofNullable(workFilter(filters)))
                 .build()
                 .encode()
                 .toUri();
@@ -149,6 +149,21 @@ public class OpenAlexWorksSearchProvider implements SearchProvider {
             ));
         }
         return List.copyOf(results);
+    }
+
+    private static String workFilter(ResearchFilters filters) {
+        List<String> clauses = new ArrayList<>();
+        String publicationDate = publicationDateFilter(filters.freshness());
+        if (StringUtils.hasText(publicationDate)) {
+            clauses.add(publicationDate);
+        }
+        if (StringUtils.hasText(filters.language())) {
+            clauses.add("language:" + filters.language());
+        }
+        if (StringUtils.hasText(filters.country())) {
+            clauses.add("institutions.country_code:" + filters.country());
+        }
+        return clauses.isEmpty() ? null : String.join(",", clauses);
     }
 
     private static String publicationDateFilter(String freshness) {
